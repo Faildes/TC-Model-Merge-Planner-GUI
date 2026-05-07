@@ -164,6 +164,7 @@ INIT_CONFIG = {
     "title": "merge_plan",
     "vae": "",
     "vae_name": "VAE",
+    "bake_vae": False,
     "model_dir": "",
     "vae_dir": "",
     "CivitAPI": "",
@@ -224,6 +225,10 @@ LEFT_PANEL_FIELD_HELP = {
     "VAE Name": {
         "short": "Filename base used when saving the VAE.",
         "detail": "This name is used as the saved VAE filename base inside the VAE directory. Keep it stable if you want notebooks to reuse the same downloaded VAE file.",
+    },
+    "Bake VAE": {
+        "short": "Enable VAE bake-in for generated merge commands.",
+        "detail": "When enabled, the generated notebook downloads or resolves the configured VAE and appends --vae to checkpoint merge commands. When disabled, no --vae argument is emitted in the generated plan.",
     },
     "User/Repo ID": {
         "short": "User or repository identifier passed to notebook generation.",
@@ -1255,7 +1260,7 @@ def discover_merge_modes() -> List[Dict[str, Any]]:
 
 class ModelPlannerApp:
     NOTEBOOK_PARAMS_KEYS = [
-        "filepath", "workpath", "title", "vae", "vae_name", "CivitAPI", "HuggingAPI", "UR", "model_dir", "vae_dir", "ignore_install_deps", "upload_after_merge", "run_t2i"
+        "filepath", "workpath", "title", "vae", "vae_name", "bake_vae", "CivitAPI", "HuggingAPI", "UR", "model_dir", "vae_dir", "ignore_install_deps", "upload_after_merge", "run_t2i"
     ]
 
     def __init__(self, root):
@@ -1293,6 +1298,10 @@ class ModelPlannerApp:
         self._autocomplete_inner: Frame | None = None
         self._autocomplete_scrollbar: Scrollbar | None = None
         self._rerender_after_id = None
+        self.vae_field_widgets: List[tk.Widget] = []
+        self.bake_vae_var = tk.BooleanVar(
+            value=bool(self.config.get("bake_vae", bool(str(self.config.get("vae", "")).strip())))
+        )
 
         self.root.geometry("1420x840+50+50")
         self.root.title("Model Planner")
@@ -2694,21 +2703,8 @@ class ModelPlannerApp:
         fields_frame = Frame(main_cfg)
         fields_frame.pack(fill="x", pady=(2, 10))
 
-        fields = [
-            ("HuggingAPI", "HuggingFace Token", False, None),
-            ("CivitAPI", "CivitAI API", False, None),
-            ("filepath", "Plan Text Path", True, self._browse_plan_file),
-            ("workpath", "Workspace Path", False, None),
-            ("model_dir", "Model Dir (Opt.)", True, lambda: self._select_directory("model_dir")),
-            ("vae_dir", "VAE Dir (Opt.)", True, lambda: self._select_directory("vae_dir")),
-            ("title", "Notebook Title", False, None),
-            ("vae", "VAE URL", False, None),
-            ("vae_name", "VAE Name", False, None),
-            ("UR", "User/Repo ID", False, None),
-        ]
-
-        for key, text, has_button, command in fields:
-            frame = Frame(fields_frame)
+        def add_left_entry_row(parent_widget, key, text, has_button=False, command=None):
+            frame = Frame(parent_widget)
             frame.pack(anchor="nw", fill="x", pady=(2, 0))
             row_widgets = [frame]
             label_widget = Label(frame, text=text, font=("MS Gothic", 9), width=18, anchor="w")
@@ -2735,7 +2731,46 @@ class ModelPlannerApp:
                 browse_btn.pack(side="right")
                 row_widgets.append(browse_btn)
             self._attach_tooltip(label_widget, self._left_help(text).get("detail", ""))
-            self._add_inline_help(fields_frame, text)
+            self._add_inline_help(parent_widget, text)
+            return row_widgets
+
+        fields = [
+            ("HuggingAPI", "HuggingFace Token", False, None),
+            ("CivitAPI", "CivitAI API", False, None),
+            ("filepath", "Plan Text Path", True, self._browse_plan_file),
+            ("workpath", "Workspace Path", False, None),
+            ("model_dir", "Model Dir (Opt.)", True, lambda: self._select_directory("model_dir")),
+            ("title", "Notebook Title", False, None),
+            ("UR", "User/Repo ID", False, None),
+        ]
+
+        for key, text, has_button, command in fields:
+            add_left_entry_row(fields_frame, key, text, has_button, command)
+
+        vae_outer = Frame(fields_frame)
+        vae_outer.pack(anchor="nw", fill="x", pady=(8, 2))
+        vae_check_col = Frame(vae_outer)
+        vae_check_col.pack(side="left", anchor="n", padx=(0, 6), pady=(16, 0))
+        vae_check = ttk.Checkbutton(
+            vae_check_col,
+            text="Bake",
+            variable=self.bake_vae_var,
+            command=self._on_bake_vae_toggle,
+        )
+        vae_check.pack(anchor="n")
+        self._attach_tooltip(vae_check, self._left_help("Bake VAE").get("detail", ""))
+        vae_box = LabelFrame(vae_outer, text="VAE", padx=6, pady=6)
+        vae_box.pack(side="left", fill="x", expand=True)
+        self._attach_tooltip(vae_box, self._left_help("Bake VAE").get("detail", ""))
+        self.vae_field_widgets = []
+        for key, text, has_button, command in [
+            ("vae_dir", "VAE Dir (Opt.)", True, lambda: self._select_directory("vae_dir")),
+            ("vae", "VAE URL", False, None),
+            ("vae_name", "VAE Name", False, None),
+        ]:
+            self.vae_field_widgets.extend(add_left_entry_row(vae_box, key, text, has_button, command))
+        self._add_inline_help(fields_frame, "Bake VAE")
+        self._on_bake_vae_toggle(save=False)
 
         notebook_frame = LabelFrame(parent, text="Notebook Output", padx=5, pady=5)
         notebook_frame.pack(fill="x", pady=(5, 10))
@@ -3697,6 +3732,19 @@ class ModelPlannerApp:
             self.root.after_cancel(self.save_after_id)
         self.save_after_id = self.root.after(350, self._save_current_state_to_config)
 
+    def _on_bake_vae_toggle(self, save: bool = True):
+        enabled = bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get())
+        for widget in getattr(self, "vae_field_widgets", []):
+            try:
+                if isinstance(widget, Entry):
+                    widget.configure(state="normal" if enabled else "disabled")
+                elif isinstance(widget, ttk.Button):
+                    widget.configure(state="normal" if enabled else "disabled")
+            except tk.TclError:
+                pass
+        if save:
+            self._schedule_config_save()
+
     def _save_current_state_to_config(self):
         for key, widget in self.entries.items():
             self.config[key] = widget.get()
@@ -3709,6 +3757,7 @@ class ModelPlannerApp:
         self.config["ignore_install_deps"] = bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get())
         self.config["upload_after_merge"] = bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get())
         self.config["run_t2i"] = bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get())
+        self.config["bake_vae"] = bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get())
         save_config_to_disk(self.config)
     def _restore_session_state(self):
         filepath = self.entries["filepath"].get().strip()
@@ -3933,6 +3982,7 @@ class ModelPlannerApp:
                 title=params.get("title", "merge_plan"),
                 vae=params.get("vae", ""),
                 vae_name=params.get("vae_name", "VAE"),
+                bake_vae=bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get()),
                 CivitAPI=params.get("CivitAPI", ""),
                 HuggingAPI=params.get("HuggingAPI", ""),
                 UR=params.get("UR", ""),
@@ -3970,6 +4020,7 @@ class ModelPlannerApp:
                 title=params.get("title", "merge_plan"),
                 vae=params.get("vae", ""),
                 vae_name=params.get("vae_name", "VAE"),
+                bake_vae=bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get()),
                 CivitAPI=params.get("CivitAPI", ""),
                 HuggingAPI=params.get("HuggingAPI", ""),
                 UR=params.get("UR", ""),
@@ -5025,6 +5076,7 @@ def get_ipython():
                 title=params.get("title", "merge_plan"),
                 vae=params.get("vae", ""),
                 vae_name=params.get("vae_name", "VAE"),
+                bake_vae=bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get()),
                 CivitAPI=params.get("CivitAPI", ""),
                 HuggingAPI=params.get("HuggingAPI", ""),
                 UR=params.get("UR", ""),
@@ -10316,6 +10368,745 @@ try:
     ModelPlannerApp._plan_entry_problem_map = _plan_entry_problem_map_titleized
     ModelPlannerApp._planner_problem_explanation = _planner_problem_explanation_titleized
     ModelPlannerApp._show_prevalidation = _show_prevalidation_with_download_checks
+except Exception:
+    pass
+
+
+# Final patch: retained local-source candidates, source-aware dependency updates, and LoRA reordering.
+try:
+    def _planner_norm_path_key(self, path: str) -> str:
+        try:
+            return os.path.normcase(os.path.abspath(os.path.expanduser(str(path or ''))))
+        except Exception:
+            return os.path.normcase(str(path or ''))
+
+    def _planner_add_local_choice(self, choices: Dict[str, str], path: str, preferred_label: str = ''):
+        path = self._normalize_user_path(str(path or '').strip())
+        if not path:
+            return
+        key = _planner_norm_path_key(self, path)
+        for existing in list(choices.values()):
+            if _planner_norm_path_key(self, existing) == key:
+                return
+        base = str(preferred_label or '').strip() or Path(path).name or path
+        label = base
+        if label in choices and _planner_norm_path_key(self, choices[label]) != key:
+            parent = Path(path).parent.name or str(Path(path).parent)
+            label = f'{Path(path).name} — {parent}'
+        if label in choices and _planner_norm_path_key(self, choices[label]) != key:
+            label = f'{Path(path).name} — {path}'
+        suffix = 2
+        original = label
+        while label in choices and _planner_norm_path_key(self, choices[label]) != key:
+            label = f'{original} #{suffix}'
+            suffix += 1
+        choices[label] = path
+
+    _planner_prev_scan_local_model_choices = getattr(ModelPlannerApp, '_scan_local_model_choices', None)
+    def _scan_local_model_choices_retained(self) -> Dict[str, str]:
+        choices: Dict[str, str] = {}
+        if _planner_prev_scan_local_model_choices is not None:
+            try:
+                for label, path in (_planner_prev_scan_local_model_choices(self) or {}).items():
+                    _planner_add_local_choice(self, choices, path, str(label or ''))
+            except Exception:
+                pass
+        for entry in (self.plan_data or {}).get('entries', []) or []:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get('type') == 'Local Model':
+                _planner_add_local_choice(self, choices, entry.get('local_path') or '')
+            try:
+                for _slot, alias, _kind, spec in self._iter_embedded_sources(entry):
+                    if isinstance(spec, dict) and str(spec.get('mode') or '').strip().lower() == 'local':
+                        path = str(spec.get('local_path') or '').strip()
+                        label = f'{alias} ({Path(path).name})' if alias and path else ''
+                        _planner_add_local_choice(self, choices, path, label)
+            except Exception:
+                pass
+        return choices
+
+    ModelPlannerApp._scan_local_model_choices = _scan_local_model_choices_retained
+
+    def _planner_display_for_local_path(self, choices: Dict[str, str], path: str) -> str:
+        key = _planner_norm_path_key(self, path)
+        for label, candidate in (choices or {}).items():
+            if _planner_norm_path_key(self, candidate) == key:
+                return label
+        return Path(str(path or '')).name if str(path or '').strip() else ''
+
+    def _build_local_selection_row_retained(self, parent, entry: Dict[str, Any]):
+        row = Frame(parent)
+        row.pack(fill='x', pady=3)
+        label_widget = Label(row, text='Local Selection', width=18, anchor='w')
+        label_widget.pack(side='left')
+        choices_map = self._scan_local_model_choices()
+        current_path = self._normalize_user_path(str(entry.get('local_path', '') or '').strip())
+        current_display = _planner_display_for_local_path(self, choices_map, current_path) if current_path else ''
+        if current_path and current_display and current_display not in choices_map:
+            _planner_add_local_choice(self, choices_map, current_path, current_display)
+        values = list(choices_map.keys())
+        var = tk.StringVar(value=current_display if current_display else (values[0] if values else ''))
+        combo = ttk.Combobox(row, textvariable=var, values=values, state='readonly')
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side='left', fill='x', expand=True, padx=4)
+        def sync(*_args):
+            display = var.get().strip()
+            selected_path = choices_map.get(display)
+            if selected_path:
+                entry['local_path'] = selected_path
+            elif current_path and display == current_display:
+                entry['local_path'] = current_path
+            elif display:
+                entry['local_path'] = display
+            self._after_entry_change()
+        var.trace_add('write', sync)
+        self._attach_tooltip(label_widget, self._right_help('Local Selection').get('detail', ''))
+        self._add_right_inline_help(parent, 'Local Selection')
+        return var
+
+    ModelPlannerApp._build_local_selection_row = _build_local_selection_row_retained
+
+    def _prompt_local_source_dialog_retained(self, label: str, kind_options, current_source=None):
+        source = current_source if isinstance(current_source, dict) else {}
+        options = [str(x) for x in (kind_options or []) if str(x).strip()] or ['Checkpoint']
+        initial_kind = self._normalize_source_kind(str(source.get('kind') or options[0]), options)
+        choices_map = self._scan_local_model_choices()
+        current_path = self._normalize_user_path(str(source.get('local_path') or '').strip())
+        current_display = _planner_display_for_local_path(self, choices_map, current_path) if current_path else ''
+        if current_path and current_display and current_display not in choices_map:
+            _planner_add_local_choice(self, choices_map, current_path, current_display)
+        values = list(choices_map.keys())
+        result = {'ok': False, 'spec': None}
+        win = tk.Toplevel(self.root)
+        win.title(f'{label} Local')
+        win.geometry('760x260+160+160')
+        win.transient(self.root)
+        outer = Frame(win, padx=10, pady=10)
+        outer.pack(fill='both', expand=True)
+        Label(outer, text='Select a previously used local model, or browse for a new file.', anchor='w').pack(fill='x', pady=(0, 8))
+        row_kind = Frame(outer); row_kind.pack(fill='x', pady=3)
+        Label(row_kind, text='Type', width=16, anchor='w').pack(side='left')
+        kind_var = tk.StringVar(value=initial_kind)
+        kind_combo = ttk.Combobox(row_kind, textvariable=kind_var, values=options, state='readonly')
+        kind_combo.pack(side='left', fill='x', expand=True, padx=4)
+        row_choice = Frame(outer); row_choice.pack(fill='x', pady=3)
+        Label(row_choice, text='Known Local', width=16, anchor='w').pack(side='left')
+        choice_var = tk.StringVar(value=current_display if current_display else (values[0] if values else ''))
+        choice_combo = ttk.Combobox(row_choice, textvariable=choice_var, values=values, state='readonly')
+        choice_combo.pack(side='left', fill='x', expand=True, padx=4)
+        row_path = Frame(outer); row_path.pack(fill='x', pady=3)
+        Label(row_path, text='Local Path', width=16, anchor='w').pack(side='left')
+        path_var = tk.StringVar(value=current_path or choices_map.get(choice_var.get(), ''))
+        path_entry = Entry(row_path, textvariable=path_var)
+        path_entry.pack(side='left', fill='x', expand=True, padx=4)
+        def browse():
+            path = filedialog.askopenfilename(
+                title=f'Select local {kind_var.get() or "model"}',
+                filetypes=[('Model Files', '*.safetensors *.ckpt *.pt *.bin'), ('All files', '*.*')],
+            )
+            path = self._normalize_user_path(path)
+            if path:
+                path_var.set(path)
+                alias_var.set(Path(path).stem)
+        ttk.Button(row_path, text='📂', width=3, command=browse).pack(side='left')
+        row_alias = Frame(outer); row_alias.pack(fill='x', pady=3)
+        Label(row_alias, text='Alias', width=16, anchor='w').pack(side='left')
+        alias_default = str(source.get('alias') or '').strip() or (Path(current_path).stem if current_path else '')
+        alias_var = tk.StringVar(value=alias_default)
+        alias_entry = Entry(row_alias, textvariable=alias_var)
+        alias_entry.pack(side='left', fill='x', expand=True, padx=4)
+        def on_choice(*_args):
+            path = choices_map.get(choice_var.get().strip())
+            if path:
+                path_var.set(path)
+                if not alias_var.get().strip():
+                    alias_var.set(Path(path).stem)
+        choice_var.trace_add('write', on_choice)
+        def ok():
+            path = self._normalize_user_path(path_var.get().strip())
+            if not path:
+                messagebox.showwarning(f'{label} Local', 'Local path is empty.', parent=win)
+                return
+            alias = alias_var.get().strip() or Path(path).stem
+            result['ok'] = True
+            result['spec'] = {'mode': 'local', 'kind': self._normalize_source_kind(kind_var.get(), options), 'alias': alias, 'local_path': path}
+            win.destroy()
+        def cancel():
+            win.destroy()
+        btns = Frame(outer); btns.pack(fill='x', pady=(10, 0))
+        ttk.Button(btns, text='OK', command=ok).pack(side='left')
+        ttk.Button(btns, text='Cancel', command=cancel).pack(side='left', padx=(6, 0))
+        try:
+            colors = self._theme_colors(); win.configure(bg=colors['bg']); self._apply_theme_to_children(win, colors)
+        except Exception:
+            pass
+        try:
+            win.grab_set()
+            alias_entry.focus_set()
+            self.root.wait_window(win)
+        except Exception:
+            pass
+        return result['spec'] if result.get('ok') else None
+
+    ModelPlannerApp._prompt_local_source_dialog = _prompt_local_source_dialog_retained
+
+    def _entry_produced_aliases_source_aware(self, entry: Dict[str, Any]) -> List[str]:
+        if self._entry_is_disabled(entry):
+            return []
+        etype = entry.get('type')
+        produced = []
+        if etype == 'Download Model':
+            name = str(entry.get('model_name') or '').strip()
+            if name:
+                produced.append(name)
+        elif etype == 'Local Model':
+            path = str(entry.get('local_path') or '').strip()
+            name = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+            if name:
+                produced.append(name)
+        elif etype in ('Checkpoint Merge', 'LoRA Bake'):
+            name = str(entry.get('output_name') or '').strip()
+            if name:
+                produced.append(name)
+        return produced
+
+    ModelPlannerApp._entry_produced_aliases = _entry_produced_aliases_source_aware
+
+    def _collect_available_models_source_aware(self, upto_index: int) -> Dict[str, List[str]]:
+        available: Dict[str, Dict[str, str]] = {'Checkpoint': {}, 'LoRA': {}, 'LyCORIS': {}}
+        for entry in (self.plan_data or {}).get('entries', [])[:upto_index]:
+            if self._entry_is_disabled(entry):
+                continue
+            etype = entry.get('type')
+            if etype == 'Remove Model':
+                name = str(entry.get('model') or '').strip()
+                if name:
+                    for bucket in available.values():
+                        bucket.pop(name, None)
+                continue
+            try:
+                for _slot, alias, kind, _spec in self._iter_embedded_sources(entry):
+                    alias = str(alias or '').strip()
+                    kind = str(kind or 'Checkpoint').strip() or 'Checkpoint'
+                    if alias:
+                        available.setdefault(kind, {})[alias] = kind
+            except Exception:
+                pass
+            if etype == 'Download Model':
+                name = str(entry.get('model_name') or '').strip()
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if name:
+                    available.setdefault(kind, {})[name] = kind
+            elif etype == 'Local Model':
+                path = str(entry.get('local_path') or '').strip()
+                name = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if name:
+                    available.setdefault(kind, {})[name] = kind
+            elif etype in ('Checkpoint Merge', 'LoRA Bake'):
+                name = str(entry.get('output_name') or '').strip()
+                if name:
+                    available['Checkpoint'][name] = 'Checkpoint'
+        return {k: sorted(v.keys()) for k, v in available.items()}
+
+    ModelPlannerApp._collect_available_models = _collect_available_models_source_aware
+
+    def _planner_source_signature(self, mode: str, value: str) -> str:
+        mode = str(mode or '').strip().lower()
+        value = str(value or '').strip()
+        if mode == 'local':
+            return 'local:' + _planner_norm_path_key(self, value)
+        if mode == 'download':
+            return 'download:' + re.sub(r'#.*$', '', value)
+        return mode + ':' + value
+
+    def _planner_source_records(self):
+        records = []
+        for idx, entry in enumerate((self.plan_data or {}).get('entries', []) or []):
+            if not isinstance(entry, dict) or self._entry_is_disabled(entry):
+                continue
+            etype = entry.get('type')
+            if etype == 'Download Model':
+                alias = str(entry.get('model_name') or '').strip()
+                link = str(entry.get('link') or '').strip()
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if alias and link:
+                    records.append({'idx': idx, 'alias': alias, 'kind': kind, 'mode': 'download', 'signature': _planner_source_signature(self, 'download', link), 'detail': link, 'embedded': False})
+            elif etype == 'Local Model':
+                path = str(entry.get('local_path') or '').strip()
+                alias = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if alias and path:
+                    records.append({'idx': idx, 'alias': alias, 'kind': kind, 'mode': 'local', 'signature': _planner_source_signature(self, 'local', path), 'detail': path, 'embedded': False})
+            try:
+                for slot, alias, kind, spec in self._iter_embedded_sources(entry):
+                    if not isinstance(spec, dict):
+                        continue
+                    mode = str(spec.get('mode') or '').strip().lower()
+                    if mode == 'local':
+                        detail = str(spec.get('local_path') or '').strip()
+                    elif mode == 'download':
+                        detail = str(spec.get('link') or '').strip()
+                    else:
+                        detail = ''
+                    alias = str(alias or '').strip()
+                    if alias and detail:
+                        records.append({'idx': idx, 'alias': alias, 'kind': str(kind or spec.get('kind') or 'Checkpoint'), 'mode': mode, 'signature': _planner_source_signature(self, mode, detail), 'detail': detail, 'slot': slot, 'embedded': True})
+            except Exception:
+                pass
+        return records
+
+    ModelPlannerApp._planner_source_records = _planner_source_records
+
+    def _planner_analysis_source_aware(self):
+        entries = (self.plan_data or {}).get('entries', []) or []
+        produced_by_entry = {idx: self._entry_produced_aliases(entry) for idx, entry in enumerate(entries)}
+        consumed_by_entry = {idx: self._entry_consumed_aliases(entry) for idx, entry in enumerate(entries)}
+        source_records = self._planner_source_records()
+        embedded_by_idx = {}
+        for rec in source_records:
+            if rec.get('embedded'):
+                embedded_by_idx.setdefault(rec['idx'], []).append(rec)
+        producer_lines = {}
+        producer_by_alias = {}
+        edge_by_entry = {}
+        missing_links = []
+        active = {}
+        for idx, entry in enumerate(entries):
+            if self._entry_is_disabled(entry):
+                continue
+            etype = entry.get('type')
+            if etype == 'Remove Model':
+                name = str(entry.get('model') or '').strip()
+                if name:
+                    active.pop(name, None)
+                continue
+            for rec in embedded_by_idx.get(idx, []):
+                alias = rec.get('alias')
+                if alias:
+                    active[alias] = idx
+                    producer_lines.setdefault(alias, []).append(idx)
+            edge_by_entry[idx] = {}
+            for alias in consumed_by_entry.get(idx, []):
+                src = active.get(alias)
+                edge_by_entry[idx][alias] = src
+                if src is None:
+                    missing_links.append((idx, alias))
+            for alias in produced_by_entry.get(idx, []):
+                active[alias] = idx
+                producer_lines.setdefault(alias, []).append(idx)
+        producer_by_alias.update(active)
+        final_idx = None
+        for idx in range(len(entries) - 1, -1, -1):
+            if self._entry_is_disabled(entries[idx]):
+                continue
+            if entries[idx].get('type') != 'Remove Model':
+                final_idx = idx
+                break
+        protected_aliases = set()
+        needed_aliases = set()
+        needed_entries = set()
+        visited_entries = set()
+        def visit_entry(idx):
+            if idx is None or idx in visited_entries or not (0 <= idx < len(entries)):
+                return
+            visited_entries.add(idx)
+            entry = entries[idx]
+            if entry.get('type') in ('Checkpoint Merge', 'LoRA Bake'):
+                needed_entries.add(idx)
+            for alias in produced_by_entry.get(idx, []):
+                if alias:
+                    needed_aliases.add(alias)
+            for alias in consumed_by_entry.get(idx, []):
+                if not alias:
+                    continue
+                needed_aliases.add(alias)
+                src = edge_by_entry.get(idx, {}).get(alias)
+                if src is not None and src != idx:
+                    visit_entry(src)
+        if final_idx is not None:
+            protected_aliases.update(produced_by_entry.get(final_idx, []))
+            protected_aliases.update(consumed_by_entry.get(final_idx, []))
+            visit_entry(final_idx)
+        dead_entries = set()
+        for idx, entry in enumerate(entries):
+            if self._entry_is_disabled(entry):
+                continue
+            if entry.get('type') in ('Checkpoint Merge', 'LoRA Bake') and idx != final_idx and idx not in needed_entries:
+                dead_entries.add(idx)
+        consumed_global = set()
+        for vals in consumed_by_entry.values():
+            consumed_global.update(vals)
+        unreferenced_aliases = {}
+        for alias, lines in producer_lines.items():
+            if alias not in consumed_global and alias not in protected_aliases:
+                unreferenced_aliases[alias] = list(dict.fromkeys(lines))
+        by_signature = {}
+        by_alias = {}
+        for rec in source_records:
+            if rec.get('signature'):
+                by_signature.setdefault(rec['signature'], []).append(rec)
+            if rec.get('alias'):
+                by_alias.setdefault(rec['alias'], []).append(rec)
+        same_source_aliases = {}
+        for sig, recs in by_signature.items():
+            aliases = sorted({r['alias'] for r in recs if r.get('alias')})
+            if len(aliases) > 1:
+                same_source_aliases[sig] = recs
+        alias_updates = {}
+        for alias, recs in by_alias.items():
+            sigs = {r.get('signature') for r in recs if r.get('signature')}
+            if len(sigs) > 1:
+                alias_updates[alias] = recs
+        return {
+            'final_index': final_idx,
+            'protected_aliases': protected_aliases,
+            'needed_aliases': needed_aliases,
+            'needed_entries': needed_entries,
+            'dead_entries': dead_entries,
+            'producer_by_alias': producer_by_alias,
+            'producer_lines': producer_lines,
+            'produced_by_entry': produced_by_entry,
+            'consumed_by_entry': consumed_by_entry,
+            'edge_by_entry': edge_by_entry,
+            'missing_links': missing_links,
+            'duplicate_aliases': {},
+            'unreferenced_aliases': unreferenced_aliases,
+            'source_records': source_records,
+            'same_source_aliases': same_source_aliases,
+            'alias_updates': alias_updates,
+        }
+
+    ModelPlannerApp._planner_analysis = _planner_analysis_source_aware
+
+    def _show_dependency_view_source_aware(self):
+        analysis = self._planner_analysis()
+        lines = ['Dependency View', '']
+        alias_updates = analysis.get('alias_updates') or {}
+        if alias_updates:
+            lines += ['Alias updates (same external name, different internal source):']
+            for alias, recs in sorted(alias_updates.items()):
+                parts = []
+                for rec in recs:
+                    detail = rec.get('detail') or ''
+                    short = Path(detail).name if rec.get('mode') == 'local' else detail[:64] + ('…' if len(detail) > 64 else '')
+                    parts.append(f"line {rec['idx'] + 1} [{rec.get('mode')}] {short}")
+                lines.append(f'  🔁 {alias}: ' + '  ->  '.join(parts))
+            lines.append('  Later lines only see the newest registration for that alias.')
+            lines.append('')
+        same_source = analysis.get('same_source_aliases') or {}
+        if same_source:
+            lines += ['Same source with different aliases:']
+            for _sig, recs in sorted(same_source.items()):
+                aliases = []
+                for rec in recs:
+                    aliases.append(f"{rec.get('alias')} (line {rec['idx'] + 1})")
+                detail = recs[0].get('detail') or ''
+                detail_short = detail if len(detail) <= 120 else detail[:117] + '…'
+                lines.append('  ⚠ ' + ', '.join(dict.fromkeys(aliases)))
+                lines.append(f'    source: {detail_short}')
+            lines.append('')
+        lines += ['Adjacency:', '']
+        edge_by_entry = analysis.get('edge_by_entry') or {}
+        for idx, entry in enumerate((self.plan_data or {}).get('entries', []) or []):
+            tag = []
+            if self._entry_is_locked(entry):
+                tag.append('locked')
+            if self._entry_is_disabled(entry):
+                tag.append('disabled')
+            lines.append(f'[{idx + 1}] {self._line_summary(entry)}' + (f'  [{", ".join(tag)}]' if tag else ''))
+            embedded = [alias for _slot, alias, _kind, _spec in self._iter_embedded_sources(entry)]
+            produced = self._entry_produced_aliases(entry)
+            consumes = self._entry_consumed_aliases(entry)
+            if embedded:
+                lines.append('  embedded sources: ' + ', '.join(embedded))
+            if produced:
+                lines.append('  produces/updates: ' + ', '.join(produced))
+            if consumes:
+                detail = []
+                for alias in consumes:
+                    src = edge_by_entry.get(idx, {}).get(alias)
+                    if src is None:
+                        detail.append(f'{alias} <- external/MISSING')
+                    elif src == idx:
+                        detail.append(f'{alias} <- embedded source on this line')
+                    else:
+                        detail.append(f'{alias} <- line {src + 1}')
+                lines.append('  consumes: ' + '; '.join(detail))
+            if idx in analysis.get('dead_entries', set()):
+                lines.append('  status: DEAD / not required by final active line')
+            lines.append('')
+        lines += ['', 'Mermaid-like graph:', 'graph TD']
+        for idx, entry in enumerate((self.plan_data or {}).get('entries', []) or []):
+            label = self._line_summary(entry).replace('"', "'")
+            lines.append(f'  L{idx + 1}["{idx + 1}: {label}"]')
+        for idx, consumes in (analysis.get('consumed_by_entry') or {}).items():
+            for alias in consumes:
+                src = edge_by_entry.get(idx, {}).get(alias)
+                safe = re.sub(r'[^A-Za-z0-9_]', '_', alias)
+                if src is None:
+                    lines.append(f'  EXT_{safe}(["external:{alias}"]) -->|{alias}| L{idx + 1}')
+                elif src == idx:
+                    lines.append(f'  EMB_{idx + 1}_{safe}(["embedded:{alias}"]) -->|{alias}| L{idx + 1}')
+                else:
+                    lines.append(f'  L{src + 1} -->|{alias}| L{idx + 1}')
+        self._show_scrollable_text_dialog('Dependency View', '\n'.join(lines))
+
+    ModelPlannerApp._show_dependency_view = _show_dependency_view_source_aware
+
+    def _make_effective_source_entry_alias_preserving(self, spec, alias: str):
+        mode = str(spec.get('mode') or '').strip()
+        kind = str(spec.get('kind') or 'Checkpoint').strip() or 'Checkpoint'
+        alias = str(alias or self._source_alias_from_spec(spec)).strip()
+        if mode == 'download':
+            item = make_entry('Download Model')
+            item['model_name'] = alias
+            item['model_type'] = kind
+            item['link'] = str(spec.get('link') or '').strip()
+            return item
+        item = make_entry('Local Model')
+        item['model_type'] = kind
+        item['model_name'] = alias
+        item['local_path'] = str(spec.get('local_path') or '').strip()
+        return item
+
+    ModelPlannerApp._make_effective_source_entry = _make_effective_source_entry_alias_preserving
+
+    def _planner_rerender_preserve_scroll(self):
+        canvas = getattr(self, 'canvas', None)
+        yview = None
+        try:
+            if canvas is not None and canvas.winfo_exists():
+                yview = canvas.yview()
+        except Exception:
+            yview = None
+        self._render_current_line()
+        self._refresh_line_selector()
+        if yview is not None:
+            def _restore(c=canvas, view=yview):
+                try:
+                    if c is not None and c.winfo_exists():
+                        c.update_idletasks()
+                        c.yview_moveto(float(view[0]))
+                except Exception:
+                    pass
+            self.root.after_idle(_restore)
+
+    def _add_lora_block_preserve_scroll(self, entry: Dict[str, Any]):
+        entry.setdefault('loras', []).append({'name': '', 'ratio': default_ratio('Single')})
+        self._after_entry_change()
+        _planner_rerender_preserve_scroll(self)
+
+    def _remove_lora_block_preserve_scroll(self, entry: Dict[str, Any], index: int):
+        loras = entry.setdefault('loras', [])
+        if 0 <= index < len(loras):
+            loras.pop(index)
+            self._after_entry_change()
+            _planner_rerender_preserve_scroll(self)
+
+    def _move_lora_block(self, entry: Dict[str, Any], index: int, delta: int):
+        loras = entry.setdefault('loras', [])
+        new_index = index + delta
+        if not (0 <= index < len(loras) and 0 <= new_index < len(loras)):
+            return
+        loras[index], loras[new_index] = loras[new_index], loras[index]
+        self._after_entry_change()
+        _planner_rerender_preserve_scroll(self)
+
+    ModelPlannerApp._add_lora_block = _add_lora_block_preserve_scroll
+    ModelPlannerApp._remove_lora_block = _remove_lora_block_preserve_scroll
+    ModelPlannerApp._move_lora_block = _move_lora_block
+
+    def _render_lora_bake_entry_reorderable(self, parent, entry: Dict[str, Any]):
+        frame = self._build_labeled_frame(parent, 'LoRA Bake')
+        models = self._collect_available_models(self.current_index)
+        ckpts = models.get('Checkpoint', [])
+        self._build_source_backed_ref_row(
+            frame,
+            'Checkpoint',
+            lambda e=entry: e.get('checkpoint', ''),
+            lambda value, e=entry: e.__setitem__('checkpoint', value),
+            lambda e=entry: self._get_entry_slot_source(e, 'checkpoint'),
+            lambda spec, e=entry: self._set_entry_slot_source(e, 'checkpoint', spec),
+            ckpts or [''],
+            ['Checkpoint'],
+            allow_local=True,
+        )
+        self._build_entry_row(frame, 'Output Name', entry, 'output_name')
+        add_lora_btn = ttk.Button(frame, text='+ Add LoRA', command=lambda: self._add_lora_block(entry))
+        add_lora_btn.pack(anchor='w', padx=4, pady=4)
+        self._attach_tooltip(add_lora_btn, self._right_help('+ Add LoRA').get('detail', ''))
+        self._add_right_inline_help(frame, '+ Add LoRA')
+        lora_names = models.get('LoRA', []) + models.get('LyCORIS', [])
+        loras = entry.get('loras', []) or []
+        for idx, lora in enumerate(loras):
+            block = self._build_labeled_frame(parent, f'LoRA {idx + 1}')
+            top = Frame(block)
+            top.pack(fill='x', pady=(0, 4))
+            ttk.Button(top, text='-', width=3, command=lambda i=idx: self._remove_lora_block(entry, i)).pack(side='left', padx=(0, 4))
+            up_btn = ttk.Button(top, text='↑ Up', width=7, command=lambda i=idx: self._move_lora_block(entry, i, -1))
+            down_btn = ttk.Button(top, text='↓ Down', width=8, command=lambda i=idx: self._move_lora_block(entry, i, 1))
+            if idx <= 0:
+                up_btn.state(['disabled'])
+            if idx >= len(loras) - 1:
+                down_btn.state(['disabled'])
+            up_btn.pack(side='left', padx=(0, 4))
+            down_btn.pack(side='left', padx=(0, 8))
+            Label(top, text=f'LoRA {idx + 1} order controls', anchor='w', fg='#666666').pack(side='left')
+            self._build_source_backed_ref_row(
+                block,
+                'LoRA Name',
+                lambda lo=lora: lo.get('name', ''),
+                lambda value, lo=lora: lo.__setitem__('name', value),
+                lambda lo=lora: self._get_lora_source(lo),
+                lambda spec, lo=lora: self._set_lora_source(lo, spec),
+                lora_names or [''],
+                ['LoRA', 'LyCORIS'],
+                allow_local=True,
+            )
+            ratio = lora.setdefault('ratio', default_ratio('Single'))
+            ratio_wrap = self._build_collapsible_section(
+                block,
+                'Ratio',
+                key=f"lora_ratio_{entry.get('id', '')}_{idx}",
+                default_open=True,
+                body_fill='x',
+                body_expand=False,
+                padx=0,
+                pady=4,
+            )
+            row2 = Frame(ratio_wrap)
+            row2.pack(fill='x', pady=3)
+            Label(row2, text='Ratio Mode', width=18, anchor='w').pack(side='left')
+            ratio_var = tk.StringVar(value=ratio.get('mode', 'Single'))
+            combo2 = ttk.Combobox(row2, textvariable=ratio_var, values=['Single', 'Elemental'], state='readonly')
+            self._bind_combobox_mousewheel_passthrough(combo2)
+            combo2.pack(side='left', fill='x', expand=True, padx=4)
+            def on_ratio_mode(*_args, lo=lora, rv=ratio_var):
+                lo['ratio']['mode'] = rv.get()
+                if rv.get() == 'Single':
+                    lo['ratio'].setdefault('value', '1.0')
+                self._schedule_rerender_current_line()
+            ratio_var.trace_add('write', on_ratio_mode)
+            self._build_ratio_value_widget(ratio_wrap, lora['ratio'], allow_block_weight=False)
+        self._build_text_row(parent, 'Additional Signatures', entry, 'raw_signatures', height=5)
+
+    ModelPlannerApp._render_lora_bake_entry = _render_lora_bake_entry_reorderable
+
+
+    def _plan_entry_problem_map_source_aware(self) -> Dict[int, List[str]]:
+        problems_by_idx: Dict[int, List[str]] = {}
+        entries = (self.plan_data or {}).get('entries', []) or []
+        analysis = self._planner_analysis()
+        dead_entries = set(analysis.get('dead_entries', set()))
+        unref_aliases = analysis.get('unreferenced_aliases', {}) or {}
+        same_source_by_idx = {}
+        for _sig, recs in (analysis.get('same_source_aliases') or {}).items():
+            aliases = sorted({r.get('alias') for r in recs if r.get('alias')})
+            if len(aliases) <= 1:
+                continue
+            text = 'WARN: Same Source Registered With Different Aliases -> ' + ', '.join(aliases)
+            for rec in recs:
+                same_source_by_idx.setdefault(rec.get('idx'), set()).add(text)
+        eager_link_validation = bool(getattr(self, '_planner_eager_link_validation', False))
+        def make_problem(level: str, line_idx: int, etype: str, message: str) -> str:
+            return f'{str(level or "ERROR").upper()}: Line {line_idx} ({etype}): {message}'
+        def link_issue(link: str):
+            fn = globals().get('_planner_download_link_issue')
+            if callable(fn):
+                try:
+                    return fn(self, str(link or '').strip(), eager=eager_link_validation)
+                except Exception:
+                    pass
+            text = str(link or '').strip()
+            if not text:
+                return 'Link Is Empty'
+            if not re.match(r'^https?://', text, flags=re.IGNORECASE):
+                return f'Download Link Format Is Invalid -> {text}'
+            return None
+        def embedded_issue(spec, label: str):
+            if not isinstance(spec, dict):
+                return None
+            mode = str(spec.get('mode') or '').strip().lower()
+            if mode == 'download':
+                issue = link_issue(str(spec.get('link') or '').strip())
+                return f'{label} {issue}' if issue else None
+            if mode == 'local':
+                if not str(spec.get('local_path') or '').strip():
+                    return f'{label} Local Path Is Empty'
+            return None
+        for zero_idx, entry in enumerate(entries):
+            idx = zero_idx + 1
+            etype = entry.get('type')
+            problems: List[str] = []
+            if self._entry_is_disabled(entry):
+                problems.append('WARN: Entry Is Disabled And Excluded From Export/Runtime')
+            if self._entry_is_locked(entry):
+                problems.append('WARN: Entry Is Locked Against Accidental Edits')
+            available = self._collect_available_models(zero_idx)
+            if etype == 'Download Model':
+                if not entry.get('model_name'):
+                    problems.append(make_problem('ERROR', idx, etype, 'Model Name Is Empty'))
+                issue = link_issue(str(entry.get('link') or '').strip())
+                if issue:
+                    problems.append(make_problem('ERROR', idx, etype, issue))
+            elif etype == 'Local Model':
+                if not entry.get('local_path'):
+                    problems.append(make_problem('ERROR', idx, etype, 'Local Path Is Empty'))
+            elif etype == 'Remove Model':
+                if not entry.get('model'):
+                    problems.append(make_problem('ERROR', idx, etype, 'Model Is Empty'))
+            elif etype == 'Checkpoint Merge':
+                for req_key, label in (('model0', 'Model 0'), ('model1', 'Model 1'), ('output_name', 'Output Name')):
+                    if not entry.get(req_key):
+                        problems.append(make_problem('ERROR', idx, etype, f'{label} Is Empty'))
+                for slot, label in (('model0', 'Model 0'), ('model1', 'Model 1'), ('model2', 'Model 2')):
+                    ref = str(entry.get(slot) or '').strip()
+                    if not ref:
+                        continue
+                    spec = self._get_entry_slot_source(entry, slot)
+                    issue = embedded_issue(spec, label)
+                    if issue:
+                        problems.append(make_problem('ERROR', idx, etype, issue))
+                    elif not isinstance(spec, dict) and ref not in available.get('Checkpoint', []):
+                        problems.append(make_problem('ERROR', idx, etype, f'Checkpoint Reference Not Available -> {ref}'))
+            elif etype == 'LoRA Bake':
+                checkpoint = str(entry.get('checkpoint') or '').strip()
+                checkpoint_spec = self._get_entry_slot_source(entry, 'checkpoint')
+                if not checkpoint:
+                    problems.append(make_problem('ERROR', idx, etype, 'Checkpoint Is Empty'))
+                else:
+                    issue = embedded_issue(checkpoint_spec, 'Checkpoint')
+                    if issue:
+                        problems.append(make_problem('ERROR', idx, etype, issue))
+                    elif not isinstance(checkpoint_spec, dict) and checkpoint not in available.get('Checkpoint', []):
+                        problems.append(make_problem('ERROR', idx, etype, f'Checkpoint Reference Not Available -> {checkpoint}'))
+                if not entry.get('output_name'):
+                    problems.append(make_problem('ERROR', idx, etype, 'Output Name Is Empty'))
+                for lora_idx, lora in enumerate(entry.get('loras', []) or []):
+                    name = str(lora.get('name') or '').strip()
+                    slot_label = f'LoRA {lora_idx + 1}'
+                    if not name:
+                        problems.append(make_problem('ERROR', idx, etype, f'{slot_label} Name Is Empty'))
+                        continue
+                    spec = self._get_lora_source(lora)
+                    issue = embedded_issue(spec, slot_label)
+                    if issue:
+                        problems.append(make_problem('ERROR', idx, etype, issue))
+                    elif not isinstance(spec, dict) and name not in available.get('LoRA', []) and name not in available.get('LyCORIS', []):
+                        problems.append(make_problem('ERROR', idx, etype, f'LoRA Reference Not Available -> {name}'))
+            for alias in self._entry_produced_aliases(entry):
+                if alias in unref_aliases:
+                    problems.append(f'WARN: Produced Alias Is Currently Unreferenced -> {alias}')
+            if zero_idx in same_source_by_idx:
+                problems.extend(sorted(same_source_by_idx.get(zero_idx) or []))
+            if zero_idx in dead_entries:
+                problems.append('WARN: Merge Output Is Not Required By The Final Active Line')
+            problems_by_idx[zero_idx] = problems
+        return problems_by_idx
+
+    ModelPlannerApp._plan_entry_problem_map = _plan_entry_problem_map_source_aware
 except Exception:
     pass
 

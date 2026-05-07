@@ -1,0 +1,1414 @@
+{
+  "base_model": "Anima",
+  "version": 3,
+  "applies_to": [
+    "Checkpoint",
+    "LoRA",
+    "LyCORIS"
+  ],
+  "layer_aliases": {
+    "INPUT": "L00",
+    "IN": "L00",
+    "FIRST": "L00",
+    "OUTPUT": "L27",
+    "OUT": "L27",
+    "FINAL": "L27",
+    "FINAL_LAYER": "L27",
+    "LAST": "L27",
+    "START": "L00",
+    "BEGIN": "L00",
+    "END": "L27",
+    "HEAD": "L27",
+    "OUTPUT_HEAD": "L27"
+  },
+  "layers": [
+    {
+      "name": "BASE",
+      "effect": "Global conditioning/control area for Anima diffusion-side inputs: timestep embeddings and the LLM adapter. It controls denoising schedule behavior, prompt/tag interpretation, concept routing, and adapter-to-DiT conditioning. High-impact and fragile: usually keep fixed unless intentionally transferring prompt-understanding or model-wide conditioning behavior. Qwen/text-encoder tensors are not included because they were not present in the provided checkpoint key list."
+    },
+    {
+      "name": "L00",
+      "effect": "Input/token anchoring stage. Includes x_embedder plus the first DiT block, so it strongly affects latent token formation, coarse local separation, initial edge stability, low-level noise/texture intake, and the earliest image-token structure. Very sensitive for base compatibility."
+    },
+    {
+      "name": "L01",
+      "effect": "Early structure stage. Establishes simple silhouette, coarse local geometry, early body/clothing mass, and basic prompt-conditioned separation. Useful for subtle structure repair but can affect the base image feel if overused."
+    },
+    {
+      "name": "L02",
+      "effect": "Early structure/detail stage. Affects local contours, simple limb/body masses, early character placement, and coarse object separation. Good for low-level shape support rather than identity or finished style."
+    },
+    {
+      "name": "L03",
+      "effect": "Early layout consolidation. Stabilizes broad geometry, person/object separation, camera/layout anchoring, and the transition from coarse latent structure into more semantic layout."
+    },
+    {
+      "name": "L04",
+      "effect": "Early-mid transformer stage. Begins transferring pose tendencies, clothing structure, body orientation, and prompt-to-structure alignment. Useful for light pose/layout inheritance while still mostly preserving late rendering style."
+    },
+    {
+      "name": "L05",
+      "effect": "Early-mid structure stage. Useful for body proportions, limb relation, simple interaction geometry, and style-aware shape formation without fully changing the final finish."
+    },
+    {
+      "name": "L06",
+      "effect": "Early-mid detail routing. Supports clothing complexity, hair/body mass, local structure refinement, and preparation for deeper pose/concept integration."
+    },
+    {
+      "name": "L07",
+      "effect": "Early-mid pose/detail bridge. Affects dynamic pose individuality, character placement, body orientation, and scene layout before central blocks perform stronger semantic integration."
+    },
+    {
+      "name": "L08",
+      "effect": "Mid structure stage. Stronger effect on pose coherence, character arrangement, perspective, and prompt-conditioned structure than earlier blocks. Good entry point for pose or scenario transfer."
+    },
+    {
+      "name": "L09",
+      "effect": "Mid structure and concept stage. Useful for prompt-conditioned body/face relation, multi-part consistency, clothing relation, and early character/scenario binding."
+    },
+    {
+      "name": "L10",
+      "effect": "Mid integration stage. Balances pose, clothing, face support, identity hints, and concept-conditioned structure. Useful for transferring scenario logic without heavily changing final color."
+    },
+    {
+      "name": "L11",
+      "effect": "Mid integration bridge. Good for correcting anatomy/layout and prompt-structure alignment while preserving later rendering style. Often safe for structure-focused merges."
+    },
+    {
+      "name": "L12",
+      "effect": "Central integration stage. Core block for pose, identity hints, body structure, multi-character relation, and global composition mixing. High value for structural or scenario transfer."
+    },
+    {
+      "name": "L13",
+      "effect": "Central concept/style integration. Affects character identity support, expression support, body/face relationship, scene relation, and global composition. Can start to pull style if MLP is strong."
+    },
+    {
+      "name": "L14",
+      "effect": "Central detail and structure routing. Useful for clothing/hair detail, hand/body structure, pose consistency, concept stability, and interaction geometry."
+    },
+    {
+      "name": "L15",
+      "effect": "Central-to-late integration. Bridges structural decisions into local detail and rendering texture. Useful for refined anatomy, expressions, and scenario relation while still carrying broad structure influence."
+    },
+    {
+      "name": "L16",
+      "effect": "Late-mid structure/rendering bridge. Strong for refined anatomy, hand/finger placement, facial layout, expression, pose stability, and the first visible style/detail formation."
+    },
+    {
+      "name": "L17",
+      "effect": "Late-mid detail integration. Useful for face/body finish, hand/detail cleanup, clothing density, local consistency, and expression/style balance."
+    },
+    {
+      "name": "L18",
+      "effect": "Late-mid rendering stage. Impacts lighting, detail clarity, texture, facial/hand finish, and local material separation while still carrying structure influence."
+    },
+    {
+      "name": "L19",
+      "effect": "Late-mid to late transition. Consolidates local structure, expression, hand/body detail, and style/detail without overhauling early composition as much as later blocks."
+    },
+    {
+      "name": "L20",
+      "effect": "Late rendering stage. Strong impact on line quality, color response, lighting, texture, and finished style feel. Use cautiously when preserving the base style."
+    },
+    {
+      "name": "L21",
+      "effect": "Late style/detail stage. Useful for painterly finish, hair/clothing texture, material separation, local polish, and style transfer."
+    },
+    {
+      "name": "L22",
+      "effect": "Late facial/detail finish. Affects eyes/face finish, local texture, high-level style lock, small detail clarity, and rendering consistency."
+    },
+    {
+      "name": "L23",
+      "effect": "Late image finish stage. Influences contrast, saturation tendency, detail sharpness, local rendering polish, and final visual density."
+    },
+    {
+      "name": "L24",
+      "effect": "Very late finish. Strong effect on final color feel, texture, line confidence, small detail reconstruction, and final style lock. Small values can visibly alter output."
+    },
+    {
+      "name": "L25",
+      "effect": "Very late rendering lock. Useful for final style transfer, lighting/contrast behavior, high-frequency detail, and output polish, but risky for base-style preservation."
+    },
+    {
+      "name": "L26",
+      "effect": "Very late detail and color lock. Strongly affects output polish, saturation/contrast, final local features, and texture finish. Prefer low strengths unless targeting final look."
+    },
+    {
+      "name": "L27",
+      "effect": "Final DiT block and output-head area. Strongest late-stage control over final look, color/contrast lock, texture finish, final_layer output behavior, and final latent projection. Very high impact and usually kept low/fixed for structural merges."
+    },
+    {
+      "name": "VAE",
+      "effect": "VAE encode/decode layers. Empty here because the provided Anima checkpoint element list did not include VAE tensors. Do not assume VAE merge coverage from this candidate map."
+    }
+  ],
+  "elements": [
+    {
+      "name": "t_embedder.1.linear_1",
+      "effect": "Anima timestep embedding first linear stage. Controls denoising-step conditioning, schedule response, global sampling behavior, and how early/late noise states influence structure. High-impact; usually keep low or fixed unless tuning global denoise behavior.",
+      "aliases": [
+        "t_embedder",
+        "time",
+        "time_embed",
+        "linear_1",
+        "embedder",
+        "denoise",
+        "schedule",
+        "timestep"
+      ]
+    },
+    {
+      "name": "t_embedder.1.linear_2",
+      "effect": "Anima timestep embedding second linear stage. Finishes timestep conditioning and affects global structure/style timing across the denoising trajectory. High-impact; can change model-wide convergence if mixed strongly.",
+      "aliases": [
+        "t_embedder",
+        "time",
+        "time_embed",
+        "linear_2",
+        "embedder",
+        "denoise",
+        "schedule",
+        "timestep"
+      ]
+    },
+    {
+      "name": "t_embedding_norm",
+      "effect": "Timestep embedding normalization. Stabilizes global denoising balance, prevents unstable or over-sharp timestep conditioning, and affects CFG/sampler response. Fragile global control element.",
+      "aliases": [
+        "t_embedding_norm",
+        "time",
+        "norm",
+        "embedding_norm",
+        "denoise",
+        "schedule",
+        "stability"
+      ]
+    },
+    {
+      "name": "x_embedder.proj.1",
+      "effect": "Input latent/image-token projection. Controls initial spatial token formation, local separation, low-level structure anchoring, edge/noise intake, and early texture/color foundation. Strong base-compatibility impact.",
+      "aliases": [
+        "x_embedder",
+        "input",
+        "proj",
+        "latent",
+        "token",
+        "color",
+        "edge",
+        "low_level",
+        "input_projection"
+      ]
+    },
+    {
+      "name": "llm_adapter.embed",
+      "effect": "LLM adapter input embedding. Bridges text/context features into diffusion-side conditioning and affects prompt-adherence foundations, tag vocabulary entry, and concept availability. Very fragile; usually avoid for ordinary style or anatomy merges.",
+      "aliases": [
+        "llm_adapter",
+        "adapter",
+        "embed",
+        "conditioning",
+        "text",
+        "prompt",
+        "tags",
+        "knowledge"
+      ]
+    },
+    {
+      "name": "llm_adapter.out_proj",
+      "effect": "LLM adapter output projection. Final adapter-to-DiT conditioning output; strongly affects prompt integration strength, tag priority, character/concept routing, and global conditioning behavior. Very high risk if overmixed.",
+      "aliases": [
+        "llm_adapter",
+        "adapter",
+        "out_proj",
+        "o_proj",
+        "output_proj",
+        "conditioning",
+        "text",
+        "prompt",
+        "tags",
+        "knowledge"
+      ]
+    },
+    {
+      "name": "llm_adapter.norm",
+      "effect": "LLM adapter final norm. Balances adapter output scale and conditioning stability before it enters the DiT. Can affect overall prompt strength and concept reliability.",
+      "aliases": [
+        "llm_adapter",
+        "adapter",
+        "norm",
+        "text",
+        "prompt",
+        "stability"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.q_proj",
+      "effect": "LLM adapter self-attention query. Determines what text/context relations the adapter attends to, including tag ordering, character-attribute binding, and natural-language relation interpretation.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "q_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.k_proj",
+      "effect": "LLM adapter self-attention key. Controls adapter-side context matching and lookup for text tokens/concepts. Affects how reliably related tags or phrases are associated.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "k_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.v_proj",
+      "effect": "LLM adapter self-attention value. Carries adapter-side context feature content, including concept and relation information that can later affect image conditioning.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "v_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.o_proj",
+      "effect": "LLM adapter self-attention output. Integrates adapter-side context mixing and text relation interpretation; can alter prompt parsing behavior globally.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "o_proj",
+        "out_proj",
+        "output_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.q_norm",
+      "effect": "LLM adapter self-attention q norm. Stabilizes adapter token-relation queries and helps prevent over/under-attention to text-token relations.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "q_norm",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.self_attn.k_norm",
+      "effect": "LLM adapter self-attention k norm. Stabilizes adapter matching scale and text-context lookup behavior.",
+      "aliases": [
+        "llm_adapter",
+        "self_attn",
+        "k_norm",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.q_proj",
+      "effect": "LLM adapter cross-attention query. Routes prompt-conditioned context inside the adapter and affects how external/context features are requested by adapter tokens.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "q_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.k_proj",
+      "effect": "LLM adapter cross-attention key. Controls external context lookup and prompt matching inside the adapter. Important for tag/concept availability and relation matching.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "k_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.v_proj",
+      "effect": "LLM adapter cross-attention value. Injects external context/style/concept content into the adapter representation. Strongly tied to prompt and concept transfer.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "v_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.o_proj",
+      "effect": "LLM adapter cross-attention output. Finishes prompt/context integration inside the adapter and can alter final prompt-conditioning behavior.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "o_proj",
+        "out_proj",
+        "output_proj",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.q_norm",
+      "effect": "LLM adapter cross-attention q norm. Stabilizes prompt-routing queries and balanced conditioning strength in adapter cross attention.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "q_norm",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.cross_attn.k_norm",
+      "effect": "LLM adapter cross-attention k norm. Stabilizes context lookup and prompt matching scale in adapter cross attention.",
+      "aliases": [
+        "llm_adapter",
+        "cross_attn",
+        "k_norm",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.mlp.0",
+      "effect": "LLM adapter MLP first projection. Expands adapter features and transforms text/concept representations; can carry character, style, and relation knowledge. High-risk for broad prompt behavior.",
+      "aliases": [
+        "llm_adapter",
+        "mlp",
+        "mlp.0",
+        "fc1",
+        "layer1",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.mlp.2",
+      "effect": "LLM adapter MLP output projection. Compresses adapter features and finishes conditioning representation; affects concept priority and final adapter semantics.",
+      "aliases": [
+        "llm_adapter",
+        "mlp",
+        "mlp.2",
+        "fc2",
+        "layer2",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.norm_self_attn",
+      "effect": "LLM adapter self-attention norm. Stabilizes self-context processing around adapter self attention and affects text-token relation balance.",
+      "aliases": [
+        "llm_adapter",
+        "norm_self_attn",
+        "self_attn",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.norm_cross_attn",
+      "effect": "LLM adapter cross-attention norm. Balances prompt/context features before or around adapter cross attention; affects concept routing stability.",
+      "aliases": [
+        "llm_adapter",
+        "norm_cross_attn",
+        "cross_attn",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "llm_adapter.blocks.*.norm_mlp",
+      "effect": "LLM adapter MLP norm. Balances adapter feature transformation and conditioning stability before/around concept MLP processing.",
+      "aliases": [
+        "llm_adapter",
+        "norm_mlp",
+        "mlp",
+        "norm",
+        "adapter"
+      ]
+    },
+    {
+      "name": "self_attn.q_proj",
+      "effect": "DiT self-attention query. Decides what image-token relations to attend to; strongly affects pose/layout consistency, body-part relation, multi-character separation, and spatial reasoning.",
+      "aliases": [
+        "self_attn",
+        "attn1",
+        "q_proj",
+        "to_q",
+        "attention",
+        "q",
+        "sa",
+        "layout",
+        "pose"
+      ]
+    },
+    {
+      "name": "self_attn.k_proj",
+      "effect": "DiT self-attention key. Provides image-token structural matching and spatial lookup; affects how body parts, characters, and objects correspond across the image.",
+      "aliases": [
+        "self_attn",
+        "attn1",
+        "k_proj",
+        "to_k",
+        "attention",
+        "k",
+        "sa",
+        "layout",
+        "pose"
+      ]
+    },
+    {
+      "name": "self_attn.v_proj",
+      "effect": "DiT self-attention value. Carries internal image feature content through self attention, including structure material, local detail, and pose/anatomy information.",
+      "aliases": [
+        "self_attn",
+        "attn1",
+        "v_proj",
+        "to_v",
+        "attention",
+        "v",
+        "sa",
+        "structure",
+        "detail"
+      ]
+    },
+    {
+      "name": "self_attn.output_proj",
+      "effect": "DiT self-attention output. Integrates self-attention results into the block output; controls structural finish, global consistency, pose cohesion, and multi-part image stability.",
+      "aliases": [
+        "self_attn",
+        "attn1",
+        "output_proj",
+        "out_proj",
+        "o_proj",
+        "to_out",
+        "attention",
+        "sa",
+        "layout",
+        "pose",
+        "structure"
+      ]
+    },
+    {
+      "name": "self_attn.q_norm",
+      "effect": "DiT self-attention q norm. Stabilizes query strength in self attention and helps control structural balance, anatomy drift, and excessive image-token attention.",
+      "aliases": [
+        "self_attn",
+        "q_norm",
+        "norm",
+        "attention"
+      ]
+    },
+    {
+      "name": "self_attn.k_norm",
+      "effect": "DiT self-attention k norm. Stabilizes self-attention matching and helps prevent unstable structure drift, duplicate parts, or weak spatial correspondence.",
+      "aliases": [
+        "self_attn",
+        "k_norm",
+        "norm",
+        "attention"
+      ]
+    },
+    {
+      "name": "cross_attn.q_proj",
+      "effect": "DiT cross-attention query. Determines how image tokens request prompt/context information; affects prompt adherence, character/object placement, scenario binding, and tag-controlled structure.",
+      "aliases": [
+        "cross_attn",
+        "attn2",
+        "q_proj",
+        "to_q",
+        "attention",
+        "q",
+        "ca",
+        "prompt",
+        "concept"
+      ]
+    },
+    {
+      "name": "cross_attn.k_proj",
+      "effect": "DiT cross-attention key. Controls text/context lookup and matching for characters, objects, relationships, style tags, and attribute binding.",
+      "aliases": [
+        "cross_attn",
+        "attn2",
+        "k_proj",
+        "to_k",
+        "attention",
+        "k",
+        "ca",
+        "prompt",
+        "concept"
+      ]
+    },
+    {
+      "name": "cross_attn.v_proj",
+      "effect": "DiT cross-attention value. Injects concept/style/content from conditioning into image tokens; affects character traits, clothing, expression cues, object details, and style content.",
+      "aliases": [
+        "cross_attn",
+        "attn2",
+        "v_proj",
+        "to_v",
+        "attention",
+        "v",
+        "ca",
+        "prompt",
+        "concept",
+        "style"
+      ]
+    },
+    {
+      "name": "cross_attn.output_proj",
+      "effect": "DiT cross-attention output. Integrates prompt/context information into the image stream; affects final prompt adherence, concept finish, style transfer, and scenario coherence.",
+      "aliases": [
+        "cross_attn",
+        "attn2",
+        "output_proj",
+        "out_proj",
+        "o_proj",
+        "to_out",
+        "attention",
+        "ca",
+        "prompt",
+        "concept",
+        "style"
+      ]
+    },
+    {
+      "name": "cross_attn.q_norm",
+      "effect": "DiT cross-attention q norm. Stabilizes prompt-routing strength from image tokens and helps balance under/over-adherence to conditioning.",
+      "aliases": [
+        "cross_attn",
+        "q_norm",
+        "norm",
+        "attention"
+      ]
+    },
+    {
+      "name": "cross_attn.k_norm",
+      "effect": "DiT cross-attention k norm. Stabilizes context lookup and prompt matching scale; useful for reducing unstable tag mixing or weak concept binding.",
+      "aliases": [
+        "cross_attn",
+        "k_norm",
+        "norm",
+        "attention"
+      ]
+    },
+    {
+      "name": "mlp.layer1",
+      "effect": "DiT MLP first projection. Expands per-token features; affects drawing density, shape refinement, face/hand/clothing detail, material texture, and style/detail formation.",
+      "aliases": [
+        "mlp",
+        "ff",
+        "layer1",
+        "fc1",
+        "gate_proj",
+        "w1",
+        "style",
+        "detail",
+        "texture",
+        "rendering"
+      ]
+    },
+    {
+      "name": "mlp.layer2",
+      "effect": "DiT MLP second projection. Compresses and returns transformed features; affects detail finish, rendering consolidation, local polish, style output, and color/texture expression.",
+      "aliases": [
+        "mlp",
+        "ff",
+        "layer2",
+        "fc2",
+        "down_proj",
+        "w2",
+        "style",
+        "detail",
+        "texture",
+        "rendering"
+      ]
+    },
+    {
+      "name": "adaln_modulation_self_attn.1",
+      "effect": "AdaLN modulation for self-attention first stage. Timestep/conditioning modulation over internal structure and pose; affects how strongly self-attention participates at each denoise phase.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "self_attn",
+        "norm",
+        "scale_shift",
+        "pose",
+        "structure",
+        "timing"
+      ]
+    },
+    {
+      "name": "adaln_modulation_self_attn.2",
+      "effect": "AdaLN modulation for self-attention second stage. Self-attention gating and denoising-step balance; useful for controlling pose/anatomy influence without directly replacing attention weights.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "self_attn",
+        "norm",
+        "gate",
+        "pose",
+        "structure",
+        "timing"
+      ]
+    },
+    {
+      "name": "adaln_modulation_cross_attn.1",
+      "effect": "AdaLN modulation for cross-attention first stage. Timestep/conditioning modulation over prompt-conditioning strength and concept routing balance.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "cross_attn",
+        "norm",
+        "scale_shift",
+        "prompt",
+        "concept",
+        "timing"
+      ]
+    },
+    {
+      "name": "adaln_modulation_cross_attn.2",
+      "effect": "AdaLN modulation for cross-attention second stage. Cross-attention gating and prompt/style influence; affects how strongly prompt concepts enter image tokens across denoising.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "cross_attn",
+        "norm",
+        "gate",
+        "prompt",
+        "concept",
+        "timing"
+      ]
+    },
+    {
+      "name": "adaln_modulation_mlp.1",
+      "effect": "AdaLN modulation for MLP first stage. Controls feature expansion balance for density, lighting, material expression, and style/detail growth over denoising.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "mlp",
+        "ff",
+        "norm",
+        "scale_shift",
+        "style",
+        "detail",
+        "rendering",
+        "timing"
+      ]
+    },
+    {
+      "name": "adaln_modulation_mlp.2",
+      "effect": "AdaLN modulation for MLP second stage. MLP gating and rendering finish; affects style/detail strength, polish, and late-stage texture consolidation.",
+      "aliases": [
+        "adaln",
+        "modulation",
+        "mlp",
+        "ff",
+        "norm",
+        "gate",
+        "style",
+        "detail",
+        "rendering",
+        "timing"
+      ]
+    },
+    {
+      "name": "final_layer.adaln_modulation.1",
+      "effect": "Final-layer AdaLN modulation first stage. Final denoising/output conditioning and image-head balance; affects output-head response, color/contrast tendency, and final structural projection.",
+      "aliases": [
+        "final_layer",
+        "adaln",
+        "modulation",
+        "output",
+        "head",
+        "color",
+        "contrast",
+        "finish",
+        "timing"
+      ]
+    },
+    {
+      "name": "final_layer.adaln_modulation.2",
+      "effect": "Final-layer AdaLN modulation second stage. Final output gating and last-stage image look lock; high-impact for final style/color/detail behavior.",
+      "aliases": [
+        "final_layer",
+        "adaln",
+        "modulation",
+        "output",
+        "gate",
+        "head",
+        "color",
+        "contrast",
+        "finish"
+      ]
+    },
+    {
+      "name": "final_layer.linear",
+      "effect": "Final linear image head. Final latent-to-output projection; strongly affects final color/contrast lock, texture finish, output sharpness, and visible image structure. Very sensitive.",
+      "aliases": [
+        "final_layer",
+        "linear",
+        "output",
+        "head",
+        "out",
+        "color",
+        "contrast",
+        "finish",
+        "projection"
+      ]
+    }
+  ],
+  "layer_elements": {
+    "BASE": [
+      "t_embedder.1.linear_1",
+      "t_embedder.1.linear_2",
+      "t_embedding_norm",
+      "llm_adapter.embed",
+      "llm_adapter.blocks.*.cross_attn.k_norm",
+      "llm_adapter.blocks.*.cross_attn.k_proj",
+      "llm_adapter.blocks.*.cross_attn.o_proj",
+      "llm_adapter.blocks.*.cross_attn.q_norm",
+      "llm_adapter.blocks.*.cross_attn.q_proj",
+      "llm_adapter.blocks.*.cross_attn.v_proj",
+      "llm_adapter.blocks.*.mlp.0",
+      "llm_adapter.blocks.*.mlp.2",
+      "llm_adapter.blocks.*.norm_cross_attn",
+      "llm_adapter.blocks.*.norm_mlp",
+      "llm_adapter.blocks.*.norm_self_attn",
+      "llm_adapter.blocks.*.self_attn.k_norm",
+      "llm_adapter.blocks.*.self_attn.k_proj",
+      "llm_adapter.blocks.*.self_attn.o_proj",
+      "llm_adapter.blocks.*.self_attn.q_norm",
+      "llm_adapter.blocks.*.self_attn.q_proj",
+      "llm_adapter.blocks.*.self_attn.v_proj",
+      "llm_adapter.norm",
+      "llm_adapter.out_proj"
+    ],
+    "L00": [
+      "x_embedder.proj.1",
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L01": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L02": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L03": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L04": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L05": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L06": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L07": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L08": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L09": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L10": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L11": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L12": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L13": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L14": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L15": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L16": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L17": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L18": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L19": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L20": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L21": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L22": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L23": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L24": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L25": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L26": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L27": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj",
+      "final_layer.adaln_modulation.1",
+      "final_layer.adaln_modulation.2",
+      "final_layer.linear"
+    ],
+    "VAE": []
+  },
+  "mode_notes": {
+    "Checkpoint": "Use these as guidance when designing Anima checkpoint merge elemental ratios. For SIM/AD-style merges, use alpha mainly as difference-injection amount and beta as a similarity/stability gate. L00-L07 bias input/early structure and coarse layout; L08-L15 are the safest core range for pose, scenario relation, prompt-structure binding, and multi-character composition; L16-L19 refine face, expression, hands, anatomy, clothing, and local structure; L20-L27 strongly influence final rendering, style, color, lighting, contrast, and detail lock. BASE/llm_adapter, t_embedder, x_embedder, and final_layer are high-impact global areas and should usually be fixed or used at very low strength unless intentionally changing conditioning or output-head behavior.",
+    "LoRA": "For Anima LoRA bake, use narrow attention/MLP/AdaLN targets when preserving the base. self_attn is best for pose, layout, anatomy, and multi-character separation; cross_attn is best for prompt adherence, characters, clothing, objects, and scenario concepts; mlp is best for face/hand/clothing detail, texture, rendering density, color, and style; AdaLN modulation changes when/how strongly those paths act during denoising. Avoid or minimize llm_adapter unless the LoRA intentionally trains prompt-understanding/knowledge behavior. Late L20-L27 and final_layer targets strongly affect finish and color.",
+    "LyCORIS": "LyCORIS can target the same logical elements. Per-layer validity matters: BASE contains timestep and adapter elements, L00-L27 contain DiT block elements, L00 additionally has x_embedder, and L27 additionally has final_layer elements. For base preservation, prefer central self_attn/cross_attn/AdaLN subsets over broad all-layer MLP or final_layer targeting. For style transfer, prefer L16-L27 MLP/AdaLN_MLP with cautious late-block strength."
+  }
+}

@@ -331,10 +331,11 @@ def parse_legacy_text_plan(text: str) -> Dict[str, Any]:
             continue
 
         if t.upper().startswith("LC"):
-            _, path, model_type = (t.split(",", 2) + [""])[:3]
+            parts = (t.split(",", 3) + ["", "", "", ""])[:4]
+            _, path, model_type, alias = parts
             entry = make_entry("Local Model")
             entry["local_path"] = path.strip()
-            entry["model_name"] = os.path.splitext(os.path.basename(path.strip()))[0]
+            entry["model_name"] = alias.strip() or os.path.splitext(os.path.basename(path.strip()))[0]
             entry["model_type"] = model_type.strip() or "Checkpoint"
             entries.append(entry)
             continue
@@ -505,9 +506,7 @@ def _merge_record_to_legacy_line(entry: Dict[str, Any]) -> str:
     a = _ratio_text(entry.get("alpha"))
     b = _ratio_text(entry.get("beta"))
     out = (entry.get("output_name") or "").strip()
-    sig = (entry.get("raw_signatures") or "").strip()
-    # sig = (entry.get("additional_signatures") or "").strip()
-    # sig += f' @p {entry.get("precision")}' if entry.get("precision") != "half" else ""
+    sig = _legacy_signature_text(entry)
 
     if mode == "WS":
         line = f"CM {m0} + {m1} {a} {out}"
@@ -565,8 +564,11 @@ def export_plan_records_txt(filepath: str, plan: Dict[str, Any]) -> None:
         elif etype == "Local Model":
             local_path = (entry.get("local_path") or "").strip()
             model_type = (entry.get("model_type") or "Checkpoint").strip()
+            model_name = (entry.get("model_name") or "").strip()
             if local_path:
-                lines.append(f"LC, {local_path}, {model_type}")
+                stem = os.path.splitext(os.path.basename(local_path))[0]
+                suffix = f", {model_name}" if model_name and model_name != stem else ""
+                lines.append(f"LC, {local_path}, {model_type}{suffix}")
         elif etype == "Remove Model":
             model = (entry.get("model") or "").strip()
             if model:
@@ -587,7 +589,7 @@ def export_plan_records_txt(filepath: str, plan: Dict[str, Any]) -> None:
                 loras.append(f"{name}:{ratio}")
             if checkpoint and output_name and loras:
                 line = f"LB {checkpoint} {','.join(loras)} {output_name}"
-                sig = (entry.get("raw_signatures") or "").strip()
+                sig = _legacy_signature_text(entry)
                 if sig:
                     line += f" {sig}"
                 lines.append(line)
@@ -706,6 +708,7 @@ HFToken = "$hf_token"
 CVToken = "$cv_token"
 VAE_URL = "$vae_url".strip()
 VAE_NAME = "$vae_name".strip() or "VAE"
+BAKE_VAE = $bake_vae
 workpath = r"$workpath"
 _md = r"$model_dir"
 _vd = r"$vae_dir"
@@ -721,6 +724,7 @@ for p in (f"{workpath}/tmp", models_dir, vae_dir, emb_dir):
 
 MODEL_REGISTRY = {}
 REMOVED_MODELS = set()
+SOURCE_MODEL_CACHE = {}
 
 
 def flush(light=True):
@@ -924,15 +928,16 @@ def remove_registered_model(name):
     print(f"Remain Storage: {free / (2**30):.2f}GB/{total / (2**30):.2f}GB")
 
 
-def get_vae_path():
+def get_vae_path(warn=True):
     for name in ("$vae_name.safetensors", "$vae_name.ckpt"):
         candidate = os.path.join(vae_dir, name)
         if os.path.exists(candidate):
             return candidate
-    print(f"⚠️ No VAE found in {vae_dir}, merges may fail")
+    if warn:
+        print(f"⚠️ No VAE found in {vae_dir}, merges may fail")
     return None
 
-vae_path = get_vae_path()
+vae_path = get_vae_path(warn=False) if BAKE_VAE else None
 
 pref = {"format": "SafeTensor", "size": "pruned", "fp": "fp16"}
 cache_filename = os.path.join(models_dir, "cache.json")
@@ -1116,6 +1121,23 @@ def get_dl(url, version=None, mode="checkpoint"):
     return None
 
 
+def _safe_model_stem(value):
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", str(value or "model")).strip("._-")
+    return stem or "model"
+
+
+def _source_identity_hash(*parts):
+    text = "|".join(str(x or "") for x in parts)
+    return hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()[:12]
+
+
+def _source_backed_destination(alias, ext, mode, source_identity, kind="src"):
+    ext = str(ext or "safetensors").lstrip(".")
+    alias_stem = _safe_model_stem(alias)
+    suffix = _source_identity_hash(mode, alias_stem, source_identity)
+    return os.path.join(models_dir, f"{alias_stem}__{kind}_{suffix}.{ext}")
+
+
 def model(name, format=1, mode="checkpoint"):
     ext = "ckpt" if format == 0 else "safetensors"
     path = f"{models_dir}/{name}.{ext}"
@@ -1129,7 +1151,7 @@ def _aria_headers(token):
 
 
 def custom_model(url, checkpoint_name=None, mode="checkpoint"):
-    user_token = HFToken if "huggingface" in url else CVToken
+    user_token = HFToken if "huggingface" in str(url) else CVToken
     parse = {"url": url, "version": None, "mode": mode} if not isinstance(url, list) else {"url": url[0], "version": url[1], "mode": mode}
     g = get_dl(**parse)
     if not g:
@@ -1138,13 +1160,17 @@ def custom_model(url, checkpoint_name=None, mode="checkpoint"):
     checkpoint_name = g["name"] if checkpoint_name is None else checkpoint_name
     sha256_value = g["sha256"]
     ext = "ckpt" if g["format"] == 0 else "safetensors"
-    dst = f"{models_dir}/{checkpoint_name}.{ext}"
+    source_identity = sha256_value or url
+    cache_key = (mode, checkpoint_name, source_identity)
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl")
+    SOURCE_MODEL_CACHE[cache_key] = dst
     if os.path.exists(dst):
+        if sha256_value is not None:
+            sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
         return register_model(checkpoint_name, dst, mode)
+    out_name = os.path.basename(dst)
     if "huggingface" in url:
-        user_header = f"\"Authorization: Bearer {user_token}\""
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", models_dir, "-o", f"{checkpoint_name}.{ext}"], check_path=True, path=dst)
-        # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M --header={user_header} "{url}" -d "{models_dir}" -o {checkpoint_name}.{ext}
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
     else:
         headers = {
             "User-Agent": UserAgent().chrome,
@@ -1152,8 +1178,7 @@ def custom_model(url, checkpoint_name=None, mode="checkpoint"):
         }
         response = requests.get(url, headers=headers, allow_redirects=False)
         download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", f"{checkpoint_name}.{ext}"], check_path=True, path=dst)
-        # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M "{download_link}" -d "{models_dir}" -o {checkpoint_name}.{ext}
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
     return register_model(checkpoint_name, dst, mode)
@@ -1220,21 +1245,24 @@ def custom_vae(url, vae_name="VAE"):
 
 
 def old_custom_model(url, checkpoint_name=None, format=1, sha256_value=None, mode="checkpoint"):
+    checkpoint_name = checkpoint_name or _safe_model_stem(Path(str(url).split("?")[0]).stem or "model")
     ext = "ckpt" if format == 0 else "safetensors"
-    dst = f"{models_dir}/{checkpoint_name}.{ext}"
+    source_identity = sha256_value or url
+    cache_key = (mode, checkpoint_name, source_identity)
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl")
+    SOURCE_MODEL_CACHE[cache_key] = dst
     if os.path.exists(dst):
+        if sha256_value is not None:
+            sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
         return register_model(checkpoint_name, dst, mode)
-    user_token = HFToken if "huggingface" in url else CVToken
-    if "huggingface" in url:
-        user_header = f"\"Authorization: Bearer {user_token}\""
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", models_dir, "-o", f"{checkpoint_name}.{ext}"], check_path=True, path=dst)
-        # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M --header={user_header} "{url}" -d "{models_dir}" -o {checkpoint_name}.{ext}
+    out_name = os.path.basename(dst)
+    if "huggingface" in str(url):
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(HFToken), url, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
     else:
-        headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {user_token}"}
+        headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {CVToken}"}
         response = requests.get(url, headers=headers, allow_redirects=False)
         download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", f"{checkpoint_name}.{ext}"], check_path=True, path=dst)
-        # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M "{download_link}" -d "{models_dir}" -o {checkpoint_name}.{ext}
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
     return register_model(checkpoint_name, dst, mode)
@@ -1245,9 +1273,16 @@ def local_model(src, alias=None, mode="checkpoint"):
     if not os.path.exists(src):
         raise FileNotFoundError(src)
     alias = alias or Path(src).stem
-    ext = Path(src).suffix or ".safetensors"
-    dst = os.path.join(models_dir, f"{alias}{ext}")
-    if os.path.abspath(src) != os.path.abspath(dst):
+    ext = (Path(src).suffix or ".safetensors").lstrip(".")
+    try:
+        stat = os.stat(src)
+        source_identity = f"{os.path.abspath(src)}:{stat.st_size}:{stat.st_mtime_ns}"
+    except Exception:
+        source_identity = os.path.abspath(src)
+    cache_key = (mode, alias, source_identity)
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(alias, ext, mode, source_identity, kind="local")
+    SOURCE_MODEL_CACHE[cache_key] = dst
+    if os.path.abspath(src) != os.path.abspath(dst) and not os.path.exists(dst):
         shutil.copy2(src, dst)
     return register_model(alias, dst, mode)
 
@@ -1325,13 +1360,13 @@ def run_notebook_bang(source, cwd=None):
         raise RuntimeError(f"Notebook shell command failed with exit code {code}: {shell_cmd}")
 
 
-if VAE_URL:
+if BAKE_VAE and VAE_URL:
     try:
         custom_vae(VAE_URL, VAE_NAME)
     except Exception as e:
         print(f"VAE download failed: {e}")
 
-vae_path = get_vae_path()
+vae_path = get_vae_path(warn=True) if BAKE_VAE else None
 flush(light=False)
 %cd {merge_repo_dir}
 ''')
@@ -1462,13 +1497,74 @@ def _json_literal(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _precision_args(additional_signatures: str) -> str:
-    tokens = shlex.split((additional_signatures or "").replace("\n", " "))
+def _normalize_precision_name(value: Any) -> str:
+    p = str(value or "").strip().lower()
+    if not p:
+        return ""
+    if p in ("bhalf", "bf16", "bfloat16"):
+        return "bhalf"
+    if p in ("quarter", "fp8", "float8"):
+        return "quarter"
+    if p in ("fp32", "float32", "full"):
+        return "fp32"
+    if p in ("half", "fp16", "float16"):
+        return "half"
+    return p
+
+
+def _tail_text_to_cli_signatures(raw_text: str) -> str:
+    tokens = shlex.split((raw_text or "").replace("\n", " "))
+    if not tokens:
+        return ""
     tail = _parse_tail_at(tokens)
-    precision = tail.get("precision")
-    if not precision:
-        return "[\"--save_half\", \"--prune\", \"--save_safetensors\"]"
-    p = precision.lower()
+    out: List[str] = []
+    if tail.get("cosine") is not None:
+        out.append(f"--cosine{tail['cosine']}")
+    if tail.get("fine"):
+        fine = str(tail["fine"])
+        out.append(f'--fine={"\"" + fine + "\"" if _needs_quote(fine) else fine}')
+    if tail.get("seed") is not None:
+        out.append(f"--seed {tail['seed']}")
+    if tail.get("rank") is not None:
+        out.append(f"--rank {tail['rank']}")
+    if tail.get("arch"):
+        out.append(f"--arch {tail['arch']}")
+    for extra in tail.get("extras") or []:
+        extra = str(extra).strip()
+        if extra:
+            out.append(extra)
+    return " ".join(out).strip()
+
+
+def _command_signatures(entry: Dict[str, Any]) -> str:
+    additional = str(entry.get("additional_signatures") or "").strip()
+    if additional:
+        return additional
+    return _tail_text_to_cli_signatures(str(entry.get("raw_signatures") or ""))
+
+
+def _precision_from_signatures(text: str) -> str:
+    tokens = shlex.split((text or "").replace("\n", " "))
+    tail = _parse_tail_at(tokens)
+    return _normalize_precision_name(tail.get("precision"))
+
+
+def _entry_precision(entry: Dict[str, Any], command_signatures: str = "") -> str:
+    precision = _normalize_precision_name(entry.get("precision"))
+    # additional_signatures may contain @p/@precision when a JSON plan is fed directly.
+    parsed_additional = _precision_from_signatures(command_signatures or str(entry.get("additional_signatures") or ""))
+    if parsed_additional:
+        precision = parsed_additional
+    # raw_signatures is the user-facing field in the planner UI. Let it override stale
+    # imported precision values so editing @p in Additional Signatures is respected.
+    parsed_raw = _precision_from_signatures(str(entry.get("raw_signatures") or ""))
+    if parsed_raw:
+        precision = parsed_raw
+    return precision or "half"
+
+
+def _precision_args(entry: Dict[str, Any], command_signatures: str = "") -> str:
+    p = _entry_precision(entry, command_signatures=command_signatures)
     save_flag = "--save_half"
     if p in ("bhalf", "bf16", "bfloat16"):
         save_flag = "--save_bhalf"
@@ -1479,7 +1575,15 @@ def _precision_args(additional_signatures: str) -> str:
     return _json_literal([save_flag, "--prune", "--save_safetensors"])
 
 
-def _entry_to_lines(entry: Dict[str, Any]) -> Tuple[List[str], str | None]:
+def _legacy_signature_text(entry: Dict[str, Any]) -> str:
+    sig = (entry.get("raw_signatures") or "").strip() or (entry.get("additional_signatures") or "").strip()
+    precision = _normalize_precision_name(entry.get("precision"))
+    if precision and precision != "half" and not _precision_from_signatures(sig):
+        sig = f"{sig} @p {precision}".strip()
+    return sig
+
+
+def _entry_to_lines(entry: Dict[str, Any], *, bake_vae: bool = True) -> Tuple[List[str], str | None]:
     etype = entry.get("type")
     lines: List[str] = []
     produced: str | None = None
@@ -1503,7 +1607,7 @@ def _entry_to_lines(entry: Dict[str, Any]) -> Tuple[List[str], str | None]:
     if etype == "Local Model":
         local_path = (entry.get("local_path") or "").strip()
         if local_path:
-            alias = temp(str(Path(local_path).stem))
+            alias = temp(str((entry.get("model_name") or "").strip() or Path(local_path).stem))
             mode = "lora" if (entry.get("model_type") or "Checkpoint") in ("LoRA", "LyCORIS") else "checkpoint"
             lines.append(f'local_model({_json_literal(local_path)}, alias={_json_literal(alias)}, mode={_json_literal(mode)})')
             produced = alias
@@ -1523,17 +1627,18 @@ def _entry_to_lines(entry: Dict[str, Any]) -> Tuple[List[str], str | None]:
         model2 = (entry.get("model2") or "").strip()
         output_name = (entry.get("output_name") or "").strip()
         if model0 and model1 and output_name:
-            precision_args = _precision_args(entry.get("additional_signatures", ""))
+            command_signatures = _command_signatures(entry)
+            precision_args = _precision_args(entry, command_signatures)
             lines.extend([
                 f'beta = {entry.get("beta","") != ""}',
                 'cmd = [sys.executable, "merge.py", ' + _json_literal(merge_mode) + ', models_dir + "/", model_file(' + _json_literal(model0) + '), model_file(' + _json_literal(model1) + ')]',
                 f'if {bool(model2)!r}:\n        cmd.append(model_file({_json_literal(model2)}))',
-                'if vae_path:\n        cmd += ["--vae", vae_path]',
+                *(['if vae_path:\n        cmd += ["--vae", vae_path]'] if bake_vae else []),
                 'cmd += ratio_args("alpha", ' + _json_literal(entry.get("alpha") or default_ratio("Single")) + ')',
                 'if beta:\n        cmd += ratio_args("beta", ' + _json_literal(_normalize_ratio_spec(entry.get("beta"), allow_block_weight=True, default_single="0.5")) + ')',
                 'cmd += ' + precision_args,
                 'cmd += ["--output", ' + _json_literal(output_name) + ']',
-                'cmd += [' + _json_literal(entry.get("additional_signatures", "")) + ']',
+                'cmd += [' + _json_literal(command_signatures) + ']',
                 'run_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), ignore_meta=True)',
                 'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint")',
                 'flush()',
@@ -1556,12 +1661,13 @@ def _entry_to_lines(entry: Dict[str, Any]) -> Tuple[List[str], str | None]:
             lines.append('lora_items = []')
             for name, ratio in parts:
                 lines.append('lora_items.append(f"{model_file(' + _json_literal(name).replace("\"","'") + ')}:" + "' + ratio.replace('\\', '\\\\').replace('"', '\\"')+ '")')
-            precision_args = _precision_args(entry.get("additional_signatures", ""))
+            command_signatures = _command_signatures(entry)
+            precision_args = _precision_args(entry, command_signatures)
             lines.extend([
                 'cmd = [sys.executable, "lora_bake.py", models_dir + "/", model_file(' + _json_literal(checkpoint) + '), ",".join(lora_items)]',
                 'cmd += ' + precision_args,
                 'cmd += ["--output", ' + _json_literal(output_name) + ']',
-                'cmd += [' + _json_literal(entry.get("additional_signatures", "")) + ']',
+                'cmd += [' + _json_literal(command_signatures) + ']',
                 'run_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), ignore_meta=True)',
                 'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint")',
                 'flush()',
@@ -1590,7 +1696,7 @@ def _entry_progress_label(entry: Dict[str, Any], index: int, total: int) -> str:
     return f"[planner-progress] {index}/{total} | {etype} | {label}"
 
 
-def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae_dir: str = "") -> Tuple[List[str], str | None]:
+def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae_dir: str = "", bake_vae: bool = True) -> Tuple[List[str], str | None]:
     del workpath, model_dir, vae_dir
     entries = normalize_plan(plan).get("entries", [])
     # print(plan)
@@ -1599,7 +1705,7 @@ def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae
     final: str | None = None
     for entry_index, entry in enumerate(entries, start=1):
         try:
-            lines, produced = _entry_to_lines(entry)
+            lines, produced = _entry_to_lines(entry, bake_vae=bake_vae)
         except Exception as e:
             raise PlanCompileError(
                 f"Failed to compile plan entry #{entry_index} ({entry.get('type', 'Unknown')}): {e}",
@@ -1617,17 +1723,18 @@ def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae
     return res, final
 
 
-def planit(filepath, workpath, model_dir="", vae_dir=""):
+def planit(filepath, workpath, model_dir="", vae_dir="", bake_vae: bool = True):
     plan = load_plan_records(filepath)
-    return planit_records(plan, workpath, model_dir, vae_dir)
+    return planit_records(plan, workpath, model_dir, vae_dir, bake_vae=bake_vae)
 
 
 def create_plan(filepath: str, workpath: str, saveas: str, title: str,
                 vae: str, CivitAPI: str, HuggingAPI: str, UR: str,
                 model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
+                bake_vae: bool = True,
                 ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False):
     _ensure_dirs(os.path.join(workpath, "tmp"), ["models", "embeddings", "vae"])
-    res, _ = planit(filepath, workpath, model_dir, vae_dir)
+    res, _ = planit(filepath, workpath, model_dir, vae_dir, bake_vae=bake_vae)
     prelude = PRELUDE_TPL.safe_substitute(
         workpath=workpath,
         toolpath=_preferred_toolpath(),
@@ -1635,6 +1742,7 @@ def create_plan(filepath: str, workpath: str, saveas: str, title: str,
         cv_token=CivitAPI,
         vae_url=vae,
         vae_name=vae_name,
+        bake_vae="True" if bake_vae else "False",
         model_dir=model_dir,
         vae_dir=vae_dir,
     )
@@ -1646,7 +1754,8 @@ def create_plan(filepath: str, workpath: str, saveas: str, title: str,
 
 def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
                       vae: str, CivitAPI: str, HuggingAPI: str, UR: str,
-                      model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE", 
+                      model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
+                      bake_vae: bool = True,
                       ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False):
     _ensure_dirs(os.path.join(workpath, "tmp"), ["models", "embeddings", "vae"])
     act_model_dir = model_dir if model_dir else f"{workpath}/tmp/models"
@@ -1662,10 +1771,11 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
         cv_token=CivitAPI,
         vae_url=vae,
         vae_name=vae_name,
+        bake_vae="True" if bake_vae else "False",
         model_dir=model_dir,
         vae_dir=vae_dir,
     )
-    res, final = planit(filepath, workpath, model_dir, vae_dir)
+    res, final = planit(filepath, workpath, model_dir, vae_dir, bake_vae=bake_vae)
     plan_cell = f"#{title}\n\n" + prelude + "\n\n" + "\n\n".join(res)
     upload = UPLOAD_TPL.safe_substitute(workpath=workpath, final=final or "", repo=UR, model_dir=act_model_dir, upload_after_merge=upload_after_merge)
     t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i)
