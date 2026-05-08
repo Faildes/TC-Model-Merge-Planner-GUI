@@ -104,8 +104,8 @@ This project uses **Tkinter**. On some Linux distributions, you may need to inst
 ### 1. Clone this repository
 
 ```bash
-git clone <your-repo-url>
-cd <your-repo-folder>
+git clone https://github.com/Faildes/TC-Model-Merge-Planner-GUI
+cd TC-Model-Merge-Planner-GUI
 ```
 
 ### 2. Install planner dependencies and backend merger
