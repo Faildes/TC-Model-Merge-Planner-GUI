@@ -208,32 +208,7 @@ The planner includes these main actions:
 
 Each plan line has a **Model Merge Type**. The current implementation supports five line types.
 
-#### 1. Download Model
-Register a remote source for later use.
-
-Fields:
-- Model Name
-- Link
-- Type (`Checkpoint`, `LoRA`, `LyCORIS`)
-
-Use this when a model should be fetched during notebook execution.
-
-#### 2. Local Model
-Register a model that already exists on disk.
-
-Fields:
-- Local Selection
-- Local Path
-- Type
-
-Use this when the file already exists locally and should simply be referenced by later steps.
-
-#### 3. Remove Model
-Remove a previously registered alias from later plan choices.
-
-Use this to keep later selections clean or intentionally invalidate older aliases.
-
-#### 4. Checkpoint Merge
+#### 1. Checkpoint Merge
 Create a merge step using one of the available merge modes.
 
 Fields include:
@@ -246,7 +221,7 @@ Fields include:
 - Output Name
 - Additional Signatures
 
-#### 5. LoRA Bake
+#### 2. LoRA Bake
 Bake one or more LoRAs / LyCORIS models into a checkpoint.
 
 Fields include:
@@ -281,7 +256,10 @@ Free-form elemental text such as layer / element / strength style expressions.
 The planner also includes popup assistance for elemental editing and resolves candidate JSON files per base model, for example:
 
 - `elemental_candidates_sdxl.json`
-- *(Currently not implemented)* `elemental_candidates_flux.json`
+- `elemental_candidates_anima.json`
+- *(future implementation)* `elemental_candidates_zimage.json`
+- *(future implementation)* `elemental_candidates_sd15.json`
+- *(future implementation)* `elemental_candidates_flux.json`
 
 Example style:
 
@@ -360,7 +338,7 @@ Below is a minimal example plan:
 +BaseModel, https://example.com/base-model
 +PoseDonor, https://example.com/pose-model
 +HandsLoRA, https://example.com/hands-lora, %LR
-CM BaseModel + PoseDonor 0.20 PoseMixed @mode WS
+CM BaseModel + PoseDonor 0.20 PoseMixed
 LB PoseMixed HandsLoRA:0.75 FinalOutput
 ```
 
