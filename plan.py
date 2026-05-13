@@ -277,7 +277,7 @@ def make_entry(entry_type: str = "Checkpoint Merge") -> Dict[str, Any]:
 
 
 def default_plan() -> Dict[str, Any]:
-    return {"version": 2, "format": "planner-json", "entries": [make_entry("Checkpoint Merge")]}
+    return {"version": 2, "format": "planner-json", "final_memo": "", "history": [], "entries": [make_entry("Checkpoint Merge")]}
 
 
 # ----------------------------
@@ -288,6 +288,12 @@ def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(data, dict):
         plan["version"] = data.get("version", 2)
         plan["format"] = data.get("format", "planner-json")
+        plan["final_memo"] = str(data.get("final_memo", plan.get("final_memo", "")) or "")
+        hist = data.get("history", plan.get("history", []))
+        plan["history"] = hist if isinstance(hist, list) else []
+        meta = data.get("meta", {})
+        if isinstance(meta, dict):
+            plan["meta"] = meta
         plan["entries"] = []
         for raw in data.get("entries", []):
             entry = make_entry(raw.get("type", "Checkpoint Merge"))
@@ -343,6 +349,36 @@ def parse_legacy_text_plan(text: str) -> Dict[str, Any]:
         if t.upper().startswith("-"):
             entry = make_entry("Remove Model")
             entry["model"] = temp(t[1:].strip())
+            entries.append(entry)
+            continue
+
+        if t.startswith("LM"):
+            toks = _split(t)
+            if len(toks) < 3:
+                continue
+            cut = len(toks)
+            for i, tk in enumerate(toks):
+                if tk.startswith("@"):
+                    cut = i
+                    break
+            core, at = toks[:cut], _parse_tail_at(toks[cut:])
+            tail_opts = []
+            precision = "half"
+            if at["precision"] is not None:
+                precision = "bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else "half")
+            for d in at["extras"]:
+                if d.startswith("--"):
+                    tail_opts.append(d)
+            tail_str = "" if not tail_opts else " ".join(tail_opts)
+            entry = make_entry("LoRA Merge")
+            entry["output_name"] = temp(core[-1])
+            entry["loras"] = []
+            entry["precision"] = precision
+            entry["additional_signatures"] = tail_str
+            entry["raw_signatures"] = " ".join(toks[cut:])
+            for name, ratio in _parse_lora_pairs(" ".join(core[1:-1]).strip()):
+                ratio_mode = "Elemental" if any(ch in ratio for ch in "[]{}") or "\n" in ratio else "Single"
+                entry["loras"].append({"name": temp(name), "ratio": {"mode": ratio_mode, "value": ratio}})
             entries.append(entry)
             continue
 
@@ -697,6 +733,7 @@ import sys
 import traceback
 import errno
 import copy
+import time
 from pathlib import Path
 
 import filelock
@@ -723,16 +760,217 @@ for p in (f"{workpath}/tmp", models_dir, vae_dir, emb_dir):
     os.makedirs(p, exist_ok=True)
 
 MODEL_REGISTRY = {}
+MODEL_REGISTRY_HISTORY = []
+MODEL_INSTALL_COUNTER = 0
 REMOVED_MODELS = set()
 SOURCE_MODEL_CACHE = {}
+PLANNER_REGISTRY_DIR = os.path.join(models_dir, "_planner_registry")
+PLANNER_CACHE_TTL_HOURS = float(os.environ.get("PLANNER_CACHE_TTL_HOURS", "72") or 72)
+PLANNER_LOW_DISK_GB = float(os.environ.get("PLANNER_LOW_DISK_GB", "8") or 8)
+_PIP_CACHE_PURGED = False
+
+
+def _path_is_relative_to(path, root):
+    try:
+        Path(path).resolve().relative_to(Path(root).resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _is_planner_registry_path(path):
+    return bool(path) and _path_is_relative_to(path, PLANNER_REGISTRY_DIR)
+
+
+def _is_model_dir_path(path):
+    return bool(path) and _path_is_relative_to(path, models_dir)
+
+
+def _safe_disk_remove(path, *, source_kind="registered", reason="cleanup"):
+    path = str(path or "")
+    if not path or not os.path.lexists(path):
+        return False
+    source_kind = str(source_kind or "registered")
+    owns_path = (
+        source_kind in ("generated", "download")
+        or _is_planner_registry_path(path)
+    )
+    # Existing user files and raw local paths outside the planner registry must never be removed.
+    if not owns_path:
+        return False
+    try:
+        label = os.path.basename(path.rstrip(os.sep)) or path
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+        print(f"[cleanup] removed {label} ({source_kind}, {reason})")
+        return True
+    except FileNotFoundError:
+        return False
+    except Exception as e:
+        print(f"[cleanup] could not remove {path}: {e}")
+        return False
+
+
+def _prune_empty_parent_dirs(path):
+    try:
+        parent = Path(path).resolve().parent
+        root = Path(PLANNER_REGISTRY_DIR).resolve()
+        while parent != root and root in parent.parents:
+            try:
+                parent.rmdir()
+            except OSError:
+                break
+            parent = parent.parent
+    except Exception:
+        pass
+
+
+def _release_record(record, *, reason="cleanup", unregister=True):
+    if not record:
+        return False
+    alias = str(record.get("alias") or "")
+    path = str(record.get("path") or "")
+    source_kind = str(record.get("source_kind") or "registered")
+    removed = _safe_disk_remove(path, source_kind=source_kind, reason=reason)
+    if removed:
+        _prune_empty_parent_dirs(path)
+    if unregister and alias and MODEL_REGISTRY.get(alias) is record:
+        MODEL_REGISTRY.pop(alias, None)
+    return removed
+
+
+def _drop_source_cache_path(path):
+    if not path:
+        return
+    try:
+        target = str(Path(path).resolve())
+    except Exception:
+        target = os.path.abspath(str(path))
+    for key, cached in list(SOURCE_MODEL_CACHE.items()):
+        try:
+            cached_resolved = str(Path(cached).resolve())
+        except Exception:
+            cached_resolved = os.path.abspath(str(cached))
+        if cached_resolved == target:
+            SOURCE_MODEL_CACHE.pop(key, None)
+
+
+def _current_active_paths():
+    paths = set()
+    for info in MODEL_REGISTRY.values():
+        path = str(info.get("path") or "")
+        if path:
+            try:
+                paths.add(str(Path(path).resolve()))
+            except Exception:
+                paths.add(os.path.abspath(path))
+    for path in SOURCE_MODEL_CACHE.values():
+        if path:
+            try:
+                paths.add(str(Path(path).resolve()))
+            except Exception:
+                paths.add(os.path.abspath(path))
+    return paths
+
+
+def _prune_orphan_registry_dirs(max_age_hours=None, *, aggressive=False):
+    root = Path(PLANNER_REGISTRY_DIR)
+    if not root.exists():
+        return 0
+    now = time.time()
+    max_age = PLANNER_CACHE_TTL_HOURS if max_age_hours is None else float(max_age_hours)
+    active_paths = _current_active_paths()
+    removed = 0
+    for child in sorted(root.iterdir(), key=lambda p: str(p)):
+        try:
+            resolved = str(child.resolve())
+            if any(ap == resolved or ap.startswith(resolved + os.sep) for ap in active_paths):
+                continue
+            age_hours = (now - child.stat().st_mtime) / 3600.0
+            if aggressive or age_hours >= max_age:
+                shutil.rmtree(child) if child.is_dir() and not child.is_symlink() else child.unlink()
+                removed += 1
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            print(f"[cleanup] could not prune {child}: {e}")
+    if removed:
+        print(f"[cleanup] pruned {removed} stale planner cache item(s)")
+    return removed
+
+
+def _prune_dead_hash_cache():
+    global cache_data
+    if cache_data is None:
+        return
+    changed = False
+    active_titles = set()
+    for info in MODEL_REGISTRY.values():
+        alias = str(info.get("alias") or "")
+        mode = str(info.get("mode") or "checkpoint")
+        if alias:
+            active_titles.add(f"{mode}/{alias}")
+    for section in ("hashes", "hashes-addnet"):
+        data = cache_data.get(section)
+        if not isinstance(data, dict):
+            continue
+        for title in list(data.keys()):
+            if title.startswith(("checkpoint/", "lora/")) and active_titles and title not in active_titles:
+                data.pop(title, None)
+                changed = True
+    if changed:
+        dump_cache()
+
+
+def _disk_free_gb(path=None):
+    try:
+        total, used, free = shutil.disk_usage(path or models_dir)
+        return free / (2**30), total / (2**30)
+    except Exception:
+        total, used, free = shutil.disk_usage("/")
+        return free / (2**30), total / (2**30)
 
 
 def flush(light=True):
+    global _PIP_CACHE_PURGED
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        try:
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass
+    free_gb, total_gb = _disk_free_gb()
     if not light:
+        _prune_orphan_registry_dirs(aggressive=free_gb < PLANNER_LOW_DISK_GB)
+    if (not light or free_gb < PLANNER_LOW_DISK_GB) and not _PIP_CACHE_PURGED:
         subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
+        _PIP_CACHE_PURGED = True
+    if free_gb < PLANNER_LOW_DISK_GB:
+        print(f"[cleanup] low disk: {free_gb:.2f}GB/{total_gb:.2f}GB free")
+
+
+def release_registered_model(name, *, reason="last-use"):
+    alias = str(name or "").strip()
+    if not alias:
+        return
+    info = MODEL_REGISTRY.pop(alias, None)
+    REMOVED_MODELS.add(alias)
+    if not info:
+        print(f"[cleanup] {alias}: already absent ({reason})")
+        return
+    _drop_source_cache_path(info.get("path", ""))
+    _release_record(info, reason=reason, unregister=False)
+    print(f"[cleanup] {alias}: released ({reason})")
+
+
+def release_models_after_step(names, *, reason="last-use"):
+    for name in names or []:
+        release_registered_model(name, reason=reason)
+    _prune_dead_hash_cache()
+    flush(light=True)
 
 
 def _ensure_runtime_path():
@@ -851,10 +1089,13 @@ def run_cmd(cmd, cwd=None, check_path: bool=False, path: str="", ignore_meta: bo
                         )
                         cmd_ipython[i] = f'"{value}"'
 
-            !{" ".join(cmd_ipython)}
-            if check_path and not os.path.exists(path):
-                raise FileNotFoundError(path)
-            return
+            try:
+                !{" ".join(cmd_ipython)}
+                if check_path and not os.path.exists(path):
+                    raise FileNotFoundError(path)
+                return
+            finally:
+                flush(light=True)
         except:
             pass
 
@@ -876,21 +1117,47 @@ def run_cmd(cmd, cwd=None, check_path: bool=False, path: str="", ignore_meta: bo
         bufsize=1,
         env=os.environ.copy(),
     )
-    _stream_subprocess_output(proc, progress_prefix=prefer_stream)
-    code = proc.wait()
-    if check_path and not os.path.exists(path):
-        raise FileNotFoundError(path)
-    if code != 0:
-        raise RuntimeError(f"Command failed with exit code {code}: {pretty}")
+    try:
+        _stream_subprocess_output(proc, progress_prefix=prefer_stream)
+        code = proc.wait()
+        if check_path and not os.path.exists(path):
+            raise FileNotFoundError(path)
+        if code != 0:
+            raise RuntimeError(f"Command failed with exit code {code}: {pretty}")
+    finally:
+        flush(light=True)
 
 
-def register_model(name, path, mode="checkpoint"):
+def register_model(name, path, mode="checkpoint", *, source_kind="registered", source_identity="", original_path=""):
+    global MODEL_INSTALL_COUNTER
     if not os.path.exists(path):
         raise FileNotFoundError(path)
-    MODEL_REGISTRY[name] = {"path": str(path), "basename": os.path.basename(path), "mode": mode}
-    if name in REMOVED_MODELS:
-        REMOVED_MODELS.remove(name)
-    print(f"[register] {name} -> {MODEL_REGISTRY[name]['basename']} ({mode})")
+    alias = str(name or "").strip()
+    if not alias:
+        raise ValueError("Model alias is empty")
+    MODEL_INSTALL_COUNTER += 1
+    record = {
+        "alias": alias,
+        "path": str(path),
+        "basename": os.path.basename(path),
+        "filename": os.path.basename(path),
+        "mode": mode,
+        "source_kind": str(source_kind or "registered"),
+        "source_identity": str(source_identity or ""),
+        "original_path": str(original_path or ""),
+        "install_index": MODEL_INSTALL_COUNTER,
+        "install_stage": f"install_{MODEL_INSTALL_COUNTER:04d}",
+        "registered_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    previous = MODEL_REGISTRY.get(alias)
+    if previous and os.path.abspath(str(previous.get("path", ""))) != os.path.abspath(str(path)):
+        _drop_source_cache_path(previous.get("path", ""))
+        _release_record(previous, reason="superseded", unregister=False)
+    MODEL_REGISTRY[alias] = record
+    MODEL_REGISTRY_HISTORY.append(dict(record))
+    if alias in REMOVED_MODELS:
+        REMOVED_MODELS.remove(alias)
+    print(f"[register] {alias} -> {record['basename']} ({mode}, {record['install_stage']}, {record['source_kind']})")
     return str(path)
 
 
@@ -908,24 +1175,22 @@ def resolve_model_path(name):
 
 
 def model_file(name):
-    return os.path.basename(resolve_model_path(name))
+    path = resolve_model_path(name)
+    try:
+        p = Path(path).resolve()
+        base = Path(models_dir).resolve()
+        rel = os.path.relpath(str(p), str(base))
+        if rel != ".." and not rel.startswith(".." + os.sep) and not os.path.isabs(rel):
+            return rel.replace(os.sep, "/")
+    except Exception:
+        pass
+    return str(path)
 
 
 def remove_registered_model(name):
-    try:
-        path = resolve_model_path(name)
-    except FileNotFoundError:
-        MODEL_REGISTRY.pop(name, None)
-        REMOVED_MODELS.add(name)
-        print(f"[remove] {name}: already absent")
-        return
-    if os.path.exists(path):
-        print(f"Delete {os.path.basename(path)}")
-        os.remove(path)
-    MODEL_REGISTRY.pop(name, None)
-    REMOVED_MODELS.add(name)
-    total, used, free = shutil.disk_usage("/")
-    print(f"Remain Storage: {free / (2**30):.2f}GB/{total / (2**30):.2f}GB")
+    release_registered_model(name, reason="explicit-remove")
+    free_gb, total_gb = _disk_free_gb()
+    print(f"Remain Storage: {free_gb:.2f}GB/{total_gb:.2f}GB")
 
 
 def get_vae_path(warn=True):
@@ -1057,6 +1322,7 @@ def make_pref(p, mode):
 def get_dl(url, version=None, mode="checkpoint"):
     prefs = make_pref(pref, mode)
     if "civitai" in url:
+        file = None
         if "/api/" in url:
             dllink = url
             dlname = None
@@ -1094,7 +1360,14 @@ def get_dl(url, version=None, mode="checkpoint"):
             sha256_value = file.get("hashes", {}).get("SHA256", "").lower() or None
             ext = 1 if file.get("metadata", {}).get("format") == "SafeTensor" else 0
             dlname = model_name + "-" + model_version
-        return {"url": dllink, "name": dlname, "format": ext, "sha256": sha256_value}
+        filename = None
+        try:
+            filename = file.get("name") if file is not None else None
+        except Exception:
+            filename = None
+        if not filename:
+            filename = os.path.basename(str(dllink).split("?", 1)[0]) or ((dlname or "model") + (".safetensors" if ext == 1 else ".ckpt"))
+        return {"url": dllink, "name": dlname, "format": ext, "sha256": sha256_value, "filename": filename}
 
     if "huggingface" in url:
         url_set = url.replace("https://huggingface.co/", "").split("/")
@@ -1116,7 +1389,8 @@ def get_dl(url, version=None, mode="checkpoint"):
             return None
         match = re.search(r"sha256:[0-9a-f]+", res.text)
         sha256_value = match.group().replace("sha256:", "") if match else None
-        return {"url": dllink, "name": dlname, "format": ext, "sha256": sha256_value}
+        filename = url_set[-1].split("?", 1)[0] or (dlname + (".safetensors" if ext == 1 else ".ckpt"))
+        return {"url": dllink, "name": dlname, "format": ext, "sha256": sha256_value, "filename": filename}
 
     return None
 
@@ -1131,11 +1405,23 @@ def _source_identity_hash(*parts):
     return hashlib.sha1(text.encode("utf-8", "ignore")).hexdigest()[:12]
 
 
-def _source_backed_destination(alias, ext, mode, source_identity, kind="src"):
+def _safe_model_filename(value, ext="safetensors"):
     ext = str(ext or "safetensors").lstrip(".")
-    alias_stem = _safe_model_stem(alias)
-    suffix = _source_identity_hash(mode, alias_stem, source_identity)
-    return os.path.join(models_dir, f"{alias_stem}__{kind}_{suffix}.{ext}")
+    raw = os.path.basename(str(value or "").split("?", 1)[0])
+    if not raw:
+        raw = f"model.{ext}"
+    suffix = Path(raw).suffix or f".{ext}"
+    stem = _safe_model_stem(Path(raw).stem)
+    safe_suffix = re.sub(r"[^A-Za-z0-9.]+", "", suffix) or f".{ext}"
+    return f"{stem}{safe_suffix}"
+
+
+def _source_backed_destination(alias, ext, mode, source_identity, kind="src", filename=None):
+    ext = str(ext or "safetensors").lstrip(".")
+    suffix = _source_identity_hash(mode, alias, source_identity)
+    folder = os.path.join(models_dir, "_planner_registry", f"{kind}_{suffix}")
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, _safe_model_filename(filename or f"{alias}.{ext}", ext))
 
 
 def model(name, format=1, mode="checkpoint"):
@@ -1143,7 +1429,7 @@ def model(name, format=1, mode="checkpoint"):
     path = f"{models_dir}/{name}.{ext}"
     if os.path.exists(path):
         sha256_set(path, f"{mode}/{name}", "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQR")
-    return register_model(name, path, mode)
+    return register_model(name, path, mode, source_kind="existing")
 
 
 def _aria_headers(token):
@@ -1161,16 +1447,18 @@ def custom_model(url, checkpoint_name=None, mode="checkpoint"):
     sha256_value = g["sha256"]
     ext = "ckpt" if g["format"] == 0 else "safetensors"
     source_identity = sha256_value or url
+    filename = g.get("filename") or f"{_safe_model_stem(checkpoint_name)}.{ext}"
     cache_key = (mode, checkpoint_name, source_identity)
-    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl")
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl", filename=filename)
     SOURCE_MODEL_CACHE[cache_key] = dst
     if os.path.exists(dst):
         if sha256_value is not None:
             sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-        return register_model(checkpoint_name, dst, mode)
+        return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
     out_name = os.path.basename(dst)
+    out_dir = os.path.dirname(dst)
     if "huggingface" in url:
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
     else:
         headers = {
             "User-Agent": UserAgent().chrome,
@@ -1178,10 +1466,10 @@ def custom_model(url, checkpoint_name=None, mode="checkpoint"):
         }
         response = requests.get(url, headers=headers, allow_redirects=False)
         download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-    return register_model(checkpoint_name, dst, mode)
+    return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
 
 
 def custom_vae(url, vae_name="VAE"):
@@ -1248,43 +1536,58 @@ def old_custom_model(url, checkpoint_name=None, format=1, sha256_value=None, mod
     checkpoint_name = checkpoint_name or _safe_model_stem(Path(str(url).split("?")[0]).stem or "model")
     ext = "ckpt" if format == 0 else "safetensors"
     source_identity = sha256_value or url
+    filename = os.path.basename(str(url).split("?", 1)[0]) or f"{_safe_model_stem(checkpoint_name)}.{ext}"
     cache_key = (mode, checkpoint_name, source_identity)
-    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl")
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl", filename=filename)
     SOURCE_MODEL_CACHE[cache_key] = dst
     if os.path.exists(dst):
         if sha256_value is not None:
             sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-        return register_model(checkpoint_name, dst, mode)
+        return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
     out_name = os.path.basename(dst)
+    out_dir = os.path.dirname(dst)
     if "huggingface" in str(url):
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(HFToken), url, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(HFToken), url, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
     else:
         headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {CVToken}"}
         response = requests.get(url, headers=headers, allow_redirects=False)
         download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", models_dir, "-o", out_name], check_path=True, path=dst)
+        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-    return register_model(checkpoint_name, dst, mode)
+    return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
 
 
 def local_model(src, alias=None, mode="checkpoint"):
-    src = os.path.expanduser(str(src))
+    src = os.path.abspath(os.path.expanduser(str(src)))
     if not os.path.exists(src):
         raise FileNotFoundError(src)
     alias = alias or Path(src).stem
     ext = (Path(src).suffix or ".safetensors").lstrip(".")
     try:
         stat = os.stat(src)
-        source_identity = f"{os.path.abspath(src)}:{stat.st_size}:{stat.st_mtime_ns}"
+        source_identity = f"{src}:{stat.st_size}:{stat.st_mtime_ns}"
     except Exception:
-        source_identity = os.path.abspath(src)
+        source_identity = src
     cache_key = (mode, alias, source_identity)
-    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(alias, ext, mode, source_identity, kind="local")
+    dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(alias, ext, mode, source_identity, kind="local", filename=Path(src).name)
     SOURCE_MODEL_CACHE[cache_key] = dst
-    if os.path.abspath(src) != os.path.abspath(dst) and not os.path.exists(dst):
-        shutil.copy2(src, dst)
-    return register_model(alias, dst, mode)
+    # Do not duplicate local models.  Use a lightweight link inside the planner registry
+    # when possible so merge.py can still receive a path relative to models_dir.
+    if os.path.abspath(src) != os.path.abspath(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        try:
+            if os.path.lexists(dst) and os.path.islink(dst) and os.path.realpath(dst) != src:
+                os.unlink(dst)
+            if not os.path.lexists(dst):
+                os.symlink(src, dst)
+        except Exception:
+            try:
+                if not os.path.exists(dst):
+                    os.link(src, dst)
+            except Exception:
+                dst = src
+    return register_model(alias, dst, mode, source_kind="local", source_identity=source_identity, original_path=src)
 
 
 def ratio_value(spec):
@@ -1300,10 +1603,16 @@ def ratio_value(spec):
 
 
 def ratio_args(flag, spec):
+    mode = ""
+    if isinstance(spec, dict):
+        mode = str(spec.get("mode", ""))
     value = ratio_value(spec)
-    is_rand = str(value).strip().lower().startswith(("@r", "@rand"))
+    text = str(value).strip()
+    is_rand = mode.lower() == "randomize" or text.lower().startswith(("@r", "@rand"))
+    if is_rand:
+        text = re.sub(r"^@(r|rand)\s*", "", text, flags=re.IGNORECASE).strip()
     name = f"--rand_{flag}" if is_rand else f"--{flag}"
-    return [name, value]
+    return [name, text if is_rand else value]
 
 
 def signature_args(text):
@@ -1442,36 +1751,70 @@ if RUN_T2I:
 
 T2I_RUN_TPL = Template(r'''# t2i
 RUN_T2I = $run_t2i
+T2I_SETTINGS_JSON = r"""$t2i_settings_json"""
 
 if RUN_T2I:
     import os
+    import json
     import random
     from PIL import Image
     from IPython.display import display
 
     pipe = globals().get("init_pipe")
-    prompt = "masterpiece, best quality, scenery"
-    neg = "lowres, bad anatomy, watermark"
-    w, h = 768, 1152
-    steps = 20
-    guidance = 4.5
-    num_gen = 1
+    default_settings = {
+        "prompts": [{"name": "default", "prompt": "masterpiece, best quality, scenery", "negative": "lowres, bad anatomy, watermark"}],
+        "seed": -1,
+        "steps": 20,
+        "width": 768,
+        "height": 1152,
+        "cfg": 4.5,
+        "num_gen": 1,
+    }
+    try:
+        loaded_settings = json.loads(T2I_SETTINGS_JSON) if T2I_SETTINGS_JSON.strip() else {}
+        if isinstance(loaded_settings, dict):
+            default_settings.update(loaded_settings)
+    except Exception as e:
+        print(f"[t2i] Failed to parse settings, using defaults: {e}")
+    settings = default_settings
+    prompt_items = settings.get("prompts") or default_settings["prompts"]
+    if isinstance(prompt_items, dict):
+        prompt_items = [prompt_items]
+    prompt_items = [p for p in prompt_items if isinstance(p, dict)] or default_settings["prompts"]
+    w = int(settings.get("width") or settings.get("w") or 768)
+    h = int(settings.get("height") or settings.get("h") or 1152)
+    steps = int(settings.get("steps") or 20)
+    guidance = float(settings.get("cfg", settings.get("guidance", 4.5)) or 4.5)
+    num_gen = max(1, int(settings.get("num_gen") or 1))
+    base_seed = int(settings.get("seed", -1) if str(settings.get("seed", "")).strip() else -1)
     idir = os.path.join(r"$workpath", "working", "t2i_images")
     os.makedirs(idir, exist_ok=True)
 
     if pipe is None:
         print("t2i helper idle. Configure or build a final model first.")
     else:
-        for i in range(num_gen):
-            seed = random.randrange(4294967294)
-            generator = torch.Generator(device="cpu").manual_seed(seed)
-            image = pipe(prompt=prompt, negative_prompt=neg, height=h, width=w, num_inference_steps=steps, guidance_scale=guidance, generator=generator).images[0]
-            out_path = os.path.join(idir, f"{i:05d}_{seed}.png")
-            image.save(out_path)
-            display(image.resize((max(1, w // 2), max(1, h // 2)), Image.Resampling.LANCZOS))
-            print(f"Saved: {out_path}")
+        manifest = []
+        for prompt_idx, item in enumerate(prompt_items):
+            prompt = str(item.get("prompt") or "").strip() or default_settings["prompts"][0]["prompt"]
+            neg = str(item.get("negative") or item.get("neg") or settings.get("negative") or default_settings["prompts"][0]["negative"])
+            name = str(item.get("name") or f"prompt_{prompt_idx+1}").strip() or f"prompt_{prompt_idx+1}"
+            safe_name = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)[:64] or f"prompt_{prompt_idx+1}"
+            for i in range(num_gen):
+                seed = base_seed if base_seed >= 0 else random.randrange(4294967294)
+                if base_seed >= 0 and (prompt_idx or i):
+                    seed = (base_seed + prompt_idx * max(1, num_gen) + i) % 4294967294
+                generator = torch.Generator(device="cpu").manual_seed(seed)
+                image = pipe(prompt=prompt, negative_prompt=neg, height=h, width=w, num_inference_steps=steps, guidance_scale=guidance, generator=generator).images[0]
+                out_path = os.path.join(idir, f"{safe_name}_{i:03d}_{seed}.png")
+                image.save(out_path)
+                manifest.append({"path": out_path, "prompt_name": name, "prompt": prompt, "negative": neg, "seed": seed, "width": w, "height": h, "steps": steps, "cfg": guidance})
+                display(image.resize((max(1, w // 2), max(1, h // 2)), Image.Resampling.LANCZOS))
+                print(f"Saved: {out_path}")
+        manifest_path = os.path.join(idir, "manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        print(f"[t2i] Manifest: {manifest_path}")
 ''')
-
 ZIP_TPL = Template(r'''# Image ZIP
 RUN_T2I = $run_t2i
 
@@ -1638,9 +1981,9 @@ def _entry_to_lines(entry: Dict[str, Any], *, bake_vae: bool = True) -> Tuple[Li
                 'if beta:\n        cmd += ratio_args("beta", ' + _json_literal(_normalize_ratio_spec(entry.get("beta"), allow_block_weight=True, default_single="0.5")) + ')',
                 'cmd += ' + precision_args,
                 'cmd += ["--output", ' + _json_literal(output_name) + ']',
-                'cmd += [' + _json_literal(command_signatures) + ']',
+                'cmd += shlex.split(' + _json_literal(command_signatures) + ')' if command_signatures else 'cmd += []',
                 'run_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), ignore_meta=True)',
-                'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint")',
+                'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint", source_kind="generated")',
                 'flush()',
             ])
             produced = output_name
@@ -1667,15 +2010,95 @@ def _entry_to_lines(entry: Dict[str, Any], *, bake_vae: bool = True) -> Tuple[Li
                 'cmd = [sys.executable, "lora_bake.py", models_dir + "/", model_file(' + _json_literal(checkpoint) + '), ",".join(lora_items)]',
                 'cmd += ' + precision_args,
                 'cmd += ["--output", ' + _json_literal(output_name) + ']',
-                'cmd += [' + _json_literal(command_signatures) + ']',
+                'cmd += shlex.split(' + _json_literal(command_signatures) + ')' if command_signatures else 'cmd += []',
                 'run_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), ignore_meta=True)',
-                'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint")',
+                'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "checkpoint", source_kind="generated")',
                 'flush()',
             ])
             produced = output_name
         return lines, produced
 
     return lines, None
+
+
+
+def _entry_reference_aliases(entry: Dict[str, Any]) -> List[str]:
+    etype = entry.get("type")
+    refs: List[str] = []
+    def add(value: Any):
+        if isinstance(value, dict):
+            # Embedded source specs are resolved at the owning step and do not refer to
+            # an existing alias unless an explicit name/alias is supplied.
+            value = value.get("name") or value.get("alias") or value.get("model_name") or ""
+        text = str(value or "").strip()
+        if text:
+            refs.append(text)
+    if etype == "Checkpoint Merge":
+        add(entry.get("model0"))
+        add(entry.get("model1"))
+        add(entry.get("model2"))
+    elif etype == "LoRA Bake":
+        add(entry.get("checkpoint"))
+        for lora in entry.get("loras", []) or []:
+            add(lora.get("name"))
+    elif etype == "Remove Model":
+        # Preserve explicit Remove Model semantics: an alias with a later Remove line
+        # should remain available until that line runs, even if it is not used by a
+        # merge/bake step before then.
+        add(entry.get("model"))
+    return refs
+
+
+def _entry_produced_aliases_for_cleanup(entry: Dict[str, Any]) -> List[str]:
+    etype = entry.get("type")
+    temp = lambda x: f"TEMP{x}" if x and str(x)[0] == "_" else x
+    out: List[str] = []
+    if etype == "Download Model":
+        name = temp(str(entry.get("model_name") or "").strip())
+        if name:
+            out.append(name)
+    elif etype == "Local Model":
+        local_path = str(entry.get("local_path") or "").strip()
+        if local_path:
+            alias = temp(str((entry.get("model_name") or "").strip() or Path(local_path).stem))
+            if alias:
+                out.append(alias)
+    elif etype in ("Checkpoint Merge", "LoRA Bake"):
+        name = temp(str(entry.get("output_name") or "").strip())
+        if name:
+            out.append(name)
+    return out
+
+
+def _auto_release_aliases_by_entry(entries: List[Dict[str, Any]], final_alias: str | None) -> Dict[int, List[str]]:
+    # Returns 1-based entry index -> aliases that can be released immediately after
+    # that entry succeeds. The final produced checkpoint is intentionally retained.
+    refs_by_idx = [_entry_reference_aliases(entry) for entry in entries]
+    remaining: Dict[str, int] = {}
+    for refs in refs_by_idx:
+        for alias in refs:
+            remaining[alias] = remaining.get(alias, 0) + 1
+    keep = {str(final_alias or "").strip()} if final_alias else set()
+    release_by_idx: Dict[int, List[str]] = {}
+    active_aliases: set[str] = set()
+    for entry_index, entry in enumerate(entries, start=1):
+        for alias in _entry_produced_aliases_for_cleanup(entry):
+            active_aliases.add(alias)
+        for alias in refs_by_idx[entry_index - 1]:
+            if alias in remaining:
+                remaining[alias] -= 1
+                if remaining[alias] <= 0:
+                    remaining.pop(alias, None)
+        releasable = []
+        for alias in sorted(active_aliases):
+            if alias in keep or remaining.get(alias, 0) > 0:
+                continue
+            releasable.append(alias)
+        if releasable:
+            release_by_idx[entry_index] = releasable
+            for alias in releasable:
+                active_aliases.discard(alias)
+    return release_by_idx
 
 
 def _entry_progress_label(entry: Dict[str, Any], index: int, total: int) -> str:
@@ -1699,9 +2122,8 @@ def _entry_progress_label(entry: Dict[str, Any], index: int, total: int) -> str:
 def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae_dir: str = "", bake_vae: bool = True) -> Tuple[List[str], str | None]:
     del workpath, model_dir, vae_dir
     entries = normalize_plan(plan).get("entries", [])
-    # print(plan)
     total = max(1, len(entries))
-    res: List[str] = []
+    compiled: List[Tuple[int, Dict[str, Any], List[str], str | None]] = []
     final: str | None = None
     for entry_index, entry in enumerate(entries, start=1):
         try:
@@ -1715,11 +2137,29 @@ def planit_records(plan: Dict[str, Any], workpath: str, model_dir: str = "", vae
                 entry_payload=entry,
                 cause=e,
             ) from e
-        if lines:
-            progress_line = f"print({_json_literal(_entry_progress_label(entry, entry_index, total))})"
-            res.append("\n".join([progress_line, *lines]))
+        compiled.append((entry_index, entry, lines, produced))
         if produced:
             final = produced
+
+    release_by_idx = _auto_release_aliases_by_entry(entries, final)
+    res: List[str] = []
+    for entry_index, entry, lines, produced in compiled:
+        if not lines:
+            continue
+        progress_line = f"print({_json_literal(_entry_progress_label(entry, entry_index, total))})"
+        cleanup_aliases = release_by_idx.get(entry_index, [])
+        cleanup_line = (
+            "release_models_after_step("
+            + _json_literal(cleanup_aliases)
+            + f", reason=\"last-use after step {entry_index}\")"
+        )
+        res.append("\n".join([progress_line, *lines, cleanup_line]))
+    res.append("\n".join([
+        "print('[planner-progress] cleanup | final runtime cleanup')",
+        "_prune_dead_hash_cache()",
+        "_prune_orphan_registry_dirs(aggressive=False)",
+        "flush(light=False)",
+    ]))
     return res, final
 
 
@@ -1756,7 +2196,8 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
                       vae: str, CivitAPI: str, HuggingAPI: str, UR: str,
                       model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
                       bake_vae: bool = True,
-                      ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False):
+                      ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False,
+                      t2i_settings: Dict[str, Any] | None = None):
     _ensure_dirs(os.path.join(workpath, "tmp"), ["models", "embeddings", "vae"])
     act_model_dir = model_dir if model_dir else f"{workpath}/tmp/models"
     install = INSTALL_TPL.safe_substitute(
@@ -1779,8 +2220,861 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
     plan_cell = f"#{title}\n\n" + prelude + "\n\n" + "\n\n".join(res)
     upload = UPLOAD_TPL.safe_substitute(workpath=workpath, final=final or "", repo=UR, model_dir=act_model_dir, upload_after_merge=upload_after_merge)
     t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i)
-    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=workpath, run_t2i=run_t2i)
+    t2i_settings_json = json.dumps(t2i_settings or {}, ensure_ascii=False)
+    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=workpath, run_t2i=run_t2i, t2i_settings_json=t2i_settings_json)
     zipc = ZIP_TPL.safe_substitute(workpath=workpath, run_t2i=run_t2i)
     cells = [install, plan_cell, upload, t2i_cfg, t2i_run, zipc]
     with open(saveas, "w", encoding="utf-8") as f:
         f.write(_nb_json(cells))
+
+
+# -----------------------------------------------------------------------------
+# Structured plan compatibility layer
+# - LoRA Merge entries
+# - structured CLI options
+# - legacy @signature import/export bridge
+# -----------------------------------------------------------------------------
+try:
+    _PLANNER_ORIG_MAKE_ENTRY = make_entry
+    _PLANNER_ORIG_DEFAULT_PLAN = default_plan
+    _PLANNER_ORIG_NORMALIZE_PLAN = normalize_plan
+    _PLANNER_ORIG_EXPORT_TXT = export_plan_records_txt
+    _PLANNER_ORIG_ENTRY_TO_LINES = _entry_to_lines
+    _PLANNER_ORIG_COMMAND_SIGNATURES = _command_signatures
+    _PLANNER_ORIG_LEGACY_SIGNATURE_TEXT = _legacy_signature_text
+    _PLANNER_ORIG_ENTRY_REFS = _entry_reference_aliases
+    _PLANNER_ORIG_ENTRY_PRODUCED = _entry_produced_aliases_for_cleanup
+    _PLANNER_ORIG_PROGRESS_LABEL = _entry_progress_label
+except Exception:
+    pass
+
+
+def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
+    if entry_type == "Checkpoint Merge":
+        return {
+            "m0_name": "", "m1_name": "", "m2_name": "",
+            "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
+            "rand_alpha": "", "rand_beta": "",
+            "cosine0": False, "cosine1": False, "cosine2": False,
+            "keep_ema": False, "delete_source": False, "no_metadata": False,
+            "force": False, "turbo": False, "deturbo": False,
+            "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "cfg_sens": "", "cfg_sens_targets": "",
+            "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
+            "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "",
+            "boost_clamp": "auto", "vae_sat": "",
+        }
+    if entry_type == "LoRA Bake":
+        return {
+            "dare": False, "keep_ema": False, "no_metadata": False,
+            "memo": "", "bake_clip_scale": "", "bake_unet_only": False,
+            "bake_norm": "sqrt", "bake_scale": "", "bake_rank_cap": "",
+            "bake_clamp_q": "", "bake_delta_cap": "", "bake_fp32": False,
+            "bake_guard": "auto", "bake_guard_cap": "", "bake_guard_skip": "",
+            "bake_budget_report": False,
+        }
+    if entry_type == "LoRA Merge":
+        return {
+            "merge_rank": "64", "merge_arch": "auto", "merge_norm": "none",
+            "merge_scale": "", "merge_unet_only": False,
+            "merge_clamp_q": "", "merge_intermediate_mult": "",
+            "no_metadata": False, "memo": "",
+        }
+    return {}
+
+
+def _planner_clean_cli_options(entry_type: str, raw: Any) -> Dict[str, Any]:
+    defaults = _planner_default_cli_options(entry_type)
+    if not isinstance(raw, dict):
+        raw = {}
+    out = dict(defaults)
+    for k, v in raw.items():
+        if k in out:
+            out[k] = v
+    return out
+
+
+def make_entry(entry_type: str = "Checkpoint Merge") -> Dict[str, Any]:
+    if entry_type == "LoRA Merge":
+        return {
+            "id": _uid(),
+            "type": "LoRA Merge",
+            "loras": [],
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": _planner_default_cli_options("LoRA Merge"),
+        }
+    entry = _PLANNER_ORIG_MAKE_ENTRY(entry_type)
+    if entry_type in ("Checkpoint Merge", "LoRA Bake"):
+        entry.setdefault("cli_options", _planner_default_cli_options(entry_type))
+    return entry
+
+
+def default_plan() -> Dict[str, Any]:
+    plan = _PLANNER_ORIG_DEFAULT_PLAN()
+    plan.setdefault("final_memo", "")
+    plan.setdefault("history", [])
+    plan.setdefault("meta", {})
+    return plan
+
+
+def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
+    plan = default_plan()
+    if isinstance(data, dict):
+        plan["version"] = data.get("version", 2)
+        plan["format"] = data.get("format", "planner-json")
+        plan["final_memo"] = str(data.get("final_memo", plan.get("final_memo", "")) or "")
+        hist = data.get("history", plan.get("history", []))
+        plan["history"] = hist if isinstance(hist, list) else []
+        meta = data.get("meta", {})
+        if isinstance(meta, dict):
+            plan["meta"] = meta
+        plan["entries"] = []
+        for raw in data.get("entries", []):
+            if not isinstance(raw, dict):
+                continue
+            entry = make_entry(raw.get("type", "Checkpoint Merge"))
+            entry.update(raw)
+            entry.setdefault("id", _uid())
+            if entry["type"] == "Checkpoint Merge":
+                entry["alpha"] = _normalize_ratio_spec(entry.get("alpha"), allow_block_weight=True, default_single="0.5")
+                entry["beta"] = _normalize_ratio_spec(entry.get("beta"), allow_block_weight=True, default_single="0.5")
+                entry["cli_options"] = _planner_clean_cli_options("Checkpoint Merge", entry.get("cli_options"))
+            if entry["type"] in ("LoRA Bake", "LoRA Merge"):
+                entry.setdefault("loras", [])
+                normalized_loras = []
+                for lora in entry.get("loras", []):
+                    if not isinstance(lora, dict):
+                        continue
+                    normalized_loras.append({
+                        "name": lora.get("name", ""),
+                        "ratio": _normalize_ratio_spec(lora.get("ratio"), allow_block_weight=False, default_single="1.0"),
+                        **({"_source": lora.get("_source")} if isinstance(lora.get("_source"), dict) else {}),
+                    })
+                entry["loras"] = normalized_loras
+                entry["cli_options"] = _planner_clean_cli_options(entry["type"], entry.get("cli_options"))
+            plan["entries"].append(entry)
+    if not plan["entries"]:
+        plan["entries"] = [make_entry("Checkpoint Merge")]
+    return plan
+
+
+def _planner_quote_cli_value(value: Any) -> str:
+    return shlex.quote(str(value))
+
+
+_CLI_OPTION_SPECS = {
+    "Checkpoint Merge": [
+        ("value", "m0_name", "--m0_name", ""), ("value", "m1_name", "--m1_name", ""), ("value", "m2_name", "--m2_name", ""),
+        ("flag", "use_dif_10", "--use_dif_10", False), ("flag", "use_dif_20", "--use_dif_20", False), ("flag", "use_dif_21", "--use_dif_21", False),
+        ("value", "rand_alpha", "--rand_alpha", ""), ("value", "rand_beta", "--rand_beta", ""),
+        ("flag", "cosine0", "--cosine0", False), ("flag", "cosine1", "--cosine1", False), ("flag", "cosine2", "--cosine2", False),
+        ("flag", "keep_ema", "--keep_ema", False), ("flag", "delete_source", "--delete_source", False), ("flag", "no_metadata", "--no_metadata", False),
+        ("flag", "force", "--force", False), ("flag", "turbo", "--turbo", False), ("flag", "deturbo", "--deturbo", False),
+        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
+        ("value", "cfg_sens", "--cfg_sens", ""), ("value", "cfg_sens_targets", "--cfg_sens_targets", ""),
+        ("value", "sat_boost", "--sat_boost", ""), ("choice", "sat_boost_side", "--sat_boost_side", "alpha"), ("value", "sat_boost_tags", "--sat_boost_tags", ""),
+        ("choice", "sat_profile", "--sat_profile", "legacy"), ("value", "sat_delta_cap_pct", "--sat_delta_cap_pct", ""), ("value", "sat_boost_mix", "--sat_boost_mix", ""),
+        ("choice", "boost_clamp", "--boost_clamp", "auto"), ("value", "vae_sat", "--vae_sat", ""),
+    ],
+    "LoRA Bake": [
+        ("flag", "dare", "--dare", False), ("flag", "keep_ema", "--keep_ema", False), ("flag", "no_metadata", "--no_metadata", False),
+        ("value", "memo", "--memo", ""), ("value", "bake_clip_scale", "--bake_clip_scale", ""), ("flag", "bake_unet_only", "--bake_unet_only", False),
+        ("choice", "bake_norm", "--bake_norm", "sqrt"), ("value", "bake_scale", "--bake_scale", ""), ("value", "bake_rank_cap", "--bake_rank_cap", ""),
+        ("value", "bake_clamp_q", "--bake_clamp_q", ""), ("value", "bake_delta_cap", "--bake_delta_cap", ""), ("flag", "bake_fp32", "--bake_fp32", False),
+        ("choice", "bake_guard", "--bake_guard", "auto"), ("value", "bake_guard_cap", "--bake_guard_cap", ""), ("value", "bake_guard_skip", "--bake_guard_skip", ""),
+        ("flag", "bake_budget_report", "--bake_budget_report", False),
+    ],
+    "LoRA Merge": [
+        ("value", "merge_rank", "--merge_rank", "64"), ("choice", "merge_arch", "--merge_arch", "auto"), ("choice", "merge_norm", "--merge_norm", "none"),
+        ("value", "merge_scale", "--merge_scale", ""), ("flag", "merge_unet_only", "--merge_unet_only", False),
+        ("value", "merge_clamp_q", "--merge_clamp_q", ""), ("value", "merge_intermediate_mult", "--merge_intermediate_mult", ""),
+        ("flag", "no_metadata", "--no_metadata", False), ("value", "memo", "--memo", ""),
+    ],
+}
+
+
+def _structured_entry_signatures(entry: Dict[str, Any]) -> str:
+    etype = str(entry.get("type") or "")
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    parts: List[str] = []
+    for kind, key, flag, default in _CLI_OPTION_SPECS.get(etype, []):
+        value = opts.get(key, default)
+        if kind == "flag":
+            if bool(value):
+                parts.append(flag)
+            continue
+        text = str(value or "").strip()
+        default_text = str(default or "").strip()
+        if not text:
+            continue
+        if kind == "choice" and text == default_text:
+            continue
+        if kind == "value" and text == default_text and key in {"merge_rank"}:
+            continue
+        parts.append(f"{flag} {_planner_quote_cli_value(text)}")
+    return " ".join(parts).strip()
+
+
+def _command_signatures(entry: Dict[str, Any]) -> str:
+    parts = []
+    structured = _structured_entry_signatures(entry)
+    if structured:
+        parts.append(structured)
+    additional = str(entry.get("additional_signatures") or "").strip()
+    raw = str(entry.get("raw_signatures") or "").strip()
+    if additional:
+        parts.append(additional)
+    elif raw:
+        parts.append(_tail_text_to_cli_signatures(raw))
+    return " ".join(x for x in parts if str(x).strip()).strip()
+
+
+def _legacy_signature_text(entry: Dict[str, Any]) -> str:
+    sig = _command_signatures(entry)
+    precision = _normalize_precision_name(entry.get("precision"))
+    if precision and precision != "half" and not _precision_from_signatures(sig):
+        sig = f"{sig} @p {precision}".strip()
+    return sig
+
+
+def _lora_items_lines_from_entry(entry: Dict[str, Any]) -> Tuple[List[str], List[Tuple[str, str]]]:
+    parts = []
+    for lora in entry.get("loras") or []:
+        name = str(lora.get("name") or "").strip()
+        if not name:
+            continue
+        ratio = _normalize_ratio_spec(lora.get("ratio"), allow_block_weight=False, default_single="1.0")["value"] or "1.0"
+        parts.append((name, ratio))
+    lines = ['lora_items = []']
+    for name, ratio in parts:
+        safe_ratio = str(ratio).replace('\\', '\\\\').replace('"', '\\"')
+        lines.append('lora_items.append(f"{model_file(' + _json_literal(name).replace('"', "'") + ')}:" + "' + safe_ratio + '")')
+    return lines, parts
+
+
+def _entry_to_lines(entry: Dict[str, Any], *, bake_vae: bool = True) -> Tuple[List[str], str | None]:
+    if entry.get("type") != "LoRA Merge":
+        return _PLANNER_ORIG_ENTRY_TO_LINES(entry, bake_vae=bake_vae)
+    lines: List[str] = []
+    output_name = str(entry.get("output_name") or "").strip()
+    if not output_name:
+        return [], None
+    lora_lines, parts = _lora_items_lines_from_entry(entry)
+    if not parts:
+        return [], None
+    command_signatures = _command_signatures(entry)
+    precision_args = _precision_args(entry, command_signatures)
+    lines.extend(lora_lines)
+    lines.extend([
+        'cmd = [sys.executable, "lora_bake.py", models_dir + "/", "", ",".join(lora_items), "--merge_loras"]',
+        'cmd += ' + precision_args,
+        'cmd += ["--output", ' + _json_literal(output_name) + ']',
+        'cmd += shlex.split(' + _json_literal(command_signatures) + ')' if command_signatures else 'cmd += []',
+        'run_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), ignore_meta=True)',
+        'register_model(' + _json_literal(output_name) + ', os.path.join(models_dir, ' + _json_literal(f"{output_name}.safetensors") + '), "lora", source_kind="generated")',
+        'flush()',
+    ])
+    return lines, output_name
+
+
+def export_plan_records_txt(filepath: str, plan: Dict[str, Any]) -> None:
+    path = Path(filepath)
+    if path.parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = normalize_plan(plan)
+    lines: List[str] = []
+    for entry in normalized.get("entries", []):
+        etype = entry.get("type")
+        if etype == "Download Model":
+            name = (entry.get("model_name") or "").strip()
+            link = (entry.get("link") or "").strip()
+            model_type = (entry.get("model_type") or "Checkpoint").strip()
+            if not name and not link:
+                continue
+            line = f"+{name}"
+            if link:
+                line += f", {link}"
+            if model_type in ("LoRA", "LyCORIS"):
+                line += ", %LR"
+            lines.append(line)
+        elif etype == "Local Model":
+            local_path = (entry.get("local_path") or "").strip()
+            model_type = (entry.get("model_type") or "Checkpoint").strip()
+            model_name = (entry.get("model_name") or "").strip()
+            if local_path:
+                stem = os.path.splitext(os.path.basename(local_path))[0]
+                suffix = f", {model_name}" if model_name and model_name != stem else ""
+                lines.append(f"LC, {local_path}, {model_type}{suffix}")
+        elif etype == "Remove Model":
+            model = (entry.get("model") or "").strip()
+            if model:
+                lines.append(f"-{model}")
+        elif etype == "Checkpoint Merge":
+            if (entry.get("model0") or "").strip() and (entry.get("model1") or "").strip() and (entry.get("output_name") or "").strip():
+                lines.append(_merge_record_to_legacy_line(entry))
+        elif etype == "LoRA Bake":
+            checkpoint = (entry.get("checkpoint") or "").strip()
+            output_name = (entry.get("output_name") or "").strip()
+            loras = []
+            for lora in entry.get("loras", []) or []:
+                name = (lora.get("name") or "").strip()
+                if not name:
+                    continue
+                ratio = _normalize_ratio_spec(lora.get("ratio"), allow_block_weight=False, default_single="1.0")["value"] or "1.0"
+                loras.append(f"{name}:{ratio}")
+            if checkpoint and output_name and loras:
+                line = f"LB {checkpoint} {','.join(loras)} {output_name}"
+                sig = _legacy_signature_text(entry)
+                if sig:
+                    line += f" {sig}"
+                lines.append(line)
+        elif etype == "LoRA Merge":
+            output_name = (entry.get("output_name") or "").strip()
+            loras = []
+            for lora in entry.get("loras", []) or []:
+                name = (lora.get("name") or "").strip()
+                if not name:
+                    continue
+                ratio = _normalize_ratio_spec(lora.get("ratio"), allow_block_weight=False, default_single="1.0")["value"] or "1.0"
+                loras.append(f"{name}:{ratio}")
+            if output_name and loras:
+                line = f"LM {','.join(loras)} {output_name}"
+                sig = _legacy_signature_text(entry)
+                if sig:
+                    line += f" {sig}"
+                lines.append(line)
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def _entry_reference_aliases(entry: Dict[str, Any]) -> List[str]:
+    if entry.get("type") != "LoRA Merge":
+        return _PLANNER_ORIG_ENTRY_REFS(entry)
+    refs: List[str] = []
+    for lora in entry.get("loras", []) or []:
+        name = str(lora.get("name") or "").strip()
+        if name:
+            refs.append(name)
+    return refs
+
+
+def _entry_produced_aliases_for_cleanup(entry: Dict[str, Any]) -> List[str]:
+    if entry.get("type") == "LoRA Merge":
+        name = str(entry.get("output_name") or "").strip()
+        return [f"TEMP{name}" if name.startswith("_") else name] if name else []
+    return _PLANNER_ORIG_ENTRY_PRODUCED(entry)
+
+
+def _entry_progress_label(entry: Dict[str, Any], index: int, total: int) -> str:
+    if entry.get("type") == "LoRA Merge":
+        label = str(entry.get("output_name") or "lora merge")
+        if label.startswith("_"):
+            label = f"TEMP{label}"
+        return f"[planner-progress] {index}/{total} | LoRA Merge | {label}"
+    return _PLANNER_ORIG_PROGRESS_LABEL(entry, index, total)
+
+
+# -----------------------------------------------------------------------------
+# Signature-less structured options / legacy @-signature bridge
+# -----------------------------------------------------------------------------
+try:
+    _SIGLESS_PREV_MAKE_ENTRY = make_entry
+    _SIGLESS_PREV_NORMALIZE_PLAN = normalize_plan
+    _SIGLESS_PREV_DEFAULT_CLI_OPTIONS = _planner_default_cli_options
+    _SIGLESS_PREV_CLEAN_CLI_OPTIONS = _planner_clean_cli_options
+    _SIGLESS_PREV_STRUCTURED_SIGNATURES = _structured_entry_signatures
+    _SIGLESS_PREV_COMMAND_SIGNATURES = _command_signatures
+    _SIGLESS_PREV_LEGACY_SIGNATURE_TEXT = _legacy_signature_text
+    _SIGLESS_PREV_RATIO_TEXT = _ratio_text
+except Exception:
+    pass
+
+_PRECISION_CHOICES = {"half", "bhalf", "bf16", "bfloat16", "quarter", "fp8", "float8", "fp32", "float32", "full"}
+_ARCH_CHOICES = {"auto", "sd", "sd15", "sd1.5", "sdxl", "xl", "flux", "zimage", "zi", "anima", "am"}
+
+def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
+    if entry_type == "Checkpoint Merge":
+        return {
+            "m0_name": "", "m1_name": "", "m2_name": "",
+            "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
+            "cosine0": False, "cosine1": False, "cosine2": False,
+            "keep_ema": False, "delete_source": False, "no_metadata": False,
+            "force": False, "turbo": False, "deturbo": False,
+            "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "cfg_sens": "", "cfg_sens_targets": "",
+            "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
+            "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "",
+            "boost_clamp": "auto", "vae_sat": "",
+        }
+    if entry_type == "LoRA Bake":
+        return {
+            "dare": False, "keep_ema": False, "no_metadata": False,
+            "memo": "", "bake_clip_scale": "", "bake_unet_only": False,
+            "bake_norm": "sqrt", "bake_scale": "", "bake_rank_cap": "",
+            "bake_clamp_q": "", "bake_delta_cap": "", "bake_fp32": False,
+            "bake_guard": "auto", "bake_guard_cap": "", "bake_guard_skip": "",
+            "bake_budget_report": False,
+        }
+    if entry_type == "LoRA Merge":
+        return {
+            "merge_rank": "64", "merge_arch": "auto", "merge_norm": "none",
+            "merge_scale": "", "merge_unet_only": False,
+            "merge_clamp_q": "", "merge_intermediate_mult": "",
+            "no_metadata": False, "memo": "",
+        }
+    return {}
+
+
+def _planner_clean_cli_options(entry_type: str, raw: Any) -> Dict[str, Any]:
+    defaults = _planner_default_cli_options(entry_type)
+    if not isinstance(raw, dict):
+        raw = {}
+    out = dict(defaults)
+    for k, v in raw.items():
+        if k in out:
+            out[k] = v
+    return out
+
+
+def make_entry(entry_type: str = "Checkpoint Merge") -> Dict[str, Any]:
+    entry = _SIGLESS_PREV_MAKE_ENTRY(entry_type)
+    if entry_type in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+        entry.setdefault("cli_options", _planner_default_cli_options(entry_type))
+        entry.setdefault("architecture", "")
+        entry.setdefault("unmapped_signatures", "")
+        entry["additional_signatures"] = ""
+        entry["raw_signatures"] = ""
+    return entry
+
+
+def _ratio_text(spec: Dict[str, Any] | None) -> str:
+    spec = _normalize_ratio_spec(spec, allow_block_weight=True, default_single="0.5")
+    mode = str(spec.get("mode", "Single"))
+    value = str(spec.get("value", "")).strip()
+    if mode == "Randomize":
+        return "@r " + (value.strip("\"'") or "0.0,1.0")
+    if mode == "Single":
+        return value or "0.5"
+    value = f'"{value[0].strip("\'\"")}{value[1:-1]}{value[-1].strip("\'\"")}"' if value else '""'
+    return value
+
+
+def _sigless_tokenize(text: str) -> List[str]:
+    try:
+        return shlex.split((text or "").replace("\n", " "))
+    except Exception:
+        return str(text or "").replace("\n", " ").split()
+
+
+def _sigless_read_value(tokens: List[str], i: int) -> Tuple[str | None, int]:
+    if i + 1 < len(tokens) and not str(tokens[i + 1]).startswith("@") and not str(tokens[i + 1]).startswith("--"):
+        return str(tokens[i + 1]), i + 2
+    return None, i + 1
+
+
+def _sigless_option_maps(entry_type: str):
+    specs = _CLI_OPTION_SPECS.get(entry_type, [])
+    by_flag = {}
+    by_key = {}
+    for kind, key, flag, default in specs:
+        by_flag[flag.lstrip("-").lower()] = (kind, key, flag, default)
+        by_key[key.lower()] = (kind, key, flag, default)
+    return by_flag, by_key
+
+
+def _sigless_apply_legacy_signatures(entry: Dict[str, Any]) -> None:
+    etype = str(entry.get("type") or "")
+    if etype not in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+        return
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    by_flag, by_key = _sigless_option_maps(etype)
+    raw_primary = str(entry.get("raw_signatures") or "").strip()
+    additional_primary = str(entry.get("additional_signatures") or "").strip()
+    unmapped_primary = str(entry.get("unmapped_signatures") or "").strip()
+    # Legacy import stores both raw @-tokens and a derived CLI tail; prefer raw when present
+    # to avoid duplicating unknown tokens as both @foo and --foo.
+    raw_text = " ".join(x for x in [raw_primary or additional_primary, unmapped_primary] if x)
+    tokens = _sigless_tokenize(raw_text)
+    unmapped: List[str] = []
+    i = 0
+    while i < len(tokens):
+        tok = str(tokens[i])
+        original = tok
+        if tok.startswith("@"):
+            key = tok[1:].lower()
+            value, ni = _sigless_read_value(tokens, i)
+            if key in ("m", "mode") and value and etype == "Checkpoint Merge":
+                entry["merge_mode"] = value.upper()
+            elif key in ("p", "precision") and value:
+                entry["precision"] = _normalize_precision_name(value) or value
+            elif key in ("a", "arch", "architecture") and value:
+                entry["architecture"] = value.lower()
+            elif key in ("c", "cosine") and value is not None and etype == "Checkpoint Merge":
+                for n in ("0", "1", "2"):
+                    opts[f"cosine{n}"] = (str(value) == n)
+            elif key in ("cosine0", "c0") and etype == "Checkpoint Merge":
+                opts["cosine0"] = True
+            elif key in ("cosine1", "c1") and etype == "Checkpoint Merge":
+                opts["cosine1"] = True
+            elif key in ("cosine2", "c2") and etype == "Checkpoint Merge":
+                opts["cosine2"] = True
+            elif key in ("s", "seed") and value is not None and etype == "Checkpoint Merge":
+                opts["seed"] = value
+            elif key in ("f", "fine") and value is not None and etype == "Checkpoint Merge":
+                opts["fine"] = value
+            elif key in ("rand_alpha", "ra") and value is not None and etype == "Checkpoint Merge":
+                entry["alpha"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
+            elif key in ("rand_beta", "rb") and value is not None and etype == "Checkpoint Merge":
+                entry["beta"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
+            elif key in by_key:
+                kind, opt_key, _flag, default = by_key[key]
+                if kind == "flag":
+                    opts[opt_key] = True
+                elif value is not None:
+                    opts[opt_key] = value
+                else:
+                    unmapped.append(original)
+            else:
+                # Unknown @token is intentionally preserved for the Options panel.
+                if value is None:
+                    unmapped.append(original)
+                else:
+                    unmapped.append(f"{original} {shlex.quote(str(value))}")
+            i = ni
+            continue
+        if tok.startswith("--"):
+            key = tok[2:].replace("-", "_").lower()
+            value, ni = _sigless_read_value(tokens, i)
+            if key in ("rand_alpha", "ra") and value is not None and etype == "Checkpoint Merge":
+                entry["alpha"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
+            elif key in ("rand_beta", "rb") and value is not None and etype == "Checkpoint Merge":
+                entry["beta"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
+            elif key in ("arch", "architecture") and value:
+                entry["architecture"] = value.lower()
+            elif key in by_flag:
+                kind, opt_key, _flag, default = by_flag[key]
+                if kind == "flag":
+                    opts[opt_key] = True
+                elif value is not None:
+                    opts[opt_key] = value
+                else:
+                    unmapped.append(original)
+            else:
+                if value is None:
+                    unmapped.append(original)
+                else:
+                    unmapped.append(f"{original} {shlex.quote(str(value))}")
+            i = ni
+            continue
+        unmapped.append(original)
+        i += 1
+    entry["cli_options"] = _planner_clean_cli_options(etype, opts)
+    entry["unmapped_signatures"] = " ".join(unmapped).strip()
+    entry["additional_signatures"] = ""
+    entry["raw_signatures"] = ""
+
+
+def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
+    plan = _SIGLESS_PREV_NORMALIZE_PLAN(data)
+    for entry in plan.get("entries", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        etype = str(entry.get("type") or "")
+        if etype in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+            entry.setdefault("architecture", "")
+            entry.setdefault("unmapped_signatures", "")
+            entry["cli_options"] = _planner_clean_cli_options(etype, entry.get("cli_options"))
+            _sigless_apply_legacy_signatures(entry)
+            if etype == "Checkpoint Merge":
+                entry["alpha"] = _normalize_ratio_spec(entry.get("alpha"), allow_block_weight=True, default_single="0.5")
+                entry["beta"] = _normalize_ratio_spec(entry.get("beta"), allow_block_weight=True, default_single="0.5")
+                for _rk in ("alpha", "beta"):
+                    if str(entry[_rk].get("mode") or "") == "Randomize":
+                        entry[_rk]["value"] = str(entry[_rk].get("value") or "").strip("\"'")
+    return plan
+
+
+_CLI_OPTION_SPECS = {
+    "Checkpoint Merge": [
+        ("value", "m0_name", "--m0_name", ""), ("value", "m1_name", "--m1_name", ""), ("value", "m2_name", "--m2_name", ""),
+        ("flag", "use_dif_10", "--use_dif_10", False), ("flag", "use_dif_20", "--use_dif_20", False), ("flag", "use_dif_21", "--use_dif_21", False),
+        ("flag", "cosine0", "--cosine0", False), ("flag", "cosine1", "--cosine1", False), ("flag", "cosine2", "--cosine2", False),
+        ("flag", "keep_ema", "--keep_ema", False), ("flag", "delete_source", "--delete_source", False), ("flag", "no_metadata", "--no_metadata", False),
+        ("flag", "force", "--force", False), ("flag", "turbo", "--turbo", False), ("flag", "deturbo", "--deturbo", False),
+        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
+        ("value", "cfg_sens", "--cfg_sens", ""), ("value", "cfg_sens_targets", "--cfg_sens_targets", ""),
+        ("value", "sat_boost", "--sat_boost", ""), ("choice", "sat_boost_side", "--sat_boost_side", "alpha"), ("value", "sat_boost_tags", "--sat_boost_tags", ""),
+        ("choice", "sat_profile", "--sat_profile", "legacy"), ("value", "sat_delta_cap_pct", "--sat_delta_cap_pct", ""), ("value", "sat_boost_mix", "--sat_boost_mix", ""),
+        ("choice", "boost_clamp", "--boost_clamp", "auto"), ("value", "vae_sat", "--vae_sat", ""),
+    ],
+    "LoRA Bake": [
+        ("flag", "dare", "--dare", False), ("flag", "keep_ema", "--keep_ema", False), ("flag", "no_metadata", "--no_metadata", False),
+        ("value", "memo", "--memo", ""), ("value", "bake_clip_scale", "--bake_clip_scale", ""), ("flag", "bake_unet_only", "--bake_unet_only", False),
+        ("choice", "bake_norm", "--bake_norm", "sqrt"), ("value", "bake_scale", "--bake_scale", ""), ("value", "bake_rank_cap", "--bake_rank_cap", ""),
+        ("value", "bake_clamp_q", "--bake_clamp_q", ""), ("value", "bake_delta_cap", "--bake_delta_cap", ""), ("flag", "bake_fp32", "--bake_fp32", False),
+        ("choice", "bake_guard", "--bake_guard", "auto"), ("value", "bake_guard_cap", "--bake_guard_cap", ""), ("value", "bake_guard_skip", "--bake_guard_skip", ""),
+        ("flag", "bake_budget_report", "--bake_budget_report", False),
+    ],
+    "LoRA Merge": [
+        ("value", "merge_rank", "--merge_rank", "64"), ("choice", "merge_arch", "--merge_arch", "auto"), ("choice", "merge_norm", "--merge_norm", "none"),
+        ("value", "merge_scale", "--merge_scale", ""), ("flag", "merge_unet_only", "--merge_unet_only", False),
+        ("value", "merge_clamp_q", "--merge_clamp_q", ""), ("value", "merge_intermediate_mult", "--merge_intermediate_mult", ""),
+        ("flag", "no_metadata", "--no_metadata", False), ("value", "memo", "--memo", ""),
+    ],
+}
+
+
+def _structured_entry_signatures(entry: Dict[str, Any]) -> str:
+    etype = str(entry.get("type") or "")
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    parts: List[str] = []
+    # Architecture is kept as a structured option and legacy @arch bridge for
+    # Checkpoint Merge / LoRA Bake. The uploaded merge.py and bake path do not
+    # expose a generic --arch argument, so it is not emitted into runtime cmd here.
+    for kind, key, flag, default in _CLI_OPTION_SPECS.get(etype, []):
+        value = opts.get(key, default)
+        if kind == "flag":
+            if bool(value):
+                parts.append(flag)
+            continue
+        text = str(value or "").strip()
+        default_text = str(default or "").strip()
+        if not text:
+            continue
+        if kind == "choice" and text == default_text:
+            continue
+        if kind == "value" and text == default_text and key in {"merge_rank"}:
+            continue
+        parts.append(f"{flag} {_planner_quote_cli_value(text)}")
+    return " ".join(parts).strip()
+
+
+def _command_signatures(entry: Dict[str, Any]) -> str:
+    parts = []
+    structured = _structured_entry_signatures(entry)
+    if structured:
+        parts.append(structured)
+    unmapped = str(entry.get("unmapped_signatures") or "").strip()
+    if unmapped:
+        parts.append(_tail_text_to_cli_signatures(unmapped) if unmapped.lstrip().startswith("@") else unmapped)
+    return " ".join(x for x in parts if str(x).strip()).strip()
+
+
+def _legacy_sig_quote(value: Any) -> str:
+    text = str(value)
+    return shlex.quote(text)
+
+
+def _structured_entry_legacy_signatures(entry: Dict[str, Any]) -> str:
+    etype = str(entry.get("type") or "")
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    parts: List[str] = []
+    arch = str(entry.get("architecture") or "").strip()
+    if arch and arch.lower() != "auto" and etype in ("Checkpoint Merge", "LoRA Bake"):
+        parts.append(f"@arch {_legacy_sig_quote(arch)}")
+    # Prefer compact @c for cosine routing.
+    if etype == "Checkpoint Merge":
+        for n in ("0", "1", "2"):
+            if opts.get(f"cosine{n}"):
+                parts.append(f"@c {n}")
+        skip_keys = {"cosine0", "cosine1", "cosine2"}
+    else:
+        skip_keys = set()
+    for kind, key, flag, default in _CLI_OPTION_SPECS.get(etype, []):
+        if key in skip_keys:
+            continue
+        value = opts.get(key, default)
+        legacy_name = flag.lstrip("-").replace("-", "_")
+        if kind == "flag":
+            if bool(value):
+                parts.append(f"@{legacy_name}")
+            continue
+        text = str(value or "").strip()
+        default_text = str(default or "").strip()
+        if not text:
+            continue
+        if kind == "choice" and text == default_text:
+            continue
+        if kind == "value" and text == default_text and key in {"merge_rank"}:
+            continue
+        parts.append(f"@{legacy_name} {_legacy_sig_quote(text)}")
+    return " ".join(parts).strip()
+
+
+def _legacy_signature_text(entry: Dict[str, Any]) -> str:
+    parts = []
+    structured = _structured_entry_legacy_signatures(entry)
+    if structured:
+        parts.append(structured)
+    precision = _normalize_precision_name(entry.get("precision"))
+    if precision and precision != "half":
+        parts.append(f"@p {precision}")
+    unmapped = str(entry.get("unmapped_signatures") or "").strip()
+    if unmapped:
+        parts.append(unmapped)
+    return " ".join(parts).strip()
+
+
+# -----------------------------------------------------------------------------
+# Final arch/precision display bridge
+# UI may store user-friendly values (SDXL/ZImage/Anima, FP16/BF16/FP8/FP32),
+# while command/legacy output must use backend-compatible tokens.
+# -----------------------------------------------------------------------------
+_PRECISION_RUNTIME_ALIASES = {
+    "": "", "half": "half", "fp16": "half", "float16": "half", "16": "half",
+    "bhalf": "bhalf", "bf16": "bhalf", "bfloat16": "bhalf",
+    "quarter": "quarter", "fp8": "quarter", "float8": "quarter", "8": "quarter",
+    "fp32": "fp32", "float32": "fp32", "full": "fp32", "32": "fp32",
+}
+_PRECISION_DISPLAY_ALIASES = {"": "", "half": "FP16", "bhalf": "BF16", "quarter": "FP8", "fp32": "FP32"}
+_ARCH_RUNTIME_ALIASES = {
+    "": "", "auto": "auto",
+    "sd": "sd", "sd15": "sd", "sd1.5": "sd", "sd-1.5": "sd", "sd_1.5": "sd",
+    "xl": "sdxl", "sdxl": "sdxl", "sd-xl": "sdxl", "sd_xl": "sdxl",
+    "flux": "flux",
+    "zi": "zi", "zimage": "zi", "z-image": "zi", "z_image": "zi",
+    "am": "am", "anima": "am",
+}
+_ARCH_DISPLAY_ALIASES = {"": "", "auto": "Auto", "sd": "SD1.5", "sdxl": "SDXL", "flux": "Flux", "zi": "ZImage", "am": "Anima"}
+
+def _normalize_precision_name(value: Any) -> str:
+    key = str(value or "").strip().lower().replace(" ", "")
+    return _PRECISION_RUNTIME_ALIASES.get(key, key)
+
+def _display_precision_name(value: Any) -> str:
+    return _PRECISION_DISPLAY_ALIASES.get(_normalize_precision_name(value), str(value or "").upper() if value else "")
+
+def _normalize_arch_runtime(value: Any) -> str:
+    key = str(value or "").strip().lower().replace(" ", "").replace("_", "-")
+    return _ARCH_RUNTIME_ALIASES.get(key, key)
+
+def _display_arch_name(value: Any) -> str:
+    runtime = _normalize_arch_runtime(value)
+    if runtime in _ARCH_DISPLAY_ALIASES:
+        return _ARCH_DISPLAY_ALIASES[runtime]
+    raw = str(value or "").strip()
+    return raw[:1].upper() + raw[1:] if raw else ""
+
+_FINAL_PREV_PLANNER_CLEAN_CLI_OPTIONS = _planner_clean_cli_options
+def _planner_clean_cli_options(entry_type: str, raw: Any) -> Dict[str, Any]:
+    out = _FINAL_PREV_PLANNER_CLEAN_CLI_OPTIONS(entry_type, raw)
+    if entry_type == "LoRA Merge" and "merge_arch" in out:
+        out["merge_arch"] = _display_arch_name(out.get("merge_arch") or "Auto")
+    return out
+
+_FINAL_PREV_SIGLESS_APPLY_LEGACY = _sigless_apply_legacy_signatures
+def _sigless_apply_legacy_signatures(entry: Dict[str, Any]) -> None:
+    _FINAL_PREV_SIGLESS_APPLY_LEGACY(entry)
+    etype = str(entry.get("type") or "")
+    if etype in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+        if entry.get("architecture"):
+            entry["architecture"] = _display_arch_name(entry.get("architecture"))
+        if entry.get("precision"):
+            entry["precision"] = _display_precision_name(entry.get("precision"))
+        if isinstance(entry.get("cli_options"), dict) and entry.get("type") == "LoRA Merge":
+            entry["cli_options"]["merge_arch"] = _display_arch_name(entry["cli_options"].get("merge_arch") or "Auto")
+
+_FINAL_PREV_NORMALIZE_PLAN = normalize_plan
+def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
+    plan = _FINAL_PREV_NORMALIZE_PLAN(data)
+    for entry in plan.get("entries", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        etype = str(entry.get("type") or "")
+        if etype in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+            entry["architecture"] = _display_arch_name(entry.get("architecture"))
+            entry["precision"] = _display_precision_name(entry.get("precision"))
+            entry["cli_options"] = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    return plan
+
+def _structured_entry_signatures(entry: Dict[str, Any]) -> str:
+    etype = str(entry.get("type") or "")
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    parts: List[str] = []
+    for kind, key, flag, default in _CLI_OPTION_SPECS.get(etype, []):
+        value = opts.get(key, default)
+        if key == "merge_arch":
+            text = _normalize_arch_runtime(value or default)
+            default_text = _normalize_arch_runtime(default)
+        else:
+            text = str(value or "").strip()
+            default_text = str(default or "").strip()
+        if kind == "flag":
+            if bool(value):
+                parts.append(flag)
+            continue
+        if not text:
+            continue
+        if kind == "choice" and text == default_text:
+            continue
+        if kind == "value" and text == default_text and key in {"merge_rank"}:
+            continue
+        parts.append(f"{flag} {_planner_quote_cli_value(text)}")
+    return " ".join(parts).strip()
+
+def _structured_entry_legacy_signatures(entry: Dict[str, Any]) -> str:
+    etype = str(entry.get("type") or "")
+    opts = _planner_clean_cli_options(etype, entry.get("cli_options"))
+    parts: List[str] = []
+    arch_runtime = _normalize_arch_runtime(entry.get("architecture"))
+    if arch_runtime and arch_runtime != "auto" and etype in ("Checkpoint Merge", "LoRA Bake"):
+        parts.append(f"@arch {_legacy_sig_quote(arch_runtime)}")
+    if etype == "Checkpoint Merge":
+        for n in ("0", "1", "2"):
+            if opts.get(f"cosine{n}"):
+                parts.append(f"@c {n}")
+        skip_keys = {"cosine0", "cosine1", "cosine2"}
+    else:
+        skip_keys = set()
+    for kind, key, flag, default in _CLI_OPTION_SPECS.get(etype, []):
+        if key in skip_keys:
+            continue
+        value = opts.get(key, default)
+        legacy_name = flag.lstrip("-").replace("-", "_")
+        if key == "merge_arch":
+            text = _normalize_arch_runtime(value or default)
+            default_text = _normalize_arch_runtime(default)
+        else:
+            text = str(value or "").strip()
+            default_text = str(default or "").strip()
+        if kind == "flag":
+            if bool(value):
+                parts.append(f"@{legacy_name}")
+            continue
+        if not text:
+            continue
+        if kind == "choice" and text == default_text:
+            continue
+        if kind == "value" and text == default_text and key in {"merge_rank"}:
+            continue
+        parts.append(f"@{legacy_name} {_legacy_sig_quote(text)}")
+    return " ".join(parts).strip()
+
+def _legacy_signature_text(entry: Dict[str, Any]) -> str:
+    parts = []
+    structured = _structured_entry_legacy_signatures(entry)
+    if structured:
+        parts.append(structured)
+    precision = _normalize_precision_name(entry.get("precision"))
+    if precision and precision != "half":
+        parts.append(f"@p {precision}")
+    unmapped = str(entry.get("unmapped_signatures") or "").strip()
+    if unmapped:
+        parts.append(unmapped)
+    return " ".join(parts).strip()
+
+
+# FP32 is the default full precision path in merge.py/lora_bake.py; there is no
+# --save_full CLI flag, so emit no save_* precision flag for FP32.
+def _precision_args(entry: Dict[str, Any], command_signatures: str = "") -> str:
+    p = _entry_precision(entry, command_signatures=command_signatures)
+    args = ["--prune", "--save_safetensors"]
+    if p in ("bhalf", "bf16", "bfloat16"):
+        args.insert(0, "--save_bhalf")
+    elif p in ("quarter", "fp8", "float8"):
+        args.insert(0, "--save_quarter")
+    elif p in ("half", "fp16", "float16"):
+        args.insert(0, "--save_half")
+    return _json_literal(args)

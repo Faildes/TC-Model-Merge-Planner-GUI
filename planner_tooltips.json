@@ -1,0 +1,633 @@
+{
+  "schema_version": 2,
+  "description": "Tooltip catalog for Model Planner. UI panel help, option help, choice help, and merge-mode help are stored here instead of main.py.",
+  "options": {
+    "architecture": "Stores the intended model family for import/export compatibility and LoRA merge routing. UI names are normalized, then converted back to backend names only when compiling.",
+    "precision": "Selects the save dtype. FP16, BF16 and FP8 compile to the backend's save flags; FP32 keeps full precision and emits no reduced-precision save flag.",
+    "m0_name": "Custom name of model 0 written into metadata. This does not change the planner alias or selected file; it changes the saved parent/model display name.",
+    "m1_name": "Custom name of model 1 written into metadata. Useful when the same file appears through different aliases or source rows.",
+    "m2_name": "Custom name of model 2 written into metadata. Used by three-model, Add Difference, turbo and deturbo workflows.",
+    "use_dif_10": "Uses the difference of model 1 and model 0 as the donor tensor before merging. Useful for transferring the learned change from model 0 to model 1.",
+    "use_dif_20": "Uses the difference of model 2 and model 0 as the donor tensor before merging. This is a stronger three-model difference route and should be tested carefully.",
+    "use_dif_21": "Uses the difference of model 2 and model 1 as the donor tensor before merging. Useful when model 1 is the baseline and model 2 contains the desired change.",
+    "alpha": "Primary merge strength. The planner can pass a scalar, block weight text, elemental text, or random range depending on Ratio Mode.",
+    "beta": "Secondary merge strength used by modes that require beta. The planner can pass a scalar, block weight text, elemental text, or random range depending on Ratio Mode.",
+    "rand_alpha": "Random alpha value specification. In the current UI this is represented by Alpha Ratio Mode = Randomize.",
+    "rand_beta": "Random beta value specification. In the current UI this is represented by Beta Ratio Mode = Randomize.",
+    "cosine0": "Favors model 0's structure while taking compatible detail from the other model(s). Supported only for WS, ST and TRS style merges.",
+    "cosine1": "Favors model 1's structure while taking compatible detail from the other model(s). Supported only for WS, ST and TRS style merges.",
+    "cosine2": "Favors model 2's structure while taking compatible detail from the other model(s). Requires a three-model ST/TRS style merge.",
+    "save_half": "Save as float16. This is the backend flag used for UI Precision = FP16.",
+    "save_bhalf": "Save as bfloat16. This is the backend flag used for UI Precision = BF16.",
+    "save_quarter": "Save as float8. This is the backend flag used for UI Precision = FP8 and may reduce fidelity.",
+    "save_safetensors": "Save output as .safetensors. The planner normally emits this for checkpoint and LoRA outputs.",
+    "keep_ema": "Keep EMA weights if present. This can preserve EMA data but usually increases output size.",
+    "delete_source": "Delete the source checkpoint file after processing. Use only for temporary/intermediate files; it is dangerous for user-owned originals.",
+    "no_metadata": "Save without metadata. This removes merge recipe/history information from the output file.",
+    "prune": "Prune the output model while saving, usually removing unnecessary state.",
+    "force": "Overwrite the output file if it already exists.",
+    "turbo": "Apply a turbo delta: model 1 is treated as the turbo model, model 2 as its base, and the turbo delta is applied to model 0.",
+    "deturbo": "Remove a turbo delta from model 0: model 1 is treated as the turbo model and model 2 as its base. Turbo and deturbo cannot be used together.",
+    "seed": "Random seed for stochastic modes such as DARE. The planner only shows this field for modes that use stochastic behavior.",
+    "rebasin": "ReBasin / weight matching iterations. Attempts to align permutable channels between related models before merging; increases runtime.",
+    "vae": "Path of VAE to bake or use for VAE-related processing when VAE baking is enabled.",
+    "memo": "Additional text written into output metadata when metadata saving is enabled.",
+    "fine": "Finetune the given keys on model 0. Use for targeted correction/tone operations instead of broad weight blending.",
+    "fine_sat": "Direct saturation factor for finetune/tone pass. 1.0 is off; 0.75 desaturates by roughly 25%; values above 1 increase saturation.",
+    "output": "Output file name without extension.",
+    "device": "Device used by the backend, defaulting to cpu unless the notebook/runtime overrides it.",
+    "cfg_sens": "SDXL post-scale for UNet cross-attention projections to make CFG more sensitive. 1.0 is off; small values such as 1.05–1.15 are typical.",
+    "cfg_sens_targets": "Selects which attn2 projections CFG sensitivity scales: q, k, v, out, kv, qkv or all. Default is kv,out.",
+    "sat_boost": "Multiplies merge strength for saturation-related layers. 1.0 is off; larger values increase color influence and can damage geometry if overused.",
+    "sat_boost_side": "Selects which side receives saturation boost: alpha, beta or both. Default is alpha.",
+    "sat_boost_tags": "Comma-separated XL block tags treated as saturation-related, such as IN00,IN01,IN02,IN03,M00. Blank uses backend heuristics.",
+    "sat_profile": "Saturation boost profile. legacy uses the old behavior; safe_attn2_out restricts the boost to OUT-block attn2.to_v/to_out with capped delta behavior.",
+    "sat_delta_cap_pct": "Percentile cap for per-tensor boosted delta magnitude, for example 99.5. 0 disables this cap and can be less stable.",
+    "sat_boost_mix": "Blend between normal and boosted result on saturation targets. 1.0 fully applies the boost; lower values soften it. Suggested range is roughly 0.3–0.8.",
+    "boost_clamp": "Controls clamping of boosted strengths for unstable modes. auto clamps known bounded modes; clamp01 always clamps to 0..1; none disables clamping.",
+    "vae_sat": "Applies RGB saturation scaling inside the VAE decoder output. 1.0 is off; greater than 1 increases saturation; less than 1 reduces saturation.",
+    "checkpoint": "checkpoint. Base checkpoint that receives LoRA bake deltas.",
+    "loras": "loras. Comma-separated LoRA path:alpha entries. The planner builds this from the LoRA slots and their ratio settings.",
+    "dare": "Use DARE merge behavior during LoRA baking where supported by the backend.",
+    "merge_loras": "Merge multiple LoRAs into a single LoRA instead of baking into a checkpoint. The planner exposes this as the separate LoRA Merge line type.",
+    "merge_rank": "Rank cap for merged LoRA. 0 means unlimited/exact concatenation, which can become very large. Default is 64.",
+    "merge_arch": "Architecture for ratio/block mapping in LoRA merge mode. Backend values are auto, sd, sdxl, flux, zi and am.",
+    "merge_norm": "Global normalization for merging many LoRAs. mean applies 1/N, sqrt applies 1/sqrt(N), none keeps raw summed scale.",
+    "merge_scale": "Extra global scale multiplier applied after merge_norm during LoRA-to-LoRA merge.",
+    "merge_unet_only": "Only merge UNet/DiT LoRA modules and skip text encoder modules.",
+    "merge_clamp_q": "Quantile clamp applied to merged LoRA factors before save. Default is backend CLAMP_QUANTILE_DEFAULT, usually around 0.99.",
+    "merge_intermediate_mult": "Temporary rank multiplier before final compression. Higher values can preserve more detail but use more memory and time.",
+    "bake_clip_scale": "Global scale multiplier for text encoder LoRA modules when baking into a checkpoint. Default 1.0 means no extra text-encoder scaling.",
+    "bake_unet_only": "Bake only UNet/DiT modules and skip text encoder LoRA modules.",
+    "bake_norm": "Global normalization when baking many LoRAs. sqrt applies 1/sqrt(N), mean applies 1/N, none keeps raw scale.",
+    "bake_scale": "Extra global multiplier applied after bake_norm.",
+    "bake_rank_cap": "Per-module rank cap before applying LoRA deltas. 0 disables the cap.",
+    "bake_clamp_q": "Quantile clamp for LoRA up/down weights. 0 disables; suggested values are around 0.995–0.999.",
+    "bake_delta_cap": "Per-module relative cap: ||ΔW||_F must stay under cap * ||W||_F. 0 disables; suggested values are 0.02–0.10.",
+    "bake_fp32": "Accumulate LoRA deltas in FP32 before casting back to the original dtype for better numerical stability.",
+    "bake_guard": "Safety guard for baking. auto enables caps when many LoRAs are baked and bake_delta_cap is unset; cap forces bake_guard_cap; none disables guard behavior.",
+    "bake_guard_cap": "Relative update cap used by bake_guard: ||ΔW||_F <= cap * ||W||_F. Suggested values are 0.02–0.10.",
+    "bake_guard_skip": "Skip a module if estimated ||ΔW||_F / ||W||_F exceeds this threshold. 0 disables; suggested values are 0.15–0.50.",
+    "bake_budget_report": "Print a budget scaling report showing the targets that required the most shrink/capping.",
+    "unmapped_signatures": "tokens that could not be mapped to structured Options. They are preserved here so legacy import/export does not silently lose settings.",
+    "Reset Options": "Reset this line's structured Options to their defaults. Unmapped legacy signatures are preserved so compatibility information is not silently lost."
+  },
+  "choices": {
+    "Ratio Mode": {
+      "Single": "One scalar ratio for the whole merge or bake target.",
+      "Block weight": "One value per architecture block. Useful for controlling structure, detail, color or style by layer region.",
+      "Elemental": "Free-form layer:element:strength syntax for targeted module-level control.",
+      "Randomize": "Range text compiled to --rand_alpha or --rand_beta for stochastic ratio sampling."
+    },
+    "Precision": {
+      "FP16": "Save as float16 using --save_half. Small and common for inference.",
+      "BF16": "Save as bfloat16 using --save_bhalf. Wider exponent range; useful on BF16-friendly hardware.",
+      "FP8": "Save as float8 using --save_quarter. Smallest and most experimental; can lose fidelity.",
+      "FP32": "Full precision output. No reduced-precision save flag is emitted."
+    },
+    "Architecture": {
+      "Auto": "Let the backend infer architecture from model or LoRA keys.",
+      "SD1.5": "Stable Diffusion 1.x style UNet targets. Compiles to backend arch sd where needed.",
+      "SDXL": "Stable Diffusion XL targets, including SDXL block mapping and dual text encoder handling. Compiles to sdxl.",
+      "Flux": "Flux-style transformer targets. Compiles to flux.",
+      "ZImage": "Z-Image / ZI transformer targets. Compiles to zi.",
+      "Anima": "Anima / AM targets. Compiles to am."
+    },
+    "sat_boost_side": {
+      "alpha": "Apply saturation boost only to alpha-side merge strength.",
+      "beta": "Apply saturation boost only to beta-side merge strength.",
+      "both": "Apply saturation boost to both alpha and beta where the mode uses both."
+    },
+    "sat_profile": {
+      "legacy": "Use the original broad saturation boost behavior.",
+      "safe_attn2_out": "Use the safer profile: OUT-block attn2.to_v/to_out only, with capped delta behavior."
+    },
+    "boost_clamp": {
+      "auto": "Clamp boosted strengths only for modes known to behave better in bounded ranges.",
+      "clamp01": "Always clamp boosted alpha/beta to the 0..1 range.",
+      "none": "Do not clamp boosted strengths. This gives maximum freedom but may destabilize geometry."
+    },
+    "bake_norm": {
+      "none": "No normalization; raw LoRA scale is applied.",
+      "sqrt": "Apply 1/sqrt(N) global normalization. Good default when baking multiple LoRAs.",
+      "mean": "Apply 1/N global normalization. Softer and more averaging-oriented."
+    },
+    "bake_guard": {
+      "none": "Disable bake guard checks.",
+      "auto": "Automatically enable protective caps when baking many LoRAs and no explicit delta cap is set.",
+      "cap": "Force cap-based protection using bake_guard_cap."
+    },
+    "merge_norm": {
+      "none": "No normalization during LoRA merge; summed scale is kept.",
+      "sqrt": "Apply 1/sqrt(N) normalization for balanced merged LoRA strength.",
+      "mean": "Apply 1/N normalization across LoRA inputs for an averaging blend."
+    },
+    "merge_arch": {
+      "Auto": "Infer architecture from LoRA keys.",
+      "auto": "Infer architecture from LoRA keys.",
+      "SD1.5": "Merge as SD1.x LoRA targets; backend arch sd.",
+      "sd": "Merge as SD1.x LoRA targets.",
+      "SDXL": "Merge as SDXL LoRA targets; backend arch sdxl.",
+      "sdxl": "Merge as SDXL LoRA targets.",
+      "Flux": "Merge as Flux LoRA targets; backend arch flux.",
+      "flux": "Merge as Flux LoRA targets.",
+      "ZImage": "Merge as Z-Image / ZI LoRA targets; backend arch zi.",
+      "zi": "Merge as Z-Image / ZI LoRA targets.",
+      "Anima": "Merge as Anima / AM LoRA targets; backend arch am.",
+      "am": "Merge as Anima / AM LoRA targets."
+    },
+    "Model Merge Type": {
+      "Checkpoint Merge": "Merge checkpoint models using merge.py.",
+      "LoRA Bake": "Bake one or more LoRA/LyCORIS files into a checkpoint with lora_bake.py.",
+      "LoRA Merge": "Merge LoRA/LyCORIS files into a new LoRA with --merge_loras, without touching a checkpoint.",
+      "Download Model": "Register a model from a URL for later lines.",
+      "Local Model": "Register a local file for later lines.",
+      "Remove Model": "Remove a previously registered alias from later choices."
+    },
+    "Type": {
+      "Checkpoint": "Checkpoint model file used by Checkpoint Merge or as the base for LoRA Bake.",
+      "LoRA": "LoRA file used by LoRA Bake or LoRA Merge.",
+      "LyCORIS": "LyCORIS file handled like a LoRA source where supported."
+    }
+  },
+  "modes": {
+    "WS": {
+      "label": "Weighted Sum",
+      "short": "Weighted Sum",
+      "detail": "Linear interpolation from model 0 toward model 1. Alpha controls how much of model 1 replaces model 0. This is the safest baseline merge for broad style or capability blending.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "AD": {
+      "label": "Add Difference",
+      "short": "Add Difference",
+      "detail": "Adds the difference between model 1 and model 2 onto model 0. Alpha controls delta injection strength. Use when model1-model2 represents a trait, training change, or correction you want to transfer into model0.\n\nInputs: requires Model 2.",
+      "needs_m2": true,
+      "uses_beta": false
+    },
+    "RM": {
+      "label": "Read Metadata",
+      "short": "Read Metadata",
+      "detail": "Reads and dumps metadata from model 0 instead of creating an interpolated merge. Useful for inspection/debugging.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "sAD": {
+      "label": "Smooth Add Difference",
+      "short": "Smooth Add Difference",
+      "detail": "Difference-transfer mode using the Add Difference backend path, intended for smoother AD-style workflows when imported from legacy plans. Model 0 receives the model1-model2 delta scaled by alpha.\n\nInputs: requires Model 2.",
+      "needs_m2": true,
+      "uses_beta": false
+    },
+    "MD": {
+      "label": "Multiply Difference",
+      "short": "Multiply Difference",
+      "detail": "Compares both model 0 and model 1 against model 2, blends difference magnitudes with alpha, and uses beta to form the sign/reference direction. Useful for stronger three-model difference shaping, but test carefully because it can shift tensor statistics strongly.\n\nInputs: requires Model 2, uses Beta.",
+      "needs_m2": true,
+      "uses_beta": true
+    },
+    "SIM": {
+      "label": "Similarity Add Difference",
+      "short": "Similarity Add Difference",
+      "detail": "Injects alpha*(model1-model2) into model0, then uses a similarity gate controlled by beta to blend back toward an A/B-weighted structure. Useful when you want delta transfer while respecting similarity between models.\n\nInputs: requires Model 2, uses Beta.",
+      "needs_m2": true,
+      "uses_beta": true
+    },
+    "TD": {
+      "label": "Training Difference",
+      "short": "Training Difference",
+      "detail": "Training Difference style transfer. Uses a model1-model2 delta path like Add Difference, commonly used when the difference between two checkpoints represents a training change you want to apply to model0.\n\nInputs: requires Model 2.",
+      "needs_m2": true,
+      "uses_beta": false
+    },
+    "TS": {
+      "label": "Tensor Sum",
+      "short": "Tensor Sum",
+      "detail": "Tensor Sum / beta-aware weighted route. Uses weighted tensor blending while keeping beta available for modes and legacy plans that expect a secondary strength.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "TRS": {
+      "label": "Triple Sum",
+      "short": "Triple Sum",
+      "detail": "Three-way weighted sum: roughly (1-alpha-beta)*model0 + alpha*model1 + beta*model2. Use when you want an explicit proportional mix of three checkpoints.\n\nInputs: requires Model 2, uses Beta.",
+      "needs_m2": true,
+      "uses_beta": true
+    },
+    "ST": {
+      "label": "Sum Twice",
+      "short": "Sum Twice",
+      "detail": "Two-stage interpolation: first blend model0 toward model1 by alpha, then blend that result toward model2 by beta. This often feels more stable than raw triple sum when model2 should refine the first blend.\n\nInputs: requires Model 2, uses Beta.",
+      "needs_m2": true,
+      "uses_beta": true
+    },
+    "NoIn": {
+      "label": "No Interpolation",
+      "short": "No Interpolation",
+      "detail": "No interpolation mode. The backend keeps model0 as the base after special operations such as component handling; it is not a normal blend mode.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "SIG": {
+      "label": "Sigmoid",
+      "short": "Sigmoid",
+      "detail": "Nonlinear sigmoid-style blend. Alpha is passed through a sigmoid-like curve so small and large values behave less linearly than Weighted Sum.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "GEO": {
+      "label": "Geometric",
+      "short": "Geometric",
+      "detail": "Geometric blend using multiplicative/power interpolation. This is experimental and can be sensitive to tensor signs and scale.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "MAX": {
+      "label": "Max",
+      "short": "Max",
+      "detail": "Element-wise maximum between model tensors. It is an aggressive experimental mode and can strongly alter tensor statistics.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "DARE": {
+      "label": "DARE",
+      "short": "DARE",
+      "detail": "Stochastic delta merge. Alpha controls delta strength; beta controls random dropout/rescale behavior. Use Seed for reproducible results.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "XDARE": {
+      "label": "CLIP XOR DARE",
+      "short": "CLIP XOR DARE",
+      "detail": "DARE-style stochastic merge used together with the CLIPXOR/XDARE route. Alpha controls update strength and beta controls stochastic delta selection.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "ORTHO": {
+      "label": "Orthogonalized Delta",
+      "short": "Orthogonalized Delta",
+      "detail": "Adds only the component of model1-model0 that is orthogonal to model0. This can reduce direct style overwrite while preserving novel directional change.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "SPRSE": {
+      "label": "Sparse Top-k Delta",
+      "short": "Sparse Top-k Delta",
+      "detail": "Sparse Top-k delta merge. Alpha controls delta strength and beta controls the fraction of elements selected from the largest deltas.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "NORM": {
+      "label": "Norm/Direction Split",
+      "short": "Norm/Direction Split",
+      "detail": "Splits tensor changes into norm and direction components, letting the merge adjust magnitude and direction more separately than a plain weighted sum.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "CHAN": {
+      "label": "Channel-wise Cosine Gate",
+      "short": "Channel-wise Cosine Gate",
+      "detail": "Channel-wise cosine-gated blending. Alpha controls mix strength and beta controls how strongly channel similarity opens the gate. Useful for tiny structure, finger, anatomy, or detail corrections across multiple blocks.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "FREQ": {
+      "label": "Frequency-Band Blend",
+      "short": "Frequency-Band Blend",
+      "detail": "Frequency-domain blend for convolutional tensors. Beta controls the low/high frequency cutoff and alpha controls how much high-frequency content is taken from model1.\n\nInputs: uses Beta.",
+      "needs_m2": false,
+      "uses_beta": true
+    },
+    "SWAP": {
+      "label": "Swap Components",
+      "short": "Swap Components",
+      "detail": "Swaps selected components from model1 into model0, such as UNet, VAE, CLIP/text parts, or transformer components. Alpha text is interpreted as component selection rather than a normal scalar.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "COMP": {
+      "label": "Save Components (model0 only)",
+      "short": "Save Components (model0 only)",
+      "detail": "Saves selected components from model0 only. This is a component extraction/export utility rather than a normal interpolation mode.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "CLIPXOR": {
+      "label": "CLIP XOR (union-minus-intersection)",
+      "short": "CLIP XOR (union-minus-intersection)",
+      "detail": "CLIP/text-encoder XOR style merge: keeps union-minus-intersection style text features for prompt/style behavior. Useful for text encoder experiments rather than broad UNet blending.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "FWM": {
+      "label": "Feature Weighted Merge",
+      "short": "Feature Weighted Merge",
+      "detail": "Feature Weighted Merge. Uses tensor statistics and smoothed deltas to scale the update, aiming to preserve model0 statistics while importing useful detail from model1.",
+      "needs_m2": false,
+      "uses_beta": false
+    },
+    "TF": {
+      "label": "Trim and Fill",
+      "short": "Trim and Fill",
+      "detail": "Trim and Fill utility mode. It resolves/prunes incompatible or extra tensors and fills output from compatible sources rather than doing a standard weight interpolation.",
+      "needs_m2": false,
+      "uses_beta": false
+    }
+  },
+  "left_panel": {
+    "Base Model": {
+      "short": "Blocks and merge UI are switched for the selected model family.",
+      "detail": "Choose the base architecture used by this plan. Available block names, ratio editors, and merge assumptions are adjusted to match the selected family such as SDXL or Flux."
+    },
+    "HuggingFace Token": {
+      "short": "Token used for Hugging Face downloads and uploads.",
+      "detail": "This token is used when the notebook needs access to private or rate-limited Hugging Face resources, and also when uploading merged models to your repository. Ctrl/Command+click the short help text to open the token page.",
+      "link": "https://huggingface.co/settings/tokens"
+    },
+    "CivitAI API": {
+      "short": "API key used for CivitAI downloads.",
+      "detail": "Set your CivitAI API key here if the plan downloads models from CivitAI. It is passed into the generated notebook so authenticated downloads can work correctly. Ctrl/Command+click the short help text to open the account page.",
+      "link": "https://civitai.com/user/account"
+    },
+    "Plan Text Path": {
+      "short": "Current plan text file to load, save, or create.",
+      "detail": "This is the main txt plan file used by the planner. New creates a fresh plan file, Load reads an existing one, and the path is also used as the base for notebook export names."
+    },
+    "Workspace Path": {
+      "short": "Root working directory used by generated notebooks.",
+      "detail": "The workspace path is the notebook runtime base directory. Temporary models, VAE files, outputs, and other working folders are created relative to this location unless a custom directory is set."
+    },
+    "Model Dir (Opt.)": {
+      "short": "Optional custom folder where checkpoints are stored.",
+      "detail": "If set, this directory is used instead of the default workspace tmp/models location. It also becomes the main source for Local Selection model scanning."
+    },
+    "VAE Dir (Opt.)": {
+      "short": "Optional custom folder where VAE files are stored.",
+      "detail": "If set, this directory is used for VAE lookup instead of the default workspace tmp/vae location. Use it when you want to reuse an existing VAE folder outside the workspace tree."
+    },
+    "Notebook Title": {
+      "short": "Base name for exported and executed notebooks.",
+      "detail": "This title is used when generating the notebook file names. It also affects the executed notebook output path that is shown in the Notebook Output section."
+    },
+    "VAE URL": {
+      "short": "Optional VAE download URL used inside the notebook.",
+      "detail": "Provide a VAE URL when your plan requires a specific VAE to be downloaded before running merges. The generated notebook will try to fetch and register it automatically."
+    },
+    "VAE Name": {
+      "short": "Filename base used when saving the VAE.",
+      "detail": "This name is used as the saved VAE filename base inside the VAE directory. Keep it stable if you want notebooks to reuse the same downloaded VAE file."
+    },
+    "Bake VAE": {
+      "short": "Enable VAE bake-in for generated merge commands.",
+      "detail": "When enabled, the generated notebook downloads or resolves the configured VAE and appends --vae to checkpoint merge commands. When disabled, no --vae argument is emitted in the generated plan."
+    },
+    "User/Repo ID": {
+      "short": "User or repository identifier passed to notebook generation.",
+      "detail": "This value is forwarded into the generated notebook and related export helpers. Use the format expected by your workflow, such as a user or repository identifier for uploads or metadata. Ctrl/Command+click the short help text to open the new repo page.",
+      "link": "https://huggingface.co/new"
+    },
+    "Notebook Output": {
+      "short": "Shows the last generated source notebook and executed notebook paths.",
+      "detail": "Source is the notebook generated from the current plan, and Executed is the notebook produced after running it. These fields help you inspect or reopen the latest notebook artifacts."
+    },
+    "HuggingFace Upload": {
+      "short": "Settings used when uploading the latest merged model.",
+      "detail": "This section stores the target Hugging Face repository used by the upload button. Upload actions use this repository together with the Hugging Face token above."
+    },
+    "Notebook Run Options": {
+      "short": "Options that change how the generated notebook runs.",
+      "detail": "These options modify notebook compilation and execution behavior, such as whether setup cells are skipped, whether uploads run after merge, and whether T2I is executed at the end."
+    },
+    "Ignore Install Deps": {
+      "short": "Skip setup and dependency install cells during notebook run.",
+      "detail": "Enable this when the environment is already prepared and you want a faster run. The notebook will avoid dependency installation and related setup steps."
+    },
+    "Upload After Merge": {
+      "short": "Automatically upload the result after merge finishes.",
+      "detail": "When enabled, the generated notebook continues into the upload step after the merge completes, using your configured Hugging Face token and repository settings."
+    },
+    "Run T2I": {
+      "short": "Run image generation after the merge step.",
+      "detail": "Enable this if your notebook template includes a text-to-image validation or preview stage after merging. It is useful for quick result checks inside the same run."
+    },
+    "▶ Run Merge Notebook": {
+      "short": "Generate and execute the notebook from the current plan.",
+      "detail": "This creates a temporary txt plan, exports a notebook, builds an execution-ready version, and runs it while forwarding logs and progress into the console window."
+    },
+    "💾 Save Plan Text": {
+      "short": "Save the current Plan Creator contents to the txt plan file.",
+      "detail": "Use this to write the current in-memory plan entries back to the plan txt file shown in Plan Text Path without running or exporting anything else."
+    },
+    "📝 Export as notebook": {
+      "short": "Export the current plan as a Jupyter notebook file.",
+      "detail": "This creates a notebook from the current plan without executing it. It is useful when you want to inspect or run the notebook manually later."
+    },
+    "📄 Export as txt": {
+      "short": "Export the current plan using the txt compiler flow.",
+      "detail": "This writes the current plan through the text export pipeline so you can save a compiled txt version to another location while keeping the current working plan intact."
+    },
+    "📺 Show Console": {
+      "short": "Open the execution console window.",
+      "detail": "Shows the Planner Runner console with IDLE logs, raw Jupyter output, rendered notebook outputs, live progress, and the stop button for running notebooks."
+    },
+    "⬆ Upload Latest Model": {
+      "short": "Upload the newest merged safetensors file to Hugging Face.",
+      "detail": "Searches the model output directory for the latest safetensors checkpoint and uploads it using the configured Hugging Face token and repository."
+    },
+    "Status": {
+      "short": "Current planner status and merge progress indicator.",
+      "detail": "This area shows idle, running, completed, or failed states for the current planner action. The progress bar animates during long-running operations such as notebook execution."
+    }
+  },
+  "right_panel": {
+    "Plan Creator": {
+      "short": "Edit, reorder, and inspect the currently selected plan line.",
+      "detail": "This panel edits the in-memory plan structure. Each selected line exposes only the fields relevant to that line type, such as downloads, merge parameters, LoRA bake settings, ratios, and extra CLI signatures."
+    },
+    "Reset Plan": {
+      "short": "Replace the current in-memory plan with a fresh default plan.",
+      "detail": "This resets the editor contents to the default single-line plan. Save afterwards if you want to overwrite the plan txt file on disk."
+    },
+    "Target Line": {
+      "short": "Choose which plan entry is currently being edited.",
+      "detail": "The selector lists every plan entry with a short summary. Use the adjacent buttons to insert, remove, or reorder lines in the current plan."
+    },
+    "Add Line": {
+      "short": "Insert a new line after the currently selected line.",
+      "detail": "Creates a new plan entry immediately after the current one. New lines start as Checkpoint Merge entries and can be changed later with Model Merge Type."
+    },
+    "Remove Line": {
+      "short": "Delete the currently selected line.",
+      "detail": "Removes the current entry from the in-memory plan. At least one line must remain in the plan."
+    },
+    "Move Line Up": {
+      "short": "Move the selected line one position earlier.",
+      "detail": "Swaps the current entry with the one above it and immediately updates the plan order."
+    },
+    "Move Line Down": {
+      "short": "Move the selected line one position later.",
+      "detail": "Swaps the current entry with the one below it and immediately updates the plan order."
+    },
+    "Reload Plan File": {
+      "short": "Reload the current plan txt file from disk.",
+      "detail": "Discards the current in-memory editor state and loads the plan file from Plan Text Path again."
+    },
+    "Line Settings": {
+      "short": "Basic metadata for the selected plan line.",
+      "detail": "This section contains the plan line type selector. Changing the type rebuilds the editor to match the selected entry kind such as Download Model, Checkpoint Merge, or LoRA Bake."
+    },
+    "Model Merge Type": {
+      "short": "Select what this line does in the plan.",
+      "detail": "Available line types are Checkpoint Merge, LoRA Bake and LoRA Merge. The visible editor fields change depending on this selection."
+    },
+    "Download Model": {
+      "short": "Download a checkpoint, LoRA, or LyCORIS into the working model set.",
+      "detail": "Use this entry type to fetch models from URLs before later merge or bake steps. Downloaded models become available to later plan lines by name."
+    },
+    "Local Model": {
+      "short": "Register a local checkpoint or LoRA file for later use.",
+      "detail": "Use this entry type when the model already exists on disk. The planner copies or registers it into the working set so later lines can refer to it by name."
+    },
+    "Remove Model": {
+      "short": "Remove a previously registered model from later choices.",
+      "detail": "This removes a model alias from the later plan context so it no longer appears in subsequent merge or bake model selectors."
+    },
+    "Checkpoint Merge": {
+      "short": "Configure a checkpoint merge step.",
+      "detail": "This entry chooses one merge mode, input checkpoints, alpha and optional beta ratios, an output name, and extra signatures that are passed into the merge command."
+    },
+    "LoRA Bake": {
+      "short": "Bake one or more LoRAs into a checkpoint.",
+      "detail": "This entry selects a base checkpoint, an output name, one or more LoRA slots with their own ratios, and additional signatures passed to the bake command."
+    },
+    "Model Name": {
+      "short": "Alias used for this downloaded model inside the planner.",
+      "detail": "This is the internal model name used by later plan lines. Pick a short stable alias because merges and removals refer to this name, not the original URL."
+    },
+    "Link": {
+      "short": "Source URL used when downloading the model.",
+      "detail": "Provide the direct or share URL for the model to download. The generated notebook resolves and downloads the file during execution."
+    },
+    "Type": {
+      "short": "Model category used for registration and filtering.",
+      "detail": "Choose whether this item is a Checkpoint, LoRA, or LyCORIS depending on the entry type. Later selectors use this category to decide which models are offered."
+    },
+    "Local Selection": {
+      "short": "Pick a local model discovered under Model Dir or Workspace Path.",
+      "detail": "This list is built from scanned local checkpoint files such as safetensors and ckpt under the configured model directories. Use the folder button beside Local Path for files outside those locations."
+    },
+    "Local Path": {
+      "short": "Actual filesystem path of the selected local model file.",
+      "detail": "Readonly field showing the resolved model path used by this Local Model entry. You can replace it with the folder button to choose another file manually."
+    },
+    "Model": {
+      "short": "Choose which registered model should be removed.",
+      "detail": "This list contains registered models that were introduced by earlier plan lines. Removing a model only affects later planner choices; it does not delete files from disk."
+    },
+    "Merge Mode": {
+      "short": "Select the checkpoint merge algorithm.",
+      "detail": "The merge mode controls how Model 0, Model 1, optional Model 2, alpha, and beta are interpreted. Some modes require Model 2 or Beta while others do not."
+    },
+    "Model 0": {
+      "short": "Primary base checkpoint for the merge step.",
+      "detail": "Model 0 is usually treated as the starting checkpoint or main base model. The exact role still depends on the selected merge mode."
+    },
+    "Model 1": {
+      "short": "Secondary checkpoint used by the merge step.",
+      "detail": "Model 1 is the main donor or comparison checkpoint for most merge modes. Its influence is controlled mainly by alpha and sometimes beta."
+    },
+    "Model 2": {
+      "short": "Third checkpoint used only by merge modes that need it.",
+      "detail": "Some merge modes such as difference-based or triple-input modes require a third checkpoint. This field appears only when the selected merge mode needs Model 2."
+    },
+    "Alpha": {
+      "short": "Primary ratio input for the merge or bake step.",
+      "detail": "Alpha is the main strength parameter. It can be a Single scalar, Block weight list, or Elemental expression depending on the selected ratio mode."
+    },
+    "Beta": {
+      "short": "Secondary ratio input for merge modes that support it.",
+      "detail": "Beta is an additional strength parameter used by some checkpoint merge modes. Like alpha, it supports Single, Block weight, and Elemental styles when available."
+    },
+    "Output": {
+      "short": "Naming and output-related settings for this line.",
+      "detail": "Use this section to set the output alias or filename stem that later plan lines will see when referring to the result of this merge or bake step."
+    },
+    "Output Name": {
+      "short": "Alias used for the generated checkpoint result.",
+      "detail": "This name becomes the planner-visible name of the result and is also used for the saved file stem in the generated notebook workflow."
+    },
+    "Checkpoint": {
+      "short": "Base checkpoint used for LoRA baking.",
+      "detail": "Select which registered checkpoint should receive the LoRA bake operation. Later baked output is saved using Output Name."
+    },
+    "LoRA": {
+      "short": "One LoRA slot inside a LoRA Bake entry.",
+      "detail": "Each LoRA block chooses one LoRA or LyCORIS file and its ratio mode. Use Add LoRA to create more slots and the minus button to remove one slot."
+    },
+    "+ Add LoRA": {
+      "short": "Append another LoRA slot to this bake entry.",
+      "detail": "Adds a new LoRA block to the current LoRA Bake entry so multiple LoRAs can be baked into the same checkpoint output."
+    },
+    "LoRA Name": {
+      "short": "Choose which registered LoRA or LyCORIS to bake.",
+      "detail": "The list is built from LoRA and LyCORIS models registered by earlier plan lines. Each selected LoRA has its own independent ratio setting."
+    },
+    "Ratio Mode": {
+      "short": "Choose whether the ratio is scalar, per-block, or elemental text.",
+      "detail": "Single uses one number. Block weight uses one value per discovered block. Elemental keeps free-form text and is automatically inferred when the value contains [] or {} or line breaks in the imported plan format. The planner passes elemental text through to the backend without interpreting its inner syntax."
+    },
+    "Ratio": {
+      "short": "Value field for the selected ratio mode.",
+      "detail": "For Single mode, enter one numeric value. For Block weight, edit one value per block with sliders. For Elemental, enter raw backend syntax such as bracket or brace expressions or multiline block-value text."
+    },
+    "Block Weight": {
+      "short": "Per-block weights for BASE, IN, MID, and OUT stages.",
+      "detail": "Block weight mode assigns one value to each discovered block. For SDXL, a practical reading is: BASE covers global/base layers, IN00-IN08 move from coarse down-path structure toward deeper feature extraction, MID00 is the bottleneck/global mixing stage, and OUT00-OUT08 cover the up-path reconstruction and finishing stages. Earlier blocks usually affect broad structure more, while later OUT blocks often influence surface detail and finish more. Treat this as a workflow guide rather than a strict guarantee."
+    },
+    "Elemental Ratio": {
+      "short": "Use layer:element:strength style text. Popup candidates help fill layers and elements.",
+      "detail": "Elemental mode keeps free-form text, but the planner now assists editing with layer:element:strength style suggestions. Before the first colon, the popup can list both layers and elements from a base-model-specific JSON file. After one colon it suggests element names, and after two colons it suggests strength values. The popup shows what each layer or element affects, but Tab completion inserts only the raw token text. JSON filenames are resolved per base model, for example elemental_candidates_sdxl.json or elemental_candidates_flux.json, and can be created later."
+    },
+    "Additional Signatures": {
+      "short": "Extra CLI-like tokens appended to the merge or bake command.",
+      "detail": "This field is split with shlex-style tokenization and appended as raw command pieces. Recognized @-style meta tokens include @c/@cosine, @f/@fine, @s/@seed, @m/@mode, @p/@precision, @rank, and @arch. Precision values such as half, bhalf/bf16, quarter/fp8, and fp32/full are converted into save flags by the plan compiler. Unknown @name value forms are converted into --name value, and plain --flags are also passed through. Use the popup suggestions and Tab completion for common forms."
+    },
+    "LoRA Merge": {
+      "short": "Merge multiple LoRAs or LyCORIS files into a single LoRA output.",
+      "detail": "This entry uses the LoRA-to-LoRA merge path instead of baking into a checkpoint. It selects multiple LoRA inputs, applies their ratios and merge options, and registers the result as a LoRA that later LoRA Bake lines can use."
+    },
+    "Checkpoint Merge Options": {
+      "short": "Structured UI for merge.py CLI options.",
+      "detail": "These controls expose merge.py flags such as difference routing, cosine routing, turbo/deturbo, rebasin, fine/fine_sat, CFG sensitivity, saturation boost, VAE saturation, metadata, and overwrite options."
+    },
+    "LoRA Bake Options": {
+      "short": "Structured UI for lora_bake.py bake options.",
+      "detail": "These controls expose bake-only options such as DARE, text encoder scaling, UNet-only baking, normalization, rank cap, clamp, delta guard, FP32 accumulation, budget report, metadata, and memo."
+    },
+    "LoRA Merge Options": {
+      "short": "Structured UI for lora_bake.py --merge_loras options.",
+      "detail": "These controls expose LoRA-to-LoRA merge settings such as rank cap, architecture mapping, normalization, global scale, UNet-only merge, metadata, and memo."
+    },
+    "Unmapped Legacy Signatures": {
+      "short": "Legacy @/-- tokens that could not be represented by structured options.",
+      "detail": "Additional Signatures are no longer shown as a separate editor. When old plans are imported, supported tokens are converted into Option controls; unknown or unsupported tokens are preserved here and appended during export/run."
+    },
+    "Architecture": {
+      "short": "Architecture hint imported from @arch.",
+      "detail": "Legacy @arch values are loaded here. When exporting to legacy txt, this is written back as @arch. Display names such as SDXL, ZImage, and Anima are converted back to backend names when compiled."
+    },
+    "Precision": {
+      "short": "Save precision imported from @p/@precision.",
+      "detail": "This controls save precision and is written to legacy txt as @p when it is not the default. Display names such as FP16, BF16, FP8, and FP32 are converted to backend flags as needed."
+    }
+  },
+  "metadata": {
+    "updated_for": "externalized panel field help and completed merge_modes tooltip coverage",
+    "source_files": [
+      "merge_modes.py",
+      "merge.py",
+      "lora_bake.py",
+      "main.py panel help dictionaries"
+    ]
+  }
+}

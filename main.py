@@ -25,7 +25,6 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from tkinter import Canvas, Entry, Frame, Label, LabelFrame, Scrollbar, Text
-import tempfile
 import nbformat
 
 from IPython.core.interactiveshell import InteractiveShell
@@ -57,9 +56,9 @@ CONSOLE_MAX_OUTPUT_LINES = 4000
 CONSOLE_MAX_IDLE_LINES = 1800
 PLAN_UI_REFRESH_MS = 120
 PLAN_AUTOSAVE_MS = 900
-LINE_TYPES = ["Checkpoint Merge", "LoRA Bake"]
+LINE_TYPES = ["Checkpoint Merge", "LoRA Bake", "LoRA Merge"]
 INTERNAL_LINE_TYPES = ["Download Model", "Local Model", "Remove Model"]
-RATIO_MODES = ["Single", "Block weight", "Elemental"]
+RATIO_MODES = ["Single", "Block weight", "Elemental", "Randomize"]
 DOWNLOAD_TYPES = ["Checkpoint", "LoRA", "LyCORIS"]
 LOCAL_TYPES = ["Checkpoint", "LoRA", "LyCORIS"]
 BASE_MODEL_OPTIONS = ["SD1.5", "SDXL", "Flux", "ZImage", "Anima"]
@@ -183,266 +182,35 @@ INIT_CONFIG = {
 }
 
 
-LEFT_PANEL_FIELD_HELP = {
-    "Base Model": {
-        "short": "Blocks and merge UI are switched for the selected model family.",
-        "detail": "Choose the base architecture used by this plan. Available block names, ratio editors, and merge assumptions are adjusted to match the selected family such as SDXL or Flux.",
-    },
-    "HuggingFace Token": {
-        "short": "Token used for Hugging Face downloads and uploads.",
-        "detail": "This token is used when the notebook needs access to private or rate-limited Hugging Face resources, and also when uploading merged models to your repository. Ctrl/Command+click the short help text to open the token page.",
-        "link": "https://huggingface.co/settings/tokens",
-    },
-    "CivitAI API": {
-        "short": "API key used for CivitAI downloads.",
-        "detail": "Set your CivitAI API key here if the plan downloads models from CivitAI. It is passed into the generated notebook so authenticated downloads can work correctly. Ctrl/Command+click the short help text to open the account page.",
-        "link": "https://civitai.com/user/account",
-    },
-    "Plan Text Path": {
-        "short": "Current plan text file to load, save, or create.",
-        "detail": "This is the main txt plan file used by the planner. New creates a fresh plan file, Load reads an existing one, and the path is also used as the base for notebook export names.",
-    },
-    "Workspace Path": {
-        "short": "Root working directory used by generated notebooks.",
-        "detail": "The workspace path is the notebook runtime base directory. Temporary models, VAE files, outputs, and other working folders are created relative to this location unless a custom directory is set.",
-    },
-    "Model Dir (Opt.)": {
-        "short": "Optional custom folder where checkpoints are stored.",
-        "detail": "If set, this directory is used instead of the default workspace tmp/models location. It also becomes the main source for Local Selection model scanning.",
-    },
-    "VAE Dir (Opt.)": {
-        "short": "Optional custom folder where VAE files are stored.",
-        "detail": "If set, this directory is used for VAE lookup instead of the default workspace tmp/vae location. Use it when you want to reuse an existing VAE folder outside the workspace tree.",
-    },
-    "Notebook Title": {
-        "short": "Base name for exported and executed notebooks.",
-        "detail": "This title is used when generating the notebook file names. It also affects the executed notebook output path that is shown in the Notebook Output section.",
-    },
-    "VAE URL": {
-        "short": "Optional VAE download URL used inside the notebook.",
-        "detail": "Provide a VAE URL when your plan requires a specific VAE to be downloaded before running merges. The generated notebook will try to fetch and register it automatically.",
-    },
-    "VAE Name": {
-        "short": "Filename base used when saving the VAE.",
-        "detail": "This name is used as the saved VAE filename base inside the VAE directory. Keep it stable if you want notebooks to reuse the same downloaded VAE file.",
-    },
-    "Bake VAE": {
-        "short": "Enable VAE bake-in for generated merge commands.",
-        "detail": "When enabled, the generated notebook downloads or resolves the configured VAE and appends --vae to checkpoint merge commands. When disabled, no --vae argument is emitted in the generated plan.",
-    },
-    "User/Repo ID": {
-        "short": "User or repository identifier passed to notebook generation.",
-        "detail": "This value is forwarded into the generated notebook and related export helpers. Use the format expected by your workflow, such as a user or repository identifier for uploads or metadata. Ctrl/Command+click the short help text to open the new repo page.",
-        "link": "https://huggingface.co/new",
-    },
-    "Notebook Output": {
-        "short": "Shows the last generated source notebook and executed notebook paths.",
-        "detail": "Source is the notebook generated from the current plan, and Executed is the notebook produced after running it. These fields help you inspect or reopen the latest notebook artifacts.",
-    },
-    "HuggingFace Upload": {
-        "short": "Settings used when uploading the latest merged model.",
-        "detail": "This section stores the target Hugging Face repository used by the upload button. Upload actions use this repository together with the Hugging Face token above.",
-    },
-    "Notebook Run Options": {
-        "short": "Options that change how the generated notebook runs.",
-        "detail": "These options modify notebook compilation and execution behavior, such as whether setup cells are skipped, whether uploads run after merge, and whether T2I is executed at the end.",
-    },
-    "Ignore Install Deps": {
-        "short": "Skip setup and dependency install cells during notebook run.",
-        "detail": "Enable this when the environment is already prepared and you want a faster run. The notebook will avoid dependency installation and related setup steps.",
-    },
-    "Upload After Merge": {
-        "short": "Automatically upload the result after merge finishes.",
-        "detail": "When enabled, the generated notebook continues into the upload step after the merge completes, using your configured Hugging Face token and repository settings.",
-    },
-    "Run T2I": {
-        "short": "Run image generation after the merge step.",
-        "detail": "Enable this if your notebook template includes a text-to-image validation or preview stage after merging. It is useful for quick result checks inside the same run.",
-    },
-    "▶ Run Merge Notebook": {
-        "short": "Generate and execute the notebook from the current plan.",
-        "detail": "This creates a temporary txt plan, exports a notebook, builds an execution-ready version, and runs it while forwarding logs and progress into the console window.",
-    },
-    "💾 Save Plan Text": {
-        "short": "Save the current Plan Creator contents to the txt plan file.",
-        "detail": "Use this to write the current in-memory plan entries back to the plan txt file shown in Plan Text Path without running or exporting anything else.",
-    },
-    "📝 Export as notebook": {
-        "short": "Export the current plan as a Jupyter notebook file.",
-        "detail": "This creates a notebook from the current plan without executing it. It is useful when you want to inspect or run the notebook manually later.",
-    },
-    "📄 Export as txt": {
-        "short": "Export the current plan using the txt compiler flow.",
-        "detail": "This writes the current plan through the text export pipeline so you can save a compiled txt version to another location while keeping the current working plan intact.",
-    },
-    "📺 Show Console": {
-        "short": "Open the execution console window.",
-        "detail": "Shows the Planner Runner console with IDLE logs, raw Jupyter output, rendered notebook outputs, live progress, and the stop button for running notebooks.",
-    },
-    "⬆ Upload Latest Model": {
-        "short": "Upload the newest merged safetensors file to Hugging Face.",
-        "detail": "Searches the model output directory for the latest safetensors checkpoint and uploads it using the configured Hugging Face token and repository.",
-    },
-    "Status": {
-        "short": "Current planner status and merge progress indicator.",
-        "detail": "This area shows idle, running, completed, or failed states for the current planner action. The progress bar animates during long-running operations such as notebook execution.",
-    },
-}
+def _planner_tooltip_catalog_path_candidates() -> list[Path]:
+    """Return tooltip JSON candidates in priority order."""
+    here = Path(__file__).resolve().parent
+    return [
+        here / "planner_tooltips.json",
+        Path.cwd() / "planner_tooltips.json",
+        here / "config" / "planner_tooltips.json",
+    ]
 
-RIGHT_PANEL_FIELD_HELP = {
-    "Plan Creator": {
-        "short": "Edit, reorder, and inspect the currently selected plan line.",
-        "detail": "This panel edits the in-memory plan structure. Each selected line exposes only the fields relevant to that line type, such as downloads, merge parameters, LoRA bake settings, ratios, and extra CLI signatures.",
-    },
-    "Reset Plan": {
-        "short": "Replace the current in-memory plan with a fresh default plan.",
-        "detail": "This resets the editor contents to the default single-line plan. Save afterwards if you want to overwrite the plan txt file on disk.",
-    },
-    "Target Line": {
-        "short": "Choose which plan entry is currently being edited.",
-        "detail": "The selector lists every plan entry with a short summary. Use the adjacent buttons to insert, remove, or reorder lines in the current plan.",
-    },
-    "Add Line": {
-        "short": "Insert a new line after the currently selected line.",
-        "detail": "Creates a new plan entry immediately after the current one. New lines start as Checkpoint Merge entries and can be changed later with Model Merge Type.",
-    },
-    "Remove Line": {
-        "short": "Delete the currently selected line.",
-        "detail": "Removes the current entry from the in-memory plan. At least one line must remain in the plan.",
-    },
-    "Move Line Up": {
-        "short": "Move the selected line one position earlier.",
-        "detail": "Swaps the current entry with the one above it and immediately updates the plan order.",
-    },
-    "Move Line Down": {
-        "short": "Move the selected line one position later.",
-        "detail": "Swaps the current entry with the one below it and immediately updates the plan order.",
-    },
-    "Reload Plan File": {
-        "short": "Reload the current plan txt file from disk.",
-        "detail": "Discards the current in-memory editor state and loads the plan file from Plan Text Path again.",
-    },
-    "Line Settings": {
-        "short": "Basic metadata for the selected plan line.",
-        "detail": "This section contains the plan line type selector. Changing the type rebuilds the editor to match the selected entry kind such as Download Model, Checkpoint Merge, or LoRA Bake.",
-    },
-    "Model Merge Type": {
-        "short": "Select what this line does in the plan.",
-        "detail": "Available line types are Download Model, Local Model, Remove Model, Checkpoint Merge, and LoRA Bake. The visible editor fields change depending on this selection.",
-    },
-    "Download Model": {
-        "short": "Download a checkpoint, LoRA, or LyCORIS into the working model set.",
-        "detail": "Use this entry type to fetch models from URLs before later merge or bake steps. Downloaded models become available to later plan lines by name.",
-    },
-    "Local Model": {
-        "short": "Register a local checkpoint or LoRA file for later use.",
-        "detail": "Use this entry type when the model already exists on disk. The planner copies or registers it into the working set so later lines can refer to it by name.",
-    },
-    "Remove Model": {
-        "short": "Remove a previously registered model from later choices.",
-        "detail": "This removes a model alias from the later plan context so it no longer appears in subsequent merge or bake model selectors.",
-    },
-    "Checkpoint Merge": {
-        "short": "Configure a checkpoint merge step.",
-        "detail": "This entry chooses one merge mode, input checkpoints, alpha and optional beta ratios, an output name, and extra signatures that are passed into the merge command.",
-    },
-    "LoRA Bake": {
-        "short": "Bake one or more LoRAs into a checkpoint.",
-        "detail": "This entry selects a base checkpoint, an output name, one or more LoRA slots with their own ratios, and additional signatures passed to the bake command.",
-    },
-    "Model Name": {
-        "short": "Alias used for this downloaded model inside the planner.",
-        "detail": "This is the internal model name used by later plan lines. Pick a short stable alias because merges and removals refer to this name, not the original URL.",
-    },
-    "Link": {
-        "short": "Source URL used when downloading the model.",
-        "detail": "Provide the direct or share URL for the model to download. The generated notebook resolves and downloads the file during execution.",
-    },
-    "Type": {
-        "short": "Model category used for registration and filtering.",
-        "detail": "Choose whether this item is a Checkpoint, LoRA, or LyCORIS depending on the entry type. Later selectors use this category to decide which models are offered.",
-    },
-    "Local Selection": {
-        "short": "Pick a local model discovered under Model Dir or Workspace Path.",
-        "detail": "This list is built from scanned local checkpoint files such as safetensors and ckpt under the configured model directories. Use the folder button beside Local Path for files outside those locations.",
-    },
-    "Local Path": {
-        "short": "Actual filesystem path of the selected local model file.",
-        "detail": "Readonly field showing the resolved model path used by this Local Model entry. You can replace it with the folder button to choose another file manually.",
-    },
-    "Model": {
-        "short": "Choose which registered model should be removed.",
-        "detail": "This list contains registered models that were introduced by earlier plan lines. Removing a model only affects later planner choices; it does not delete files from disk.",
-    },
-    "Merge Mode": {
-        "short": "Select the checkpoint merge algorithm.",
-        "detail": "The merge mode controls how Model 0, Model 1, optional Model 2, alpha, and beta are interpreted. Some modes require Model 2 or Beta while others do not.",
-    },
-    "Model 0": {
-        "short": "Primary base checkpoint for the merge step.",
-        "detail": "Model 0 is usually treated as the starting checkpoint or main base model. The exact role still depends on the selected merge mode.",
-    },
-    "Model 1": {
-        "short": "Secondary checkpoint used by the merge step.",
-        "detail": "Model 1 is the main donor or comparison checkpoint for most merge modes. Its influence is controlled mainly by alpha and sometimes beta.",
-    },
-    "Model 2": {
-        "short": "Third checkpoint used only by merge modes that need it.",
-        "detail": "Some merge modes such as difference-based or triple-input modes require a third checkpoint. This field appears only when the selected merge mode needs Model 2.",
-    },
-    "Alpha": {
-        "short": "Primary ratio input for the merge or bake step.",
-        "detail": "Alpha is the main strength parameter. It can be a Single scalar, Block weight list, or Elemental expression depending on the selected ratio mode.",
-    },
-    "Beta": {
-        "short": "Secondary ratio input for merge modes that support it.",
-        "detail": "Beta is an additional strength parameter used by some checkpoint merge modes. Like alpha, it supports Single, Block weight, and Elemental styles when available.",
-    },
-    "Output": {
-        "short": "Naming and output-related settings for this line.",
-        "detail": "Use this section to set the output alias or filename stem that later plan lines will see when referring to the result of this merge or bake step.",
-    },
-    "Output Name": {
-        "short": "Alias used for the generated checkpoint result.",
-        "detail": "This name becomes the planner-visible name of the result and is also used for the saved file stem in the generated notebook workflow.",
-    },
-    "Checkpoint": {
-        "short": "Base checkpoint used for LoRA baking.",
-        "detail": "Select which registered checkpoint should receive the LoRA bake operation. Later baked output is saved using Output Name.",
-    },
-    "LoRA": {
-        "short": "One LoRA slot inside a LoRA Bake entry.",
-        "detail": "Each LoRA block chooses one LoRA or LyCORIS file and its ratio mode. Use Add LoRA to create more slots and the minus button to remove one slot.",
-    },
-    "+ Add LoRA": {
-        "short": "Append another LoRA slot to this bake entry.",
-        "detail": "Adds a new LoRA block to the current LoRA Bake entry so multiple LoRAs can be baked into the same checkpoint output.",
-    },
-    "LoRA Name": {
-        "short": "Choose which registered LoRA or LyCORIS to bake.",
-        "detail": "The list is built from LoRA and LyCORIS models registered by earlier plan lines. Each selected LoRA has its own independent ratio setting.",
-    },
-    "Ratio Mode": {
-        "short": "Choose whether the ratio is scalar, per-block, or elemental text.",
-        "detail": "Single uses one number. Block weight uses one value per discovered block. Elemental keeps free-form text and is automatically inferred when the value contains [] or {} or line breaks in the imported plan format. The planner passes elemental text through to the backend without interpreting its inner syntax.",
-    },
-    "Ratio": {
-        "short": "Value field for the selected ratio mode.",
-        "detail": "For Single mode, enter one numeric value. For Block weight, edit one value per block with sliders. For Elemental, enter raw backend syntax such as bracket or brace expressions or multiline block-value text.",
-    },
-    "Block Weight": {
-        "short": "Per-block weights for BASE, IN, MID, and OUT stages.",
-        "detail": "Block weight mode assigns one value to each discovered block. For SDXL, a practical reading is: BASE covers global/base layers, IN00-IN08 move from coarse down-path structure toward deeper feature extraction, MID00 is the bottleneck/global mixing stage, and OUT00-OUT08 cover the up-path reconstruction and finishing stages. Earlier blocks usually affect broad structure more, while later OUT blocks often influence surface detail and finish more. Treat this as a workflow guide rather than a strict guarantee.",
-    },
-    "Elemental Ratio": {
-        "short": "Use layer:element:strength style text. Popup candidates help fill layers and elements.",
-        "detail": "Elemental mode keeps free-form text, but the planner now assists editing with layer:element:strength style suggestions. Before the first colon, the popup can list both layers and elements from a base-model-specific JSON file. After one colon it suggests element names, and after two colons it suggests strength values. The popup shows what each layer or element affects, but Tab completion inserts only the raw token text. JSON filenames are resolved per base model, for example elemental_candidates_sdxl.json or elemental_candidates_flux.json, and can be created later.",
-    },
-    "Additional Signatures": {
-        "short": "Extra CLI-like tokens appended to the merge or bake command.",
-        "detail": "This field is split with shlex-style tokenization and appended as raw command pieces. Recognized @-style meta tokens include @c/@cosine, @f/@fine, @s/@seed, @m/@mode, @p/@precision, @rank, and @arch. Precision values such as half, bhalf/bf16, quarter/fp8, and fp32/full are converted into save flags by the plan compiler. Unknown @name value forms are converted into --name value, and plain --flags are also passed through. Use the popup suggestions and Tab completion for common forms.",
-    },
-}
+
+def _planner_load_tooltip_catalog() -> Dict[str, Any]:
+    for path in _planner_tooltip_catalog_path_candidates():
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            try:
+                print(f"[tooltip] failed to load {path}: {type(e).__name__}: {e}")
+            except Exception:
+                pass
+    return {"options": {}, "choices": {}, "modes": {}, "left_panel": {}, "right_panel": {}}
+
+
+PLANNER_TOOLTIP_CATALOG = _planner_load_tooltip_catalog()
+LEFT_PANEL_FIELD_HELP = dict(PLANNER_TOOLTIP_CATALOG.get("left_panel") or {})
+RIGHT_PANEL_FIELD_HELP = dict(PLANNER_TOOLTIP_CATALOG.get("right_panel") or {})
+
 
 ELEMENTAL_CANDIDATE_JSON_FILES = {
     "SD1.5": "elemental_candidates_sd15.json",
@@ -2863,10 +2631,13 @@ class ModelPlannerApp:
         title_label = Label(title_row, text="Planner & Runner", font=("MS Gothic", 16, "bold"), anchor="w")
         title_label.pack(side="left", anchor="w")
         self.current_line_indicator_var = tk.StringVar(value="Line 1 / 1 : ")
+        disk_btn = ttk.Button(title_row, text="Disk Estimate", command=lambda: self._planner_estimate_disk_runtime())
+        disk_btn.pack(side="right", anchor="e", padx=(6, 0))
         current_line_label = Label(title_row, textvariable=self.current_line_indicator_var, font=("MS Gothic", 10, "bold"), anchor="e", fg="#555555")
         current_line_label.pack(side="right", anchor="e")
         self.fixed_title_label = title_label
         self.current_line_indicator_label = current_line_label
+        self.disk_estimate_button = disk_btn
 
         self._attach_tooltip(self.view_switch_button, "Switch between split view and single-panel planner/editor views depending on window width.")
         self._attach_tooltip(self.theme_toggle_button, "Toggle light and dark appearance for the planner UI.")
@@ -4028,7 +3799,8 @@ class ModelPlannerApp:
                 vae_dir=params.get("vae_dir", ""),
                 ignore_install_deps=bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get()),
                 upload_after_merge=bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get()),
-                run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get())
+                run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get()),
+                t2i_settings=self._planner_get_t2i_settings() if hasattr(self, "_planner_get_t2i_settings") else None
             )
             self.notebook_path_var.set(path)
             self.config["saveas"] = path
@@ -4523,6 +4295,7 @@ class ModelPlannerApp:
     def _render_local_entry(self, parent, entry: Dict[str, Any]):
         frame = self._build_labeled_frame(parent, "Local Model")
         self._build_local_selection_row(frame, entry)
+        self._build_entry_row(frame, "Model Name", entry, "model_name")
 
         path_row = Frame(frame)
         path_row.pack(fill="x", pady=3)
@@ -4533,6 +4306,8 @@ class ModelPlannerApp:
 
         def sync_path(*_args):
             entry["local_path"] = path_var.get()
+            if path_var.get().strip() and not str(entry.get("model_name") or "").strip():
+                entry["model_name"] = Path(path_var.get()).stem
             self._after_entry_change()
 
         path_var.trace_add("write", sync_path)
@@ -5084,7 +4859,8 @@ def get_ipython():
                 vae_dir=params.get("vae_dir", ""),
                 ignore_install_deps=bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get()),
                 upload_after_merge=bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get()),
-                run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get())
+                run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get()),
+                t2i_settings=self._planner_get_t2i_settings() if hasattr(self, "_planner_get_t2i_settings") else None
             )
             self.progress_indicator.update(1, "Notebook generated")
             self.console.idle("Notebook generation completed.")
@@ -6546,7 +6322,7 @@ def get_ipython():
         if self.plan_listbox is not None:
             selected_model = set(self._planner_get_selected_indices())
             active_model = self.current_index
-            display_items = [f"{idx + 1:02d} • {self._line_summary(entries[idx])}" for idx in self.visible_entry_indices]
+            display_items = [f"{idx + 1:02d} • {self._line_summary(entries[idx]):<72} ?" for idx in self.visible_entry_indices]
             render_cache = (tuple(self.visible_entry_indices), tuple(display_items))
             try:
                 current_yview = self.plan_listbox.yview()
@@ -6661,8 +6437,12 @@ def get_ipython():
         title_label.pack(side='left')
         reset_btn = ttk.Button(top_frame, text='Reset Plan', command=self._reset_plan)
         reset_btn.pack(side='right', padx=5)
+        plan_versions_btn = ttk.Button(top_frame, text='Plan Versions', command=lambda: self._planner_show_versions())
+        plan_versions_btn.pack(side='right', padx=(0, 5))
+        self.plan_versions_button = plan_versions_btn
         self._attach_tooltip(title_label, self._right_help('Plan Creator').get('detail', ''))
         self._attach_tooltip(reset_btn, self._right_help('Reset Plan').get('detail', ''))
+        self._attach_tooltip(plan_versions_btn, 'Open plan change history / experiment versions.')
         self._add_right_inline_help(parent, 'Plan Creator', padx=4, wraplength=760)
 
         plan_body = self._build_collapsible_section(
@@ -6726,8 +6506,8 @@ def get_ipython():
         action_specs = [
             ('Add Below', self._add_line, 'Ctrl(Command)+Shift+;'),
             ('Remove', self._remove_line, 'Delete / Backspace'),
-            ('Move Up', self._move_line_up, 'Shift+Up'),
-            ('Move Down', self._move_line_down, 'Shift+Down'),
+            ('Optimize Plan', self._planner_optimize_plan_full, ''),
+            ('Shortcuts', self._planner_show_shortcut_settings, ''),
             ('Diff', self._show_plan_diff_preview, 'Ctrl(Command)+Shift+:'),
             ('Validate', self._show_prevalidation, 'Ctrl(Command)+Shift+V'),
             ('Save Preset', self._save_preset_json, 'Ctrl(Command)+Alt(Option)+S'),
@@ -6742,8 +6522,8 @@ def get_ipython():
         info_row.pack(fill='x', pady=(0, 4))
         deps_label = Label(info_row, textvariable=self.plan_deps_var, anchor='w', fg='#555555', cursor='hand2')
         deps_label.pack(side='left', fill='x', expand=True)
-        deps_label.bind('<Button-1>', lambda _e: self._show_dependency_view(), add='+')
-        self._attach_tooltip(deps_label, 'Dependency summary. Click to open the full dependency view.\nOther shortcuts: Undo Ctrl+Z, Redo Ctrl+Shift+Z, Copy Ctrl+C, Paste Ctrl+V, Duplicate Ctrl+D, Delete Backspace/Delete, Reorder Shift+Up/Down or drag the selected lines.')
+        deps_label.bind('<Button-1>', lambda _e: self._planner_show_dependency_graph(), add='+')
+        self._attach_tooltip(deps_label, 'Dependency summary. Click to open the interactive dependency graph.\nOther shortcuts: Undo Ctrl+Z, Redo Ctrl+Shift+Z, Copy Ctrl+C, Paste Ctrl+V, Duplicate Ctrl+D, Delete Backspace/Delete, Reorder Shift+Up/Down or drag the selected lines.')
         unused_label = Label(info_row, textvariable=self.plan_unused_var, anchor='e', fg='#555555', cursor='hand2')
         unused_label.pack(side='right', padx=(8, 0))
         unused_label.bind('<Button-1>', lambda _e: self._show_unused_models(), add='+')
@@ -6777,6 +6557,7 @@ def get_ipython():
         self.plan_listbox.bind('<ButtonPress-2>', self._show_plan_context_menu, add='+')
         self.plan_listbox.bind('<ButtonPress-3>', self._show_plan_context_menu, add='+')
         self.plan_listbox.bind('<Control-Button-1>', self._show_plan_context_menu, add='+')
+        self.plan_listbox.bind('<Button-1>', self._on_plan_help_click, add='+')
 
         summary = Label(plan_body, textvariable=self.plan_summary_var, anchor='w', fg='#666666')
         summary.pack(fill='x', pady=(4, 0))
@@ -8059,7 +7840,7 @@ def get_ipython():
             ('Copy', self._copy_selected_lines, True),
             ('Paste Below', self._paste_copied_lines, True),
             ('Duplicate Below', self._duplicate_selected_lines, True),
-            ('Optimize Plan', self._collapse_selected_ws_chain, self._selected_entries_support_ws_collapse()),
+            ('Optimize Plan', self._planner_optimize_plan_full, True),
             ('Remove Dead Lines', self._remove_dead_lines, bool(self._planner_analysis().get('dead_entries'))),
             ('Create Preset', self._save_preset_json, True),
             ('Delete', self._delete_selected_lines, True),
@@ -9707,7 +9488,7 @@ def get_ipython():
             ('History View…', self._show_history_view, True),
             ('Dependency Graph…', self._show_dependency_view, True),
             ('Backup Manager…', self._show_backup_manager, True),
-            ('Optimize Plan', self._collapse_selected_ws_chain, self._selected_entries_support_ws_collapse()),
+            ('Optimize Plan', self._planner_optimize_plan_full, True),
             ('Remove Dead Lines', self._remove_dead_lines, bool(self._planner_analysis().get('dead_entries'))),
             ('Create Preset', self._save_preset_json, True),
             ('Delete', self._delete_selected_lines, True),
@@ -10391,14 +10172,11 @@ try:
         base = str(preferred_label or '').strip() or Path(path).name or path
         label = base
         if label in choices and _planner_norm_path_key(self, choices[label]) != key:
-            parent = Path(path).parent.name or str(Path(path).parent)
-            label = f'{Path(path).name} — {parent}'
-        if label in choices and _planner_norm_path_key(self, choices[label]) != key:
-            label = f'{Path(path).name} — {path}'
+            parent = Path(path).parent.name or 'local'
+            label = f'{Path(path).name} [{parent}]'
         suffix = 2
-        original = label
         while label in choices and _planner_norm_path_key(self, choices[label]) != key:
-            label = f'{original} #{suffix}'
+            label = f'{Path(path).name} [local #{suffix}]'
             suffix += 1
         choices[label] = path
 
@@ -10455,6 +10233,8 @@ try:
             selected_path = choices_map.get(display)
             if selected_path:
                 entry['local_path'] = selected_path
+                if not str(entry.get('model_name') or '').strip():
+                    entry['model_name'] = Path(selected_path).stem
             elif current_path and display == current_display:
                 entry['local_path'] = current_path
             elif display:
@@ -11110,9 +10890,3526 @@ try:
 except Exception:
     pass
 
+# ---------------- Developer / Experiment Mode extensions ----------------
+try:
+    _DEV_DEFAULT_T2I_SETTINGS = {
+        "prompts": [
+            {"name": "default", "prompt": "masterpiece, best quality, scenery", "negative": "lowres, bad anatomy, watermark"}
+        ],
+        "seed": -1,
+        "steps": 20,
+        "width": 768,
+        "height": 1152,
+        "cfg": 4.5,
+        "num_gen": 1,
+    }
+
+    _DEV_DEFAULT_SHORTCUTS = {
+        "undo": ["<Control-z>", "<Command-z>"],
+        "redo": ["<Control-y>", "<Command-y>", "<Control-Z>", "<Command-Z>"],
+        "copy_lines": ["<Control-c>", "<Command-c>"],
+        "paste_lines": ["<Control-v>", "<Command-v>"],
+        "delete_lines": ["<Delete>", "<Control-BackSpace>", "<Command-BackSpace>"],
+        "duplicate_lines": ["<Control-d>", "<Command-d>"],
+        "add_line": ["<Control-plus>", "<Command-plus>", "<Control-asterisk>", "<Command-asterisk>"],
+        "move_up": ["<Shift-Up>"],
+        "move_down": ["<Shift-Down>"],
+        "validate": ["<Control-V>", "<Command-V>"],
+        "save_preset": ["<Control-Alt-s>", "<Command-Option-s>"],
+        "load_preset": ["<Control-Alt-l>", "<Command-Option-l>"],
+        "run_notebook": ["<Control-Return>", "<Command-Return>"],
+        "save_plan": ["<Control-s>", "<Command-s>"],
+        "export_notebook": ["<Control-Shift-E>", "<Command-Shift-E>"],
+        "diff": ["<Control-Shift-colon>", "<Command-Shift-colon>"],
+        "dependency_graph": ["<Control-Shift-G>", "<Command-Shift-G>"],
+        "optimize_plan": ["<Control-Shift-O>", "<Command-Shift-O>"],
+        "t2i_settings": ["<Control-Shift-T>", "<Command-Shift-T>"],
+        "ratio_sweep": ["<Control-Shift-S>", "<Command-Shift-S>"],
+        "shortcut_settings": ["<Control-Shift-K>", "<Command-Shift-K>"],
+    }
+
+    def _planner_dev_ensure_config(self):
+        cfg = getattr(self, "config", None)
+        if not isinstance(cfg, dict):
+            return
+        cfg.setdefault("dev_mode", False)
+        cfg.setdefault("t2i_settings", copy.deepcopy(_DEV_DEFAULT_T2I_SETTINGS))
+        cfg.setdefault("shortcut_bindings", copy.deepcopy(_DEV_DEFAULT_SHORTCUTS))
+        cfg.setdefault("alpha_presets", {})
+        cfg.setdefault("experiment_versions", [])
+        cfg.setdefault("final_memo", "")
+
+    def _planner_dev_mode_enabled(self) -> bool:
+        var = getattr(self, "dev_mode_var", None)
+        try:
+            return bool(var.get())
+        except Exception:
+            return bool(getattr(self, "config", {}).get("dev_mode", False))
+
+    def _planner_dev_only(self, func):
+        if not self._planner_dev_mode_enabled():
+            messagebox.showinfo("Developer Mode", "Enable Developer (Experiment) Mode first.")
+            return None
+        return func()
+
+    def _planner_get_t2i_settings(self):
+        self._planner_dev_ensure_config()
+        settings = copy.deepcopy(getattr(self, "config", {}).get("t2i_settings") or {})
+        if not isinstance(settings, dict):
+            settings = {}
+        merged = copy.deepcopy(_DEV_DEFAULT_T2I_SETTINGS)
+        merged.update(settings)
+        prompts = merged.get("prompts")
+        if not isinstance(prompts, list) or not prompts:
+            prompts = copy.deepcopy(_DEV_DEFAULT_T2I_SETTINGS["prompts"])
+        merged["prompts"] = [p for p in prompts if isinstance(p, dict)] or copy.deepcopy(_DEV_DEFAULT_T2I_SETTINGS["prompts"])
+        return merged
+
+    def _planner_set_t2i_settings(self, settings):
+        if not isinstance(settings, dict):
+            return
+        self.config["t2i_settings"] = copy.deepcopy(settings)
+        self._schedule_config_save()
+
+    def _planner_json_dump_current_plan(self):
+        payload = copy.deepcopy(self.plan_data if isinstance(getattr(self, "plan_data", None), dict) else {"entries": []})
+        payload["final_memo"] = str(getattr(self, "config", {}).get("final_memo", "") or "")
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+    def _planner_save_version_snapshot(self, label: str = ""):
+        self._planner_dev_ensure_config()
+        versions = self.config.setdefault("experiment_versions", [])
+        if not isinstance(versions, list):
+            versions = []
+            self.config["experiment_versions"] = versions
+        payload = {
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "label": str(label or "snapshot").strip() or "snapshot",
+            "base_model": self.base_model_var.get() if hasattr(self, "base_model_var") else "",
+            "final_memo": str(self.config.get("final_memo", "") or ""),
+            "plan_data": copy.deepcopy(self.plan_data),
+        }
+        try:
+            import hashlib
+            payload["plan_hash"] = hashlib.sha256(json.dumps(payload["plan_data"], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            payload["plan_hash"] = ""
+        versions.append(payload)
+        if len(versions) > 200:
+            del versions[:-200]
+        self._schedule_config_save()
+        return payload
+
+    def _planner_show_versions(self):
+        self._planner_dev_ensure_config()
+        win = tk.Toplevel(self.root)
+        win.title("Plan Versions / Experiment History")
+        win.geometry("980x620+160+120")
+        colors = self._theme_colors() if hasattr(self, "_theme_colors") else {"surface":"#ffffff", "text":"#111111"}
+        top = Frame(win, padx=8, pady=8)
+        top.pack(fill="x")
+        Label(top, text="Final Memo", font=("MS Gothic", 11, "bold")).pack(anchor="w")
+        memo = Text(top, height=4, wrap="word")
+        memo.pack(fill="x", expand=False, pady=(2, 6))
+        memo.insert("1.0", str(self.config.get("final_memo", "") or ""))
+        row = Frame(top)
+        row.pack(fill="x")
+        Label(row, text="Snapshot Label", width=14, anchor="w").pack(side="left")
+        label_var = tk.StringVar(value=time.strftime("snapshot_%Y%m%d_%H%M%S"))
+        Entry(row, textvariable=label_var).pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        body = Frame(win, padx=8, pady=8)
+        body.pack(fill="both", expand=True)
+        listbox = tk.Listbox(body, width=34, exportselection=False)
+        listbox.pack(side="left", fill="y")
+        detail = Text(body, wrap="none", font=("Consolas", 10))
+        detail.pack(side="left", fill="both", expand=True, padx=(8, 0))
+
+        def refresh():
+            self.config["final_memo"] = memo.get("1.0", "end-1c")
+            listbox.delete(0, "end")
+            for idx, item in enumerate(self.config.get("experiment_versions", []) or []):
+                listbox.insert("end", f"{idx+1:03d} {item.get('created_at','')}  {item.get('label','')}")
+            self._schedule_config_save()
+
+        def show_selected(_event=None):
+            detail.delete("1.0", "end")
+            sel = listbox.curselection()
+            if not sel:
+                return
+            item = (self.config.get("experiment_versions", []) or [])[sel[0]]
+            preview = copy.deepcopy(item)
+            if isinstance(preview.get("plan_data"), dict):
+                preview["plan_data_summary"] = f"{len(preview['plan_data'].get('entries', []) or [])} entries"
+                preview.pop("plan_data", None)
+            detail.insert("1.0", json.dumps(preview, ensure_ascii=False, indent=2))
+
+        def add_snapshot():
+            self.config["final_memo"] = memo.get("1.0", "end-1c")
+            snap = self._planner_save_version_snapshot(label_var.get())
+            refresh()
+            try:
+                listbox.selection_clear(0, "end")
+                listbox.selection_set("end")
+                listbox.see("end")
+            except Exception:
+                pass
+            detail.delete("1.0", "end")
+            detail.insert("1.0", json.dumps({k:v for k,v in snap.items() if k != "plan_data"}, ensure_ascii=False, indent=2))
+
+        def restore_selected():
+            sel = listbox.curselection()
+            if not sel:
+                return
+            item = (self.config.get("experiment_versions", []) or [])[sel[0]]
+            data = copy.deepcopy(item.get("plan_data") or {})
+            if not isinstance(data, dict):
+                return
+            self._planner_push_history()
+            self.plan_data = self._normalize_plan_preserving_embedded_sources(data) if hasattr(self, "_normalize_plan_preserving_embedded_sources") else normalize_plan(data)
+            self.config["final_memo"] = str(item.get("final_memo", "") or "")
+            self.current_index = 0
+            self._refresh_line_selector()
+            self._render_current_line()
+            self._save_plan_to_file()
+            self.status_label.config(text="Restored selected plan version")
+
+        listbox.bind("<<ListboxSelect>>", show_selected, add="+")
+        btns = Frame(top)
+        btns.pack(fill="x", pady=(6, 0))
+        ttk.Button(btns, text="Save Snapshot", command=add_snapshot).pack(side="left", padx=(0, 4))
+        ttk.Button(btns, text="Restore Selected", command=restore_selected).pack(side="left", padx=(0, 4))
+        ttk.Button(btns, text="Close", command=win.destroy).pack(side="right")
+        refresh()
+
+    def _planner_open_t2i_settings(self):
+        settings = self._planner_get_t2i_settings()
+        win = tk.Toplevel(self.root)
+        win.title("Developer T2I Settings")
+        win.geometry("980x680+180+100")
+        outer = Frame(win, padx=10, pady=10)
+        outer.pack(fill="both", expand=True)
+        scalar = Frame(outer)
+        scalar.pack(fill="x")
+        vars_map = {}
+        specs = [("seed", "Seed (-1 random)", 12), ("steps", "Steps", 8), ("width", "Width", 8), ("height", "Height", 8), ("cfg", "CFG", 8), ("num_gen", "Num Gen", 8)]
+        for key, label, width in specs:
+            cell = Frame(scalar)
+            cell.pack(side="left", padx=(0, 8))
+            Label(cell, text=label).pack(anchor="w")
+            v = tk.StringVar(value=str(settings.get(key, _DEV_DEFAULT_T2I_SETTINGS.get(key, ""))))
+            Entry(cell, textvariable=v, width=width).pack(anchor="w")
+            vars_map[key] = v
+
+        list_frame = LabelFrame(outer, text="Prompts", padx=8, pady=8)
+        list_frame.pack(fill="both", expand=True, pady=(10, 0))
+        canvas = Canvas(list_frame, highlightthickness=0)
+        scroll = Scrollbar(list_frame, orient="vertical", command=canvas.yview)
+        inner = Frame(canvas)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.create_window((0, 0), window=inner, anchor="nw", tags=("inner",))
+        canvas.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        inner.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure("inner", width=e.width))
+        prompt_rows = []
+
+        def rebuild():
+            for child in list(inner.winfo_children()):
+                child.destroy()
+            for idx, row in enumerate(prompt_rows):
+                box = LabelFrame(inner, text=f"Prompt {idx+1}", padx=6, pady=6)
+                box.pack(fill="x", expand=True, pady=4)
+                top = Frame(box)
+                top.pack(fill="x")
+                Label(top, text="Name", width=10, anchor="w").pack(side="left")
+                Entry(top, textvariable=row["name"], width=24).pack(side="left", padx=(0, 8))
+                ttk.Button(top, text="↑", width=3, command=lambda i=idx: move_prompt(i, -1)).pack(side="left", padx=(0, 2))
+                ttk.Button(top, text="↓", width=3, command=lambda i=idx: move_prompt(i, 1)).pack(side="left", padx=(0, 2))
+                ttk.Button(top, text="-", width=3, command=lambda i=idx: remove_prompt(i)).pack(side="left")
+                Label(box, text="Prompt", anchor="w").pack(anchor="w")
+                t = Text(box, height=4, wrap="word")
+                t.pack(fill="x", expand=True)
+                t.insert("1.0", row.get("prompt_text", ""))
+                row["prompt_widget"] = t
+                Label(box, text="Negative", anchor="w").pack(anchor="w", pady=(4, 0))
+                n = Text(box, height=3, wrap="word")
+                n.pack(fill="x", expand=True)
+                n.insert("1.0", row.get("negative_text", ""))
+                row["negative_widget"] = n
+
+        def sync_widgets():
+            for row in prompt_rows:
+                if row.get("prompt_widget") is not None:
+                    row["prompt_text"] = row["prompt_widget"].get("1.0", "end-1c")
+                if row.get("negative_widget") is not None:
+                    row["negative_text"] = row["negative_widget"].get("1.0", "end-1c")
+
+        def add_prompt(item=None):
+            sync_widgets()
+            item = item or {}
+            prompt_rows.append({
+                "name": tk.StringVar(value=str(item.get("name") or f"prompt_{len(prompt_rows)+1}")),
+                "prompt_text": str(item.get("prompt") or ""),
+                "negative_text": str(item.get("negative") or item.get("neg") or ""),
+                "prompt_widget": None,
+                "negative_widget": None,
+            })
+            rebuild()
+
+        def remove_prompt(i):
+            sync_widgets()
+            if 0 <= i < len(prompt_rows) and len(prompt_rows) > 1:
+                prompt_rows.pop(i)
+                rebuild()
+
+        def move_prompt(i, delta):
+            sync_widgets()
+            j = i + delta
+            if 0 <= i < len(prompt_rows) and 0 <= j < len(prompt_rows):
+                prompt_rows[i], prompt_rows[j] = prompt_rows[j], prompt_rows[i]
+                rebuild()
+
+        def save():
+            sync_widgets()
+            out = {}
+            for key, var in vars_map.items():
+                raw = var.get().strip()
+                try:
+                    out[key] = float(raw) if key == "cfg" else int(raw)
+                except Exception:
+                    out[key] = _DEV_DEFAULT_T2I_SETTINGS.get(key)
+            out["prompts"] = []
+            for row in prompt_rows:
+                out["prompts"].append({
+                    "name": row["name"].get().strip() or f"prompt_{len(out['prompts'])+1}",
+                    "prompt": row.get("prompt_text", ""),
+                    "negative": row.get("negative_text", ""),
+                })
+            self._planner_set_t2i_settings(out)
+            self.status_label.config(text="Saved Developer T2I settings")
+            win.destroy()
+
+        for item in settings.get("prompts") or _DEV_DEFAULT_T2I_SETTINGS["prompts"]:
+            add_prompt(item)
+        btns = Frame(outer)
+        btns.pack(fill="x", pady=(8, 0))
+        ttk.Button(btns, text="+ Add Prompt", command=lambda: add_prompt()).pack(side="left")
+        ttk.Button(btns, text="Save", command=save).pack(side="right", padx=(4, 0))
+        ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right")
+
+    def _parse_sweep_values(self, raw: str) -> List[str]:
+        raw = str(raw or "").strip()
+        if not raw:
+            return []
+        # range form: start:end:step
+        if re.fullmatch(r"[-+]?\d*\.?\d+\s*:\s*[-+]?\d*\.?\d+\s*:\s*[-+]?\d*\.?\d+", raw):
+            a, b, s = [float(x.strip()) for x in raw.split(":")]
+            if s == 0:
+                return []
+            out = []
+            x = a
+            guard = 0
+            if s > 0:
+                while x <= b + 1e-9 and guard < 1000:
+                    out.append(f"{x:.6g}"); x += s; guard += 1
+            else:
+                while x >= b - 1e-9 and guard < 1000:
+                    out.append(f"{x:.6g}"); x += s; guard += 1
+            return out
+        return [x.strip() for x in re.split(r"[,\n]+", raw) if x.strip()]
+
+    def _planner_open_ratio_sweep(self):
+        entries = self.plan_data.get("entries", [])
+        if not entries:
+            return
+        entry = entries[self.current_index]
+        if entry.get("type") != "Checkpoint Merge":
+            messagebox.showinfo("Ratio Sweep", "Select a Checkpoint Merge line first.")
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Ratio Sweep / Grid Search")
+        win.geometry("640x420+220+160")
+        box = Frame(win, padx=10, pady=10)
+        box.pack(fill="both", expand=True)
+        Label(box, text="Values may be comma/newline separated, or range as start:end:step", anchor="w").pack(fill="x")
+        alpha_text = Text(box, height=4)
+        beta_text = Text(box, height=4)
+        out_prefix = tk.StringVar(value=str(entry.get("output_name") or "sweep"))
+        Label(box, text="Alpha values", anchor="w").pack(fill="x", pady=(8, 0))
+        alpha_text.pack(fill="x")
+        alpha_text.insert("1.0", "0.1,0.15,0.2")
+        Label(box, text="Beta values (blank = keep current)", anchor="w").pack(fill="x", pady=(8, 0))
+        beta_text.pack(fill="x")
+        row = Frame(box)
+        row.pack(fill="x", pady=(8, 0))
+        Label(row, text="Output prefix", width=14, anchor="w").pack(side="left")
+        Entry(row, textvariable=out_prefix).pack(side="left", fill="x", expand=True)
+
+        def apply():
+            alphas = self._parse_sweep_values(alpha_text.get("1.0", "end-1c"))
+            betas = self._parse_sweep_values(beta_text.get("1.0", "end-1c")) or [None]
+            if not alphas:
+                messagebox.showwarning("Ratio Sweep", "No alpha values were parsed.")
+                return
+            if len(alphas) * len(betas) > 200 and not messagebox.askyesno("Ratio Sweep", "This will create more than 200 lines. Continue?"):
+                return
+            self._planner_push_history()
+            insert_at = self.current_index + 1
+            new_entries = []
+            for a in alphas:
+                for b in betas:
+                    cp = copy.deepcopy(entry)
+                    cp["id"] = make_entry("Checkpoint Merge").get("id")
+                    cp.setdefault("alpha", default_ratio("Single"))["mode"] = "Single"
+                    cp["alpha"]["value"] = str(a)
+                    suffix = f"a{str(a).replace('.', 'p').replace('-', 'm')}"
+                    if b is not None:
+                        cp.setdefault("beta", default_ratio("Single"))["mode"] = "Single"
+                        cp["beta"]["value"] = str(b)
+                        suffix += f"_b{str(b).replace('.', 'p').replace('-', 'm')}"
+                    cp["output_name"] = f"{out_prefix.get().strip() or 'sweep'}_{suffix}"
+                    cp["memo"] = f"Ratio Sweep generated from line {self.current_index + 1}. alpha={a}" + (f", beta={b}" if b is not None else "")
+                    new_entries.append(cp)
+            self.plan_data.setdefault("entries", [])[insert_at:insert_at] = new_entries
+            self.current_index = insert_at
+            self._save_plan_to_file()
+            self._refresh_line_selector()
+            self._render_current_line()
+            self.status_label.config(text=f"Added {len(new_entries)} sweep line(s)")
+            win.destroy()
+        ttk.Button(box, text="Create Sweep Lines", command=apply).pack(side="right", pady=(10, 0))
+
+    def _planner_ratio_to_lines(self, ratio):
+        if not isinstance(ratio, dict):
+            return [str(ratio)]
+        mode = str(ratio.get("mode") or "Single")
+        value = str(ratio.get("value") or "")
+        if mode == "Elemental":
+            return [x.strip() for x in re.split(r"[,\n]+", value) if x.strip()]
+        if mode == "Block weight":
+            blocks = self.block_sets.get(self.base_model_var.get(), SDXL_BLOCKS) if hasattr(self, "block_sets") else SDXL_BLOCKS
+            vals = [x.strip() for x in value.split(",")]
+            return [f"{blocks[i] if i < len(blocks) else i}:{v}" for i, v in enumerate(vals)]
+        return [f"Single:{value}"]
+
+    def _planner_show_ratio_diff(self):
+        indices = self._planner_get_selected_indices() if hasattr(self, "_planner_get_selected_indices") else [self.current_index]
+        entries = self.plan_data.get("entries", [])
+        if len(indices) < 2:
+            messagebox.showinfo("Ratio Diff", "Select two plan lines in Plan View first.")
+            return
+        a, b = entries[indices[0]], entries[indices[1]]
+        def collect(entry):
+            out = {}
+            if entry.get("type") == "Checkpoint Merge":
+                for key in ("alpha", "beta"):
+                    for line in self._planner_ratio_to_lines(entry.get(key)):
+                        k = f"{key}:{line.split(':',1)[0]}" if ':' in line else f"{key}:{line}"
+                        out[k] = line.split(":", 1)[1] if ":" in line else line
+            elif entry.get("type") == "LoRA Bake":
+                for i, lora in enumerate(entry.get("loras", []) or []):
+                    for line in self._planner_ratio_to_lines(lora.get("ratio")):
+                        k = f"lora{i+1}:{line.split(':',1)[0]}" if ':' in line else f"lora{i+1}:{line}"
+                        out[k] = line.split(":", 1)[1] if ":" in line else line
+            return out
+        da, db = collect(a), collect(b)
+        keys = sorted(set(da) | set(db))
+        lines = [f"Ratio Diff: line {indices[0]+1} vs line {indices[1]+1}", ""]
+        for k in keys:
+            va, vb = da.get(k, "<missing>"), db.get(k, "<missing>")
+            if va != vb:
+                lines.append(f"{k}: {va}  ->  {vb}")
+        self._show_scrollable_text_dialog("Ratio Diff", "\n".join(lines) if len(lines) > 2 else "No ratio differences found.")
+
+    def _planner_save_alpha_preset(self):
+        entries = self.plan_data.get("entries", [])
+        if not entries:
+            return
+        entry = entries[self.current_index]
+        if entry.get("type") != "Checkpoint Merge":
+            messagebox.showinfo("Alpha Preset", "Select a Checkpoint Merge line first.")
+            return
+        name = simpledialog.askstring("Save Alpha Preset", "Preset name:", parent=self.root)
+        if not name:
+            return
+        self._planner_dev_ensure_config()
+        self.config.setdefault("alpha_presets", {})[name.strip()] = copy.deepcopy(entry.get("alpha", default_ratio("Single")))
+        self._schedule_config_save()
+        self.status_label.config(text=f"Saved alpha preset: {name.strip()}")
+
+    def _planner_load_alpha_preset(self):
+        self._planner_dev_ensure_config()
+        presets = self.config.get("alpha_presets") or {}
+        if not presets:
+            messagebox.showinfo("Alpha Preset", "No alpha presets saved yet.")
+            return
+        name = simpledialog.askstring("Load Alpha Preset", "Preset name:\n" + "\n".join(sorted(presets)), parent=self.root)
+        if not name or name.strip() not in presets:
+            return
+        entries = self.plan_data.get("entries", [])
+        if not entries or entries[self.current_index].get("type") != "Checkpoint Merge":
+            messagebox.showinfo("Alpha Preset", "Select a Checkpoint Merge line first.")
+            return
+        self._planner_push_history()
+        entries[self.current_index]["alpha"] = copy.deepcopy(presets[name.strip()])
+        self._save_plan_to_file()
+        self._render_current_line()
+        self.status_label.config(text=f"Loaded alpha preset: {name.strip()}")
+
+    def _planner_model_anatomy_scan(self):
+        path = filedialog.askopenfilename(title="Select model / LoRA for anatomy scan", filetypes=[("Model files", "*.safetensors *.ckpt *.pt *.bin"), ("All files", "*.*")])
+        if not path:
+            return
+        lines = [f"Model Anatomy Scanner", f"File: {path}", ""]
+        try:
+            keys = []
+            if path.lower().endswith(".safetensors"):
+                try:
+                    from safetensors import safe_open
+                    with safe_open(path, framework="pt", device="cpu") as f:
+                        keys = list(f.keys())
+                except Exception as e:
+                    raise RuntimeError("safetensors is required to scan .safetensors files") from e
+            else:
+                try:
+                    import torch
+                    obj = torch.load(path, map_location="cpu")
+                    if isinstance(obj, dict):
+                        sd = obj.get("state_dict") if isinstance(obj.get("state_dict"), dict) else obj
+                        keys = list(sd.keys())
+                except Exception as e:
+                    raise RuntimeError("torch.load failed for this file") from e
+            prefixes = {}
+            modules = {"unet/diffusion":0, "clip/text":0, "vae/first_stage":0, "lora":0}
+            for k in keys:
+                prefixes[k.split('.',1)[0]] = prefixes.get(k.split('.',1)[0], 0) + 1
+                lk = k.lower()
+                if "lora" in lk: modules["lora"] += 1
+                if "first_stage" in lk or ".vae" in lk or lk.startswith("vae") or "decoder" in lk: modules["vae/first_stage"] += 1
+                if "conditioner" in lk or "text" in lk or "clip" in lk: modules["clip/text"] += 1
+                if "diffusion_model" in lk or "model.diffusion" in lk or "unet" in lk: modules["unet/diffusion"] += 1
+            lines.append(f"Total keys: {len(keys)}")
+            lines.append("")
+            lines.append("Module hints:")
+            for k, v in modules.items():
+                lines.append(f"  {k}: {v}")
+            lines.append("")
+            lines.append("Top prefixes:")
+            for k, v in sorted(prefixes.items(), key=lambda x: x[1], reverse=True)[:40]:
+                lines.append(f"  {k}: {v}")
+            lines.append("")
+            lines.append("Sample keys:")
+            lines.extend("  " + k for k in keys[:120])
+        except Exception as e:
+            lines.append(f"ERROR: {type(e).__name__}: {e}")
+        self._show_scrollable_text_dialog("Model Anatomy Scanner", "\n".join(lines))
+
+    def _planner_lora_compatibility_check(self):
+        entries = self.plan_data.get("entries", [])
+        if not entries:
+            return
+        entry = entries[self.current_index]
+        ckpt_path = ""
+        lora_paths = []
+        if entry.get("type") == "LoRA Bake":
+            spec = self._get_entry_slot_source(entry, "checkpoint") if hasattr(self, "_get_entry_slot_source") else None
+            if isinstance(spec, dict) and spec.get("mode") == "local":
+                ckpt_path = spec.get("local_path") or ""
+            for lora in entry.get("loras", []) or []:
+                spec = self._get_lora_source(lora) if hasattr(self, "_get_lora_source") else None
+                if isinstance(spec, dict) and spec.get("mode") == "local":
+                    lora_paths.append(spec.get("local_path") or "")
+        if not ckpt_path:
+            ckpt_path = filedialog.askopenfilename(title="Select checkpoint", filetypes=[("Checkpoint", "*.safetensors *.ckpt *.pt"), ("All files", "*.*")])
+        if not lora_paths:
+            sel = filedialog.askopenfilenames(title="Select LoRA / LyCORIS", filetypes=[("LoRA", "*.safetensors *.pt *.bin"), ("All files", "*.*")])
+            lora_paths = list(sel)
+        if not ckpt_path or not lora_paths:
+            return
+        def keys_for(path):
+            if path.lower().endswith(".safetensors"):
+                from safetensors import safe_open
+                with safe_open(path, framework="pt", device="cpu") as f:
+                    return list(f.keys())
+            import torch
+            obj = torch.load(path, map_location="cpu")
+            if isinstance(obj, dict):
+                sd = obj.get("state_dict") if isinstance(obj.get("state_dict"), dict) else obj
+                return list(sd.keys())
+            return []
+        def normalize_lora_target(k):
+            s = re.sub(r"\.lora_(?:up|down|mid|alpha)\.weight$", "", k)
+            s = s.replace("lora_unet_", "").replace("lora_te_", "")
+            s = s.replace("_", ".")
+            return s.lower()
+        try:
+            ck = keys_for(ckpt_path)
+            ck_l = [x.lower() for x in ck]
+            lines = ["LoRA Bake Compatibility", f"Checkpoint: {ckpt_path}", f"Checkpoint keys: {len(ck)}", ""]
+            for lp in lora_paths:
+                lk = keys_for(lp)
+                targets = sorted({normalize_lora_target(k) for k in lk if "lora_down" in k or "lora_up" in k})
+                resolved = 0
+                unresolved = []
+                for t in targets:
+                    parts = [p for p in t.split('.') if p]
+                    tail = ".".join(parts[-3:]) if len(parts) >= 3 else t
+                    ok = any(tail in c or t in c for c in ck_l)
+                    if ok: resolved += 1
+                    else: unresolved.append(t)
+                total = max(1, len(targets))
+                lines.append(f"LoRA: {lp}")
+                lines.append(f"  targets: {len(targets)}")
+                lines.append(f"  resolved approx: {resolved}/{len(targets)} ({resolved/total*100:.1f}%)")
+                if unresolved:
+                    lines.append("  unresolved samples:")
+                    lines.extend("    - " + u for u in unresolved[:40])
+                lines.append("")
+        except Exception as e:
+            lines = [f"Compatibility check failed: {type(e).__name__}: {e}"]
+        self._show_scrollable_text_dialog("LoRA Compatibility", "\n".join(lines))
+
+    def _planner_estimate_disk_runtime(self):
+        entries = self.plan_data.get("entries", [])
+        output_count = sum(1 for e in entries if e.get("type") in ("Checkpoint Merge", "LoRA Bake") and str(e.get("output_name") or "").strip())
+        download_count = 0
+        local_paths = []
+        for e in entries:
+            if e.get("type") == "Download Model" or any(isinstance(s, dict) and s.get("mode") == "download" for *_x, s in self._iter_embedded_sources(e)):
+                download_count += 1
+            for *_x, spec in self._iter_embedded_sources(e):
+                if isinstance(spec, dict) and spec.get("mode") == "local" and spec.get("local_path"):
+                    local_paths.append(spec.get("local_path"))
+            if e.get("type") == "Local Model" and e.get("local_path"):
+                local_paths.append(e.get("local_path"))
+        local_bytes = 0
+        for pth in set(local_paths):
+            try:
+                local_bytes += Path(pth).expanduser().stat().st_size
+            except Exception:
+                pass
+        typical_gb = 6.5 if str(self.base_model_var.get()).upper() == "SDXL" else 12.0 if self.base_model_var.get() in ("Flux", "Anima") else 4.0
+        generated_gb = output_count * typical_gb
+        try:
+            work = self.entries.get("workpath").get() if self.entries.get("workpath") else os.getcwd()
+            usage = shutil.disk_usage(work)
+            free_gb = usage.free / (1024**3)
+        except Exception:
+            free_gb = 0.0
+        estimated_total = generated_gb + local_bytes/(1024**3)
+        risk = "LOW" if free_gb > estimated_total * 1.4 else "MEDIUM" if free_gb > estimated_total * 0.9 else "HIGH"
+        lines = [
+            "Disk / Runtime Estimator", "",
+            f"Base model: {self.base_model_var.get() if hasattr(self, 'base_model_var') else ''}",
+            f"Merge/Bake outputs: {output_count}",
+            f"Download source count: {download_count}",
+            f"Known local source size: {local_bytes/(1024**3):.2f} GB",
+            f"Estimated generated checkpoints: {generated_gb:.2f} GB ({typical_gb:.1f} GB each heuristic)",
+            f"Current free disk: {free_gb:.2f} GB",
+            f"Risk: {risk}", "",
+            "Suggestions:",
+            "- Use Optimize Plan before large sweep runs.",
+            "- Insert Remove Model after last use for long chains.",
+            "- Avoid enabling large Ratio Sweep without enough disk headroom.",
+        ]
+        self._show_scrollable_text_dialog("Disk / Runtime Estimator", "\n".join(lines))
+
+    def _planner_show_image_compare(self):
+        base = ""
+        try:
+            base = os.path.join(self.entries.get("workpath").get(), "working", "t2i_images")
+        except Exception:
+            base = os.getcwd()
+        folder = filedialog.askdirectory(title="Select T2I image folder", initialdir=base if os.path.isdir(base) else os.getcwd())
+        if not folder:
+            return
+        imgs = sorted([p for p in Path(folder).glob("*.png")])[:120]
+        if not imgs:
+            messagebox.showinfo("Image Compare", "No PNG images found.")
+            return
+        win = tk.Toplevel(self.root)
+        win.title("T2I Image Compare")
+        win.geometry("1180x760+120+80")
+        canvas = Canvas(win, bg="#111111", highlightthickness=0)
+        scroll = Scrollbar(win, orient="vertical", command=canvas.yview)
+        inner = Frame(canvas, bg="#111111")
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.create_window((0,0), window=inner, anchor="nw", tags=("inner",))
+        canvas.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        inner.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure("inner", width=e.width))
+        refs = []
+        for idx, imgp in enumerate(imgs):
+            try:
+                pil = Image.open(imgp)
+                pil.thumbnail((260, 260), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(pil)
+                refs.append(photo)
+                cell = Frame(inner, bg="#111111", padx=8, pady=8)
+                cell.grid(row=idx//4, column=idx%4, sticky="n")
+                Label(cell, image=photo, bg="#111111").pack()
+                Label(cell, text=imgp.name, bg="#111111", fg="#eeeeee", wraplength=240).pack(fill="x")
+            except Exception:
+                pass
+        win._image_refs = refs
+
+    def _planner_show_dependency_graph(self):
+        analysis = self._planner_analysis()
+        entries = self.plan_data.get("entries", [])
+        win = tk.Toplevel(self.root)
+        win.title("Interactive Dependency Graph")
+        win.geometry("1280x760+80+80")
+        canvas = Canvas(win, bg="#0f1320", scrollregion=(0, 0, 1800, max(900, len(entries)*110)))
+        xscroll = Scrollbar(win, orient="horizontal", command=canvas.xview)
+        yscroll = Scrollbar(win, orient="vertical", command=canvas.yview)
+        canvas.configure(xscrollcommand=xscroll.set, yscrollcommand=yscroll.set)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        yscroll.grid(row=0, column=1, sticky="ns")
+        xscroll.grid(row=1, column=0, sticky="ew")
+        win.grid_rowconfigure(0, weight=1); win.grid_columnconfigure(0, weight=1)
+        colors = {"Checkpoint Merge":"#3b82f6", "LoRA Bake":"#8b5cf6", "Download Model":"#22c55e", "Local Model":"#14b8a6", "Remove Model":"#f97316", "dead":"#ef4444", "missing":"#f43f5e"}
+        positions = {}
+        for idx, entry in enumerate(entries):
+            x = 90 + (idx % 3) * 520
+            y = 70 + (idx // 3) * 150
+            positions[idx] = (x, y)
+        for idx, entry in enumerate(entries):
+            x, y = positions[idx]
+            dead = idx in analysis.get("dead_entries", set())
+            fill = colors["dead"] if dead else colors.get(entry.get("type"), "#64748b")
+            rect = canvas.create_rectangle(x, y, x+390, y+82, fill=fill, outline="#e5e7eb", width=2, tags=(f"node{idx}",))
+            summary = f"{idx+1}. {self._line_summary(entry)}"
+            canvas.create_text(x+12, y+12, text=summary[:64], anchor="nw", fill="white", font=("Consolas", 10, "bold"), width=360, tags=(f"node{idx}",))
+            produced = ", ".join(self._entry_produced_aliases(entry)) or "-"
+            canvas.create_text(x+12, y+48, text=f"produces: {produced[:58]}", anchor="nw", fill="#e5e7eb", font=("Consolas", 9), width=360, tags=(f"node{idx}",))
+            canvas.tag_bind(f"node{idx}", "<Button-1>", lambda _e, i=idx: (setattr(self, "current_index", i), self._refresh_line_selector(), self._render_current_line(), win.lift()))
+        producer_by_alias = analysis.get("producer_by_alias", {})
+        for idx, aliases in analysis.get("consumed_by_entry", {}).items():
+            sx, sy = positions.get(idx, (0,0))
+            for alias in aliases:
+                src = producer_by_alias.get(alias)
+                if src is None or src not in positions:
+                    continue
+                x1, y1 = positions[src]
+                x2, y2 = positions[idx]
+                canvas.create_line(x1+390, y1+41, x2, y2+41, fill="#cbd5e1", arrow="last", width=2, smooth=True)
+                mx, my = (x1+390+x2)/2, (y1+41+y2+41)/2
+                canvas.create_text(mx, my-8, text=alias[:32], fill="#fde68a", font=("Consolas", 8))
+        legend = "Blue=Checkpoint Merge  Purple=LoRA Bake  Green=Download  Teal=Local  Orange=Remove  Red=Dead"
+        canvas.create_text(12, 12, text=legend, fill="#ffffff", anchor="nw", font=("Consolas", 10, "bold"))
+
+    def _planner_optimize_plan_full(self):
+        analysis = self._planner_analysis()
+        entries = self.plan_data.get("entries", [])
+        dead = sorted(analysis.get("dead_entries", set()))
+        lines = ["Optimize Plan Preview", ""]
+        if dead:
+            lines.append("Remove dead lines:")
+            for idx in dead:
+                lines.append(f"  line {idx+1}: {self._line_summary(entries[idx])}")
+        else:
+            lines.append("No dead lines detected.")
+        lines.append("")
+        lines.append("This optimizer removes dead merge/bake lines. Existing source-aware cleanup remains active in notebook runtime.")
+        if not messagebox.askyesno("Optimize Plan", "\n".join(lines[:20]) + "\n\nApply optimization?"):
+            return
+        self._planner_push_history()
+        for idx in reversed(dead):
+            if 0 <= idx < len(entries):
+                entries.pop(idx)
+        self.current_index = max(0, min(self.current_index, max(0, len(entries)-1)))
+        # Preserve existing WS-chain collapse as an extra pass when the selection supports it.
+        try:
+            if self._selected_entries_support_ws_collapse():
+                self._collapse_selected_ws_chain()
+                return
+        except Exception:
+            pass
+        self._save_plan_to_file(); self._refresh_line_selector(); self._render_current_line()
+        self.status_label.config(text=f"Optimized plan: removed {len(dead)} dead line(s)")
+
+    def _planner_shortcut_registry(self):
+        return {
+            "undo": ("Undo", self._shortcut_undo),
+            "redo": ("Redo", self._shortcut_redo),
+            "copy_lines": ("Copy Lines", self._shortcut_copy_lines),
+            "paste_lines": ("Paste Lines", self._shortcut_paste_lines),
+            "delete_lines": ("Delete Lines", self._shortcut_remove_line),
+            "duplicate_lines": ("Duplicate Lines", self._shortcut_duplicate_lines),
+            "add_line": ("Add Line", self._shortcut_add_line),
+            "move_up": ("Move Lines Up", self._shortcut_move_lines_up),
+            "move_down": ("Move Lines Down", self._shortcut_move_lines_down),
+            "validate": ("Validate", self._shortcut_validate),
+            "save_preset": ("Save Preset", self._shortcut_save_preset),
+            "load_preset": ("Load Preset", self._shortcut_load_preset),
+            "run_notebook": ("Run Notebook", lambda e=None: (self._run_target_notebook(), "break")[1]),
+            "save_plan": ("Save Plan Text", lambda e=None: (self._save_plan_text_button(), "break")[1]),
+            "export_notebook": ("Export Notebook", lambda e=None: (self._export_as_notebook(), "break")[1]),
+            "diff": ("Plan Diff", lambda e=None: (self._show_plan_diff_preview(), "break")[1]),
+            "dependency_graph": ("Dependency Graph", lambda e=None: (self._planner_show_dependency_graph(), "break")[1]),
+            "optimize_plan": ("Optimize Plan", lambda e=None: (self._planner_optimize_plan_full(), "break")[1]),
+            "t2i_settings": ("T2I Settings", lambda e=None: (self._planner_dev_only(self._planner_open_t2i_settings), "break")[1]),
+            "ratio_sweep": ("Ratio Sweep", lambda e=None: (self._planner_dev_only(self._planner_open_ratio_sweep), "break")[1]),
+            "shortcut_settings": ("Shortcut Settings", lambda e=None: (self._planner_show_shortcut_settings(), "break")[1]),
+        }
+
+    def _planner_bind_shortcuts_configurable(self):
+        self._planner_dev_ensure_config()
+        tag = 'PlannerGlobalShortcuts'
+        self._planner_shortcut_bindtag = tag
+        registry = self._planner_shortcut_registry()
+        bindings = copy.deepcopy(_DEV_DEFAULT_SHORTCUTS)
+        custom = self.config.get("shortcut_bindings") or {}
+        if isinstance(custom, dict):
+            for action, seqs in custom.items():
+                if action in registry:
+                    if isinstance(seqs, str):
+                        seqs = [s.strip() for s in seqs.split(",") if s.strip()]
+                    if isinstance(seqs, list):
+                        bindings[action] = [str(s).strip() for s in seqs if str(s).strip()]
+        self._planner_bound_shortcut_sequences = []
+        for action, seqs in bindings.items():
+            if action not in registry:
+                continue
+            _label, handler = registry[action]
+            for sequence in seqs:
+                try:
+                    self.root.bind_class(tag, sequence, handler, add='+')
+                    self._planner_bound_shortcut_sequences.append((tag, sequence))
+                except Exception:
+                    pass
+        self.root.bind_all('<FocusIn>', self._planner_register_shortcut_bindtag_on_focus, add='+')
+        self._planner_register_shortcut_bindtag_on_tree(self.root)
+
+    def _planner_show_shortcut_settings(self):
+        self._planner_dev_ensure_config()
+        win = tk.Toplevel(self.root)
+        win.title("Shortcut Settings")
+        win.geometry("840x640+180+120")
+        outer = Frame(win, padx=10, pady=10)
+        outer.pack(fill="both", expand=True)
+        Label(outer, text="Enter Tk key sequences. Multiple shortcuts can be comma-separated.", anchor="w").pack(fill="x")
+        canvas = Canvas(outer, highlightthickness=0)
+        scroll = Scrollbar(outer, orient="vertical", command=canvas.yview)
+        inner = Frame(canvas)
+        canvas.configure(yscrollcommand=scroll.set)
+        canvas.create_window((0,0), window=inner, anchor="nw", tags=("inner",))
+        canvas.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        inner.bind("<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure("inner", width=e.width))
+        registry = self._planner_shortcut_registry()
+        current = copy.deepcopy(self.config.get("shortcut_bindings") or _DEV_DEFAULT_SHORTCUTS)
+        vars_map = {}
+        for row_idx, (action, (label, _handler)) in enumerate(registry.items()):
+            row = Frame(inner)
+            row.pack(fill="x", pady=3)
+            Label(row, text=label, width=24, anchor="w").pack(side="left")
+            val = current.get(action, _DEV_DEFAULT_SHORTCUTS.get(action, []))
+            if isinstance(val, list): val = ", ".join(val)
+            var = tk.StringVar(value=str(val or ""))
+            Entry(row, textvariable=var).pack(side="left", fill="x", expand=True)
+            vars_map[action] = var
+        def save():
+            out = {}
+            for action, var in vars_map.items():
+                out[action] = [s.strip() for s in var.get().split(",") if s.strip()]
+            self.config["shortcut_bindings"] = out
+            save_config_to_disk(self.config)
+            messagebox.showinfo("Shortcut Settings", "Saved. Restart the planner to fully reset existing class-level shortcut bindings.")
+            win.destroy()
+        def reset():
+            for action, var in vars_map.items():
+                var.set(", ".join(_DEV_DEFAULT_SHORTCUTS.get(action, [])))
+        btns = Frame(outer)
+        btns.pack(fill="x", pady=(8,0))
+        ttk.Button(btns, text="Reset Defaults", command=reset).pack(side="left")
+        ttk.Button(btns, text="Save", command=save).pack(side="right", padx=(4,0))
+        ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="right")
+
+    _dev_base_save_current_state = ModelPlannerApp._save_current_state_to_config
+    def _save_current_state_to_config_dev(self):
+        self._planner_dev_ensure_config()
+        if hasattr(self, "dev_mode_var"):
+            try: self.config["dev_mode"] = bool(self.dev_mode_var.get())
+            except Exception: pass
+        return _dev_base_save_current_state(self)
+
+    _dev_base_build_left_panel = ModelPlannerApp._build_left_panel
+    def _build_left_panel_dev(self, parent):
+        self._planner_dev_ensure_config()
+        result = _dev_base_build_left_panel(self, parent)
+        try:
+            section = self._build_collapsible_section(parent, "Developer (Experiment) Mode", key="left_developer_mode", default_open=bool(self.config.get("dev_mode", False)), body_fill="x", body_expand=False)
+        except Exception:
+            section = LabelFrame(parent, text="Developer (Experiment) Mode", padx=8, pady=8); section.pack(fill="x", pady=6)
+        self.dev_mode_var = tk.BooleanVar(value=bool(self.config.get("dev_mode", False)))
+        button_refs = []
+        def refresh_dev_buttons():
+            enabled = self._planner_dev_mode_enabled()
+            self.config["dev_mode"] = enabled
+            for btn, dev_only in button_refs:
+                try: btn.configure(state=("normal" if enabled or not dev_only else "disabled"))
+                except Exception: pass
+            self._schedule_config_save()
+        chk = ttk.Checkbutton(section, text="Enable Developer (Experiment) Mode", variable=self.dev_mode_var, command=refresh_dev_buttons)
+        chk.pack(anchor="w", pady=(0, 6))
+        grid = Frame(section)
+        grid.pack(fill="x")
+        for c in range(3): grid.grid_columnconfigure(c, weight=1)
+        actions = [
+            ("T2I Settings", lambda: self._planner_dev_only(self._planner_open_t2i_settings), True),
+            ("Ratio Sweep", lambda: self._planner_dev_only(self._planner_open_ratio_sweep), True),
+            ("Compare Images", lambda: self._planner_dev_only(self._planner_show_image_compare), True),
+            ("Ratio Diff", lambda: self._planner_dev_only(self._planner_show_ratio_diff), True),
+            ("Model Anatomy", lambda: self._planner_dev_only(self._planner_model_anatomy_scan), True),
+            ("LoRA Check", lambda: self._planner_dev_only(self._planner_lora_compatibility_check), True),
+            ("Save Alpha Preset", self._planner_save_alpha_preset, False),
+            ("Load Alpha Preset", self._planner_load_alpha_preset, False),
+            ("Dependency Graph", self._planner_show_dependency_graph, False),
+            ("Optimize Plan", self._planner_optimize_plan_full, False),
+            ("Disk Estimate", self._planner_estimate_disk_runtime, False),
+            ("Plan Versions", self._planner_show_versions, False),
+            ("Shortcuts", self._planner_show_shortcut_settings, False),
+        ]
+        for idx, (label, cmd, dev_only) in enumerate(actions):
+            btn = ttk.Button(grid, text=label, command=cmd)
+            btn.grid(row=idx//3, column=idx%3, sticky="ew", padx=3, pady=3)
+            button_refs.append((btn, dev_only))
+        self._developer_mode_buttons = button_refs
+        refresh_dev_buttons()
+        return result
+
+    _dev_base_line_summary = ModelPlannerApp._line_summary
+    def _line_summary_with_help_mark(self, entry: Dict[str, Any]) -> str:
+        base = _dev_base_line_summary(self, entry)
+        # Right-edge-style help indicator for Plan View list rows. Kept textual so Listbox remains lightweight.
+        return base if base.rstrip().endswith("?") else base + "  ?"
+
+    _dev_base_show_plan_context_menu = ModelPlannerApp._show_plan_context_menu
+    def _show_plan_context_menu_dev(self, event=None):
+        # Keep the existing lightweight menu, but expose the integrated optimizer through the existing Optimize Plan label.
+        return _dev_base_show_plan_context_menu(self, event)
+
+    _dev_base_meta_payload = ModelPlannerApp._planner_meta_payload
+    def _planner_meta_payload_dev(self):
+        payload = _dev_base_meta_payload(self)
+        payload["final_memo"] = str(self.config.get("final_memo", "") or "")
+        payload["experiment_versions"] = copy.deepcopy(self.config.get("experiment_versions", []) or [])
+        return payload
+
+    _dev_base_apply_loaded_meta = ModelPlannerApp._planner_apply_loaded_meta
+    def _planner_apply_loaded_meta_dev(self, payload):
+        _dev_base_apply_loaded_meta(self, payload)
+        if isinstance(payload, dict):
+            if "final_memo" in payload:
+                self.config["final_memo"] = str(payload.get("final_memo") or "")
+            if isinstance(payload.get("experiment_versions"), list):
+                self.config["experiment_versions"] = payload.get("experiment_versions")
+
+    # Replace / extend selected methods.
+    ModelPlannerApp._planner_dev_ensure_config = _planner_dev_ensure_config
+    ModelPlannerApp._planner_dev_mode_enabled = _planner_dev_mode_enabled
+    ModelPlannerApp._planner_dev_only = _planner_dev_only
+    ModelPlannerApp._planner_get_t2i_settings = _planner_get_t2i_settings
+    ModelPlannerApp._planner_set_t2i_settings = _planner_set_t2i_settings
+    ModelPlannerApp._planner_save_version_snapshot = _planner_save_version_snapshot
+    ModelPlannerApp._planner_show_versions = _planner_show_versions
+    ModelPlannerApp._planner_open_t2i_settings = _planner_open_t2i_settings
+    ModelPlannerApp._parse_sweep_values = _parse_sweep_values
+    ModelPlannerApp._planner_open_ratio_sweep = _planner_open_ratio_sweep
+    ModelPlannerApp._planner_ratio_to_lines = _planner_ratio_to_lines
+    ModelPlannerApp._planner_show_ratio_diff = _planner_show_ratio_diff
+    ModelPlannerApp._planner_save_alpha_preset = _planner_save_alpha_preset
+    ModelPlannerApp._planner_load_alpha_preset = _planner_load_alpha_preset
+    ModelPlannerApp._planner_model_anatomy_scan = _planner_model_anatomy_scan
+    ModelPlannerApp._planner_lora_compatibility_check = _planner_lora_compatibility_check
+    ModelPlannerApp._planner_estimate_disk_runtime = _planner_estimate_disk_runtime
+    ModelPlannerApp._planner_show_image_compare = _planner_show_image_compare
+    ModelPlannerApp._planner_show_dependency_graph = _planner_show_dependency_graph
+    ModelPlannerApp._planner_optimize_plan_full = _planner_optimize_plan_full
+    ModelPlannerApp._planner_shortcut_registry = _planner_shortcut_registry
+    ModelPlannerApp._planner_bind_shortcuts = _planner_bind_shortcuts_configurable
+    ModelPlannerApp._planner_show_shortcut_settings = _planner_show_shortcut_settings
+    ModelPlannerApp._save_current_state_to_config = _save_current_state_to_config_dev
+    # Old Developer Mode left-panel renderer is kept only as a reference;
+    # the final renderer is installed in the compact UI patch layer below.
+    # Old textual help marker renderer is kept only as a reference;
+    # the final Plan View help behavior is installed in the compact UI patch layer below.
+    ModelPlannerApp._planner_meta_payload = _planner_meta_payload_dev
+    ModelPlannerApp._planner_apply_loaded_meta = _planner_apply_loaded_meta_dev
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Merge CLI options + dedicated LoRA Merge line type
+# -----------------------------------------------------------------------------
+try:
+    if "LoRA Merge" not in LINE_TYPES:
+        LINE_TYPES.append("LoRA Merge")
+
+    RIGHT_PANEL_FIELD_HELP.update({
+        "LoRA Merge": {
+            "short": "Merge multiple LoRA/LyCORIS models into one LoRA without baking into a checkpoint.",
+            "detail": "This is separate from LoRA Bake. It emits lora_bake.py with --merge_loras and registers the output as a LoRA so it can be baked or merged later.",
+        },
+        "Checkpoint Merge Options": {
+            "short": "Structured UI for merge.py CLI options.",
+            "detail": "These controls expose merge.py flags such as use_dif, rand_alpha/beta, cosine routing, turbo/deturbo, rebasin, fine/fine_sat, CFG sensitivity, saturation boost, VAE saturation, metadata, and overwrite options. Values are compiled together with Additional Signatures.",
+        },
+        "LoRA Bake Options": {
+            "short": "Structured UI for lora_bake.py bake options.",
+            "detail": "These controls expose bake-only options such as DARE, text encoder scaling, UNet-only baking, normalization, rank cap, clamp, delta guard, fp32 accumulation, budget report, metadata, and memo.",
+        },
+        "LoRA Merge Options": {
+            "short": "Structured UI for lora_bake.py --merge_loras options.",
+            "detail": "These controls expose LoRA-to-LoRA merge settings such as rank cap, architecture mapping, normalization, global scale, UNet-only merge, metadata, and memo.",
+        },
+    })
+
+    _LORA_MERGE_CLI_SPECS = {
+        "Checkpoint Merge": {
+            "groups": [
+                ("Model routing", [
+                    ("m0_name", "Model 0 Name", "text", ""),
+                    ("m1_name", "Model 1 Name", "text", ""),
+                    ("m2_name", "Model 2 Name", "text", ""),
+                    ("use_dif_10", "Use Difference 1-0", "bool", False),
+                    ("use_dif_20", "Use Difference 2-0", "bool", False),
+                    ("use_dif_21", "Use Difference 2-1", "bool", False),
+                ]),
+                ("Random / cosine / conversion", [
+                    ("rand_alpha", "Random Alpha", "text", ""),
+                    ("rand_beta", "Random Beta", "text", ""),
+                    ("cosine0", "Cosine 0", "bool", False),
+                    ("cosine1", "Cosine 1", "bool", False),
+                    ("cosine2", "Cosine 2", "bool", False),
+                    ("turbo", "Turbo Convert", "bool", False),
+                    ("deturbo", "De-turbo Convert", "bool", False),
+                    ("seed", "Seed", "text", ""),
+                    ("rebasin", "ReBasin Iterations", "text", ""),
+                ]),
+                ("Fine / CFG / color", [
+                    ("fine", "Fine", "text", ""),
+                    ("fine_sat", "Fine Saturation", "text", ""),
+                    ("cfg_sens", "CFG Sensitivity", "text", ""),
+                    ("cfg_sens_targets", "CFG Targets", "text", ""),
+                    ("sat_boost", "Saturation Boost", "text", ""),
+                    ("sat_boost_side", "Sat Boost Side", "choice", "alpha", ["alpha", "beta", "both"]),
+                    ("sat_boost_tags", "Sat Boost Tags", "text", ""),
+                    ("sat_profile", "Sat Profile", "choice", "legacy", ["legacy", "safe_attn2_out"]),
+                    ("sat_delta_cap_pct", "Sat Delta Cap %", "text", ""),
+                    ("sat_boost_mix", "Sat Boost Mix", "text", ""),
+                    ("boost_clamp", "Boost Clamp", "choice", "auto", ["auto", "clamp01", "none"]),
+                    ("vae_sat", "VAE Saturation", "text", ""),
+                ]),
+                ("Save / metadata", [
+                    ("keep_ema", "Keep EMA", "bool", False),
+                    ("delete_source", "Delete Source", "bool", False),
+                    ("no_metadata", "No Metadata", "bool", False),
+                    ("force", "Force Overwrite", "bool", False),
+                    ("memo", "Memo Metadata", "text", ""),
+                ]),
+            ]
+        },
+        "LoRA Bake": {
+            "groups": [
+                ("Bake method", [
+                    ("dare", "Use DARE", "bool", False),
+                    ("bake_clip_scale", "Text Encoder Scale", "text", ""),
+                    ("bake_unet_only", "UNet / DiT Only", "bool", False),
+                    ("bake_norm", "Bake Norm", "choice", "sqrt", ["none", "sqrt", "mean"]),
+                    ("bake_scale", "Bake Scale", "text", ""),
+                    ("bake_rank_cap", "Rank Cap", "text", ""),
+                ]),
+                ("Bake guard", [
+                    ("bake_clamp_q", "Clamp Quantile", "text", ""),
+                    ("bake_delta_cap", "Delta Cap", "text", ""),
+                    ("bake_fp32", "Bake FP32", "bool", False),
+                    ("bake_guard", "Guard Mode", "choice", "auto", ["none", "auto", "cap"]),
+                    ("bake_guard_cap", "Guard Cap", "text", ""),
+                    ("bake_guard_skip", "Guard Skip", "text", ""),
+                    ("bake_budget_report", "Budget Report", "bool", False),
+                ]),
+                ("Save / metadata", [
+                    ("keep_ema", "Keep EMA", "bool", False),
+                    ("no_metadata", "No Metadata", "bool", False),
+                    ("memo", "Memo Metadata", "text", ""),
+                ]),
+            ]
+        },
+        "LoRA Merge": {
+            "groups": [
+                ("LoRA merge", [
+                    ("merge_rank", "Merge Rank", "text", "64"),
+                    ("merge_arch", "Merge Arch", "choice", "auto", ["auto", "sd", "sdxl", "flux", "zi", "am"]),
+                    ("merge_norm", "Merge Norm", "choice", "none", ["none", "sqrt", "mean"]),
+                    ("merge_scale", "Merge Scale", "text", ""),
+                    ("merge_unet_only", "UNet / DiT Only", "bool", False),
+                    ("merge_clamp_q", "Clamp Quantile", "text", ""),
+                    ("merge_intermediate_mult", "Intermediate Rank Mult", "text", ""),
+                ]),
+                ("Save / metadata", [
+                    ("no_metadata", "No Metadata", "bool", False),
+                    ("memo", "Memo Metadata", "text", ""),
+                ]),
+            ]
+        },
+    }
+
+    _LORA_MERGE_DEFAULTS = {
+        "Checkpoint Merge": {
+            "m0_name": "", "m1_name": "", "m2_name": "",
+            "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
+            "rand_alpha": "", "rand_beta": "",
+            "cosine0": False, "cosine1": False, "cosine2": False,
+            "keep_ema": False, "delete_source": False, "no_metadata": False, "force": False,
+            "turbo": False, "deturbo": False, "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "cfg_sens": "", "cfg_sens_targets": "", "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
+            "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "", "boost_clamp": "auto", "vae_sat": "",
+        },
+        "LoRA Bake": {
+            "dare": False, "keep_ema": False, "no_metadata": False, "memo": "",
+            "bake_clip_scale": "", "bake_unet_only": False, "bake_norm": "sqrt", "bake_scale": "", "bake_rank_cap": "",
+            "bake_clamp_q": "", "bake_delta_cap": "", "bake_fp32": False,
+            "bake_guard": "auto", "bake_guard_cap": "", "bake_guard_skip": "", "bake_budget_report": False,
+        },
+        "LoRA Merge": {
+            "merge_rank": "64", "merge_arch": "auto", "merge_norm": "none", "merge_scale": "",
+            "merge_unet_only": False, "merge_clamp_q": "", "merge_intermediate_mult": "", "no_metadata": False, "memo": "",
+        },
+    }
+
+    def _lm_ensure_cli_options(entry: Dict[str, Any]) -> Dict[str, Any]:
+        etype = str(entry.get("type") or "")
+        defaults = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(etype, {}))
+        raw = entry.get("cli_options")
+        if isinstance(raw, dict):
+            defaults.update({k: v for k, v in raw.items() if k in defaults})
+        entry["cli_options"] = defaults
+        return defaults
+
+    def _lm_option_changed(self, entry: Dict[str, Any], key: str, value, default):
+        opts = _lm_ensure_cli_options(entry)
+        if isinstance(default, bool):
+            opts[key] = bool(value)
+        else:
+            opts[key] = str(value or "")
+        self._after_entry_change()
+
+    def _lm_build_cli_options_panel(self, parent, entry: Dict[str, Any], entry_type: str):
+        specs = _LORA_MERGE_CLI_SPECS.get(entry_type, {}).get("groups", [])
+        if not specs:
+            return
+        opts = _lm_ensure_cli_options(entry)
+        try:
+            wrapper = self._build_collapsible_section(
+                parent,
+                f"{entry_type} Options",
+                key=f"cli_options_{entry_type}_{entry.get('id','')}",
+                default_open=False,
+                body_fill="x",
+                body_expand=False,
+                padx=6,
+                pady=6,
+            )
+        except Exception:
+            wrapper = self._build_labeled_frame(parent, f"{entry_type} Options")
+        help_text = self._right_help(f"{entry_type} Options").get("detail", "")
+        if help_text:
+            Label(wrapper, text=help_text, anchor="w", justify="left", wraplength=820, fg="#64748b").pack(fill="x", pady=(0, 6))
+        for group_name, fields in specs:
+            gf = LabelFrame(wrapper, text=group_name, padx=6, pady=6)
+            gf.pack(fill="x", pady=4)
+            for idx, field in enumerate(fields):
+                key, label, kind, default = field[:4]
+                row = Frame(gf)
+                row.grid(row=idx // 2, column=(idx % 2) * 2, columnspan=2, sticky="ew", padx=3, pady=2)
+                gf.grid_columnconfigure(1, weight=1)
+                gf.grid_columnconfigure(3, weight=1)
+                Label(row, text=label, width=18, anchor="w").pack(side="left")
+                if kind == "bool":
+                    var = tk.BooleanVar(value=bool(opts.get(key, default)))
+                    chk = ttk.Checkbutton(row, variable=var, command=lambda v=var, k=key, d=default, e=entry: _lm_option_changed(self, e, k, v.get(), d))
+                    chk.pack(side="left")
+                elif kind == "choice":
+                    choices = field[4] if len(field) > 4 else []
+                    var = tk.StringVar(value=str(opts.get(key, default) or default))
+                    combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=16)
+                    self._bind_combobox_mousewheel_passthrough(combo)
+                    combo.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _lm_option_changed(self, e, k, v.get(), d))
+                else:
+                    var = tk.StringVar(value=str(opts.get(key, default) or ""))
+                    ent = Entry(row, textvariable=var, width=28)
+                    ent.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _lm_option_changed(self, e, k, v.get(), d))
+        reset_row = Frame(wrapper)
+        reset_row.pack(fill="x", pady=(4, 0))
+        def reset_options(e=entry, et=entry_type):
+            e["cli_options"] = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(et, {}))
+            self._after_entry_change()
+            self._schedule_rerender_current_line()
+        ttk.Button(reset_row, text="Reset Options", command=reset_options).pack(side="right")
+
+    _lm_orig_render_checkpoint = getattr(ModelPlannerApp, "_render_checkpoint_merge_entry", None)
+    def _render_checkpoint_merge_entry_with_cli_options(self, parent, entry: Dict[str, Any]):
+        if _lm_orig_render_checkpoint:
+            _lm_orig_render_checkpoint(self, parent, entry)
+        _lm_build_cli_options_panel(self, parent, entry, "Checkpoint Merge")
+
+    _lm_orig_render_lora_bake = getattr(ModelPlannerApp, "_render_lora_bake_entry", None)
+    def _render_lora_bake_entry_with_cli_options(self, parent, entry: Dict[str, Any]):
+        if _lm_orig_render_lora_bake:
+            _lm_orig_render_lora_bake(self, parent, entry)
+        _lm_build_cli_options_panel(self, parent, entry, "LoRA Bake")
+
+    def _render_lora_merge_entry(self, parent, entry: Dict[str, Any]):
+        frame = self._build_labeled_frame(parent, "LoRA Merge")
+        models = self._collect_available_models(self.current_index)
+        self._build_entry_row(frame, "Output Name", entry, "output_name")
+        add_lora_btn = ttk.Button(frame, text="+ Add LoRA", command=lambda: self._add_lora_block(entry))
+        add_lora_btn.pack(anchor="w", padx=4, pady=4)
+        self._attach_tooltip(add_lora_btn, self._right_help("+ Add LoRA").get("detail", ""))
+        self._add_right_inline_help(frame, "+ Add LoRA")
+        entry.setdefault("loras", [])
+        for idx, lora in enumerate(entry.get("loras", []) or []):
+            block = self._build_labeled_frame(parent, f"LoRA {idx + 1}")
+            top = Frame(block)
+            top.pack(fill="x")
+            ttk.Button(top, text="-", width=3, command=lambda i=idx: self._remove_lora_block(entry, i)).pack(side="left", padx=(0, 4))
+            lora_names = models.get("LoRA", []) + models.get("LyCORIS", [])
+            self._build_source_backed_ref_row(
+                block,
+                "LoRA Name",
+                lambda lo=lora: lo.get("name", ""),
+                lambda value, lo=lora: lo.__setitem__("name", value),
+                lambda lo=lora: self._get_lora_source(lo),
+                lambda spec, lo=lora: self._set_lora_source(lo, spec),
+                lora_names or [""],
+                ["LoRA", "LyCORIS"],
+                allow_local=True,
+            )
+            ratio = lora.setdefault("ratio", default_ratio("Single"))
+            ratio_wrap = self._build_collapsible_section(
+                block,
+                "Ratio",
+                key=f"lora_merge_ratio_{entry.get('id', '')}_{idx}",
+                default_open=True,
+                body_fill="x",
+                body_expand=False,
+                padx=0,
+                pady=4,
+            )
+            row2 = Frame(ratio_wrap)
+            row2.pack(fill="x", pady=3)
+            Label(row2, text="Ratio Mode", width=18, anchor="w").pack(side="left")
+            ratio_var = tk.StringVar(value=ratio.get("mode", "Single"))
+            combo2 = ttk.Combobox(row2, textvariable=ratio_var, values=["Single", "Elemental"], state="readonly")
+            self._bind_combobox_mousewheel_passthrough(combo2)
+            combo2.pack(side="left", fill="x", expand=True, padx=4)
+            def on_ratio_mode(*_args, lo=lora, rv=ratio_var):
+                lo["ratio"]["mode"] = rv.get()
+                if rv.get() == "Single":
+                    lo["ratio"].setdefault("value", "1.0")
+                self._schedule_rerender_current_line()
+            ratio_var.trace_add("write", on_ratio_mode)
+            self._build_ratio_value_widget(ratio_wrap, lora["ratio"], allow_block_weight=False)
+        self._build_text_row(parent, "Additional Signatures", entry, "raw_signatures", height=5)
+        _lm_build_cli_options_panel(self, parent, entry, "LoRA Merge")
+
+    def _base_render_current_line_with_lora_merge(self):
+        self._hide_autocomplete()
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+        entries = self.plan_data.get("entries", [])
+        if not entries:
+            return
+        entry = entries[self.current_index]
+        self.current_editor_widgets = []
+        body = self.scroll_frame
+        header = LabelFrame(body, text="Line Settings", padx=8, pady=8)
+        header.pack(fill="x", padx=6, pady=6)
+        self._add_right_inline_help(header, "Line Settings", padx=4, wraplength=720)
+        self._build_combo_row(header, "Model Merge Type", entry, "type", LINE_TYPES, self._change_line_type)
+        etype = entry.get("type")
+        if etype == "Download Model":
+            self._render_download_entry(body, entry)
+        elif etype == "Local Model":
+            self._render_local_entry(body, entry)
+        elif etype == "Remove Model":
+            self._render_remove_entry(body, entry)
+        elif etype == "Checkpoint Merge":
+            self._render_checkpoint_merge_entry(body, entry)
+        elif etype == "LoRA Bake":
+            self._render_lora_bake_entry(body, entry)
+        elif etype == "LoRA Merge":
+            self._render_lora_merge_entry(body, entry)
+        try:
+            self.canvas.yview_moveto(0)
+        except Exception:
+            pass
+        self._refresh_line_selector()
+        self.root.after_idle(self._planner_restore_plan_list_focus)
+
+    _lm_orig_visible_line_types = getattr(ModelPlannerApp, "_planner_visible_line_types", None)
+    def _planner_visible_line_types_with_lora_merge(self):
+        vals = list(_lm_orig_visible_line_types(self) if _lm_orig_visible_line_types else LINE_TYPES)
+        if "LoRA Merge" not in vals:
+            vals.append("LoRA Merge")
+        return vals
+
+    _lm_orig_iter_embedded_sources = getattr(ModelPlannerApp, "_iter_embedded_sources", None)
+    def _iter_embedded_sources_with_lora_merge(self, entry):
+        if entry.get("type") == "LoRA Merge":
+            for idx, lora in enumerate(entry.get("loras", []) or []):
+                spec = self._get_lora_source(lora)
+                alias = str(lora.get("name") or self._source_alias_from_spec(spec)).strip()
+                if spec and alias:
+                    yield f"lora:{idx}", alias, str(spec.get("kind") or "LoRA"), spec
+            return
+        if _lm_orig_iter_embedded_sources:
+            yield from _lm_orig_iter_embedded_sources(self, entry)
+
+    _lm_orig_collect_models = getattr(ModelPlannerApp, "_collect_available_models", None)
+    def _collect_available_models_with_lora_merge(self, upto_index: int) -> Dict[str, List[str]]:
+        available: Dict[str, Dict[str, str]] = {"Checkpoint": {}, "LoRA": {}, "LyCORIS": {}}
+        removed = set()
+        entries = self.plan_data.get("entries", [])
+        for entry in entries[:upto_index]:
+            etype = entry.get("type")
+            if etype == "Remove Model":
+                name = str(entry.get("model") or "").strip()
+                if name:
+                    removed.add(name)
+                    for bucket in available.values():
+                        bucket.pop(name, None)
+                continue
+            if etype == "Download Model":
+                name = str(entry.get("model_name") or "").strip()
+                kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                if name and name not in removed:
+                    available.setdefault(kind, {})[name] = kind
+            elif etype == "Local Model":
+                path = str(entry.get("local_path") or "").strip()
+                alias = str(entry.get("model_name") or "").strip()
+                if path:
+                    name = alias or Path(path).stem
+                    kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                    if name not in removed:
+                        available.setdefault(kind, {})[name] = kind
+            else:
+                for _slot, alias, kind, _spec in self._iter_embedded_sources(entry):
+                    if alias and alias not in removed:
+                        available.setdefault(kind, {})[alias] = kind
+                if etype in ("Checkpoint Merge", "LoRA Bake"):
+                    name = str(entry.get("output_name") or "").strip()
+                    if name and name not in removed:
+                        available["Checkpoint"][name] = "Checkpoint"
+                elif etype == "LoRA Merge":
+                    name = str(entry.get("output_name") or "").strip()
+                    if name and name not in removed:
+                        available["LoRA"][name] = "LoRA"
+        return {k: sorted(v.keys()) for k, v in available.items()}
+
+    def _plan_entry_problem_map_with_lora_merge(self) -> Dict[int, List[str]]:
+        problems_by_idx: Dict[int, List[str]] = {}
+        entries = self.plan_data.get("entries", [])
+        for idx, entry in enumerate(entries):
+            etype = entry.get("type")
+            prefix = f"line {idx + 1} ({etype})"
+            problems = []
+            available = self._collect_available_models(idx)
+            if etype == "Download Model":
+                if not entry.get("model_name"):
+                    problems.append(f"{prefix}: model_name is empty")
+                if not entry.get("link"):
+                    problems.append(f"{prefix}: link is empty")
+            elif etype == "Local Model":
+                if not entry.get("local_path"):
+                    problems.append(f"{prefix}: local_path is empty")
+            elif etype == "Remove Model":
+                if not entry.get("model"):
+                    problems.append(f"{prefix}: model is empty")
+            elif etype == "Checkpoint Merge":
+                for req_key in ("model0", "model1", "output_name"):
+                    if not entry.get(req_key):
+                        problems.append(f"{prefix}: {req_key} is empty")
+                for slot in ("model0", "model1", "model2"):
+                    ref = str(entry.get(slot) or "").strip()
+                    if ref and ref not in available.get("Checkpoint", []) and not self._get_entry_slot_source(entry, slot):
+                        problems.append(f"{prefix}: checkpoint ref not available -> {ref}")
+            elif etype == "LoRA Bake":
+                checkpoint = str(entry.get("checkpoint") or "").strip()
+                if not checkpoint:
+                    problems.append(f"{prefix}: checkpoint is empty")
+                elif checkpoint not in available.get("Checkpoint", []) and not self._get_entry_slot_source(entry, "checkpoint"):
+                    problems.append(f"{prefix}: checkpoint ref not available -> {checkpoint}")
+                if not entry.get("output_name"):
+                    problems.append(f"{prefix}: output_name is empty")
+                for lora in entry.get("loras", []) or []:
+                    name = str(lora.get("name") or "").strip()
+                    if not name:
+                        problems.append(f"{prefix}: one LoRA name is empty")
+                    elif name not in available.get("LoRA", []) and name not in available.get("LyCORIS", []) and not self._get_lora_source(lora):
+                        problems.append(f"{prefix}: LoRA ref not available -> {name}")
+            elif etype == "LoRA Merge":
+                if not entry.get("output_name"):
+                    problems.append(f"{prefix}: output_name is empty")
+                loras = entry.get("loras", []) or []
+                if not loras:
+                    problems.append(f"{prefix}: no LoRAs selected")
+                for lora in loras:
+                    name = str(lora.get("name") or "").strip()
+                    if not name:
+                        problems.append(f"{prefix}: one LoRA name is empty")
+                    elif name not in available.get("LoRA", []) and name not in available.get("LyCORIS", []) and not self._get_lora_source(lora):
+                        problems.append(f"{prefix}: LoRA ref not available -> {name}")
+            problems_by_idx[idx] = problems
+        return problems_by_idx
+
+    _lm_orig_entry_consumed = getattr(ModelPlannerApp, "_entry_consumed_aliases", None)
+    def _entry_consumed_aliases_with_lora_merge(self, entry: Dict[str, Any]) -> List[str]:
+        if hasattr(self, "_entry_is_disabled") and self._entry_is_disabled(entry):
+            return []
+        if entry.get("type") == "LoRA Merge":
+            return [str(lora.get("name") or "").strip() for lora in entry.get("loras", []) or [] if str(lora.get("name") or "").strip()]
+        return _lm_orig_entry_consumed(self, entry) if _lm_orig_entry_consumed else []
+
+    _lm_orig_entry_produced = getattr(ModelPlannerApp, "_entry_produced_aliases", None)
+    def _entry_produced_aliases_with_lora_merge(self, entry: Dict[str, Any]) -> List[str]:
+        if hasattr(self, "_entry_is_disabled") and self._entry_is_disabled(entry):
+            return []
+        if entry.get("type") == "LoRA Merge":
+            name = str(entry.get("output_name") or "").strip()
+            return [name] if name else []
+        return _lm_orig_entry_produced(self, entry) if _lm_orig_entry_produced else []
+
+    _lm_orig_entry_type_color = getattr(ModelPlannerApp, "_entry_type_color", None)
+    def _entry_type_color_with_lora_merge(self, etype: str) -> str:
+        if str(etype or "") == "LoRA Merge":
+            return "#0ea5e9"
+        return _lm_orig_entry_type_color(self, etype) if _lm_orig_entry_type_color else "#333333"
+
+    _lm_orig_line_summary = getattr(ModelPlannerApp, "_line_summary", None)
+    def _line_summary_with_lora_merge(self, entry: Dict[str, Any]) -> str:
+        if entry.get("type") == "LoRA Merge":
+            n = len(entry.get("loras", []) or [])
+            base = f"LoRA Merge - {entry.get('output_name') or '(unset)'} ({n} LoRA{'s' if n != 1 else ''})"
+            return base + "  ?"
+        return _lm_orig_line_summary(self, entry) if _lm_orig_line_summary else str(entry.get("type") or "")
+
+    _lm_orig_tooltip = getattr(ModelPlannerApp, "_build_plan_item_tooltip_text", None)
+    def _build_plan_item_tooltip_text_with_lora_merge(self, model_idx: int, entry: Dict[str, Any], problems: List[str] | None = None) -> str:
+        if entry.get("type") == "LoRA Merge":
+            lines = [f"Line {model_idx + 1}: LoRA Merge", f"Output: {entry.get('output_name') or '(unset)'}"]
+            loras = [str(l.get("name") or "(unset)") for l in entry.get("loras", []) or []]
+            lines.append("LoRAs: " + (", ".join(loras) if loras else "(none)"))
+            if problems:
+                lines.append("")
+                lines.append("Problems:")
+                lines.extend([f"- {p}" for p in problems])
+            return "\n".join(lines)
+        return _lm_orig_tooltip(self, model_idx, entry, problems) if _lm_orig_tooltip else str(entry)
+
+    _lm_orig_convert_entry = getattr(ModelPlannerApp, "_planner_convert_entry_type_preserving_common_fields", None)
+    def _planner_convert_entry_type_preserving_common_fields_with_lora_merge(self, entry: Dict[str, Any], new_type: str) -> Dict[str, Any]:
+        if new_type == "LoRA Merge":
+            new_entry = make_entry("LoRA Merge")
+            common_name = str(entry.get("output_name") or entry.get("model_name") or entry.get("model") or Path(entry.get("local_path") or "").stem or "").strip()
+            new_entry["output_name"] = common_name
+            if entry.get("loras"):
+                new_entry["loras"] = copy.deepcopy(entry.get("loras") or [])
+            for key in ("memo", "_locked", "_disabled", "_row_color"):
+                if key in entry:
+                    new_entry[key] = copy.deepcopy(entry.get(key))
+            return new_entry
+        return _lm_orig_convert_entry(self, entry, new_type) if _lm_orig_convert_entry else make_entry(new_type)
+
+    _lm_orig_apply_defaults = getattr(ModelPlannerApp, "_planner_apply_entry_defaults", None)
+    def _planner_apply_entry_defaults_with_lora_merge(self):
+        if _lm_orig_apply_defaults:
+            _lm_orig_apply_defaults(self)
+        for entry in self.plan_data.get("entries", []) or []:
+            if isinstance(entry, dict) and entry.get("type") in _LORA_MERGE_DEFAULTS:
+                _lm_ensure_cli_options(entry)
+                if entry.get("type") == "LoRA Merge":
+                    entry.setdefault("loras", [])
+
+    _lm_orig_estimate = getattr(ModelPlannerApp, "_planner_estimate_disk_runtime", None)
+    def _planner_estimate_disk_runtime_with_lora_merge(self):
+        return _lm_orig_estimate(self) if _lm_orig_estimate else None
+
+    # Apply monkey patches after all previous extension layers.
+    ModelPlannerApp._render_checkpoint_merge_entry = _render_checkpoint_merge_entry_with_cli_options
+    ModelPlannerApp._render_lora_bake_entry = _render_lora_bake_entry_with_cli_options
+    ModelPlannerApp._render_lora_merge_entry = _render_lora_merge_entry
+    ModelPlannerApp._base_render_current_line = _base_render_current_line_with_lora_merge
+    ModelPlannerApp._planner_visible_line_types = _planner_visible_line_types_with_lora_merge
+    ModelPlannerApp._iter_embedded_sources = _iter_embedded_sources_with_lora_merge
+    ModelPlannerApp._collect_available_models = _collect_available_models_with_lora_merge
+    ModelPlannerApp._plan_entry_problem_map = _plan_entry_problem_map_with_lora_merge
+    ModelPlannerApp._entry_consumed_aliases = _entry_consumed_aliases_with_lora_merge
+    ModelPlannerApp._entry_produced_aliases = _entry_produced_aliases_with_lora_merge
+    ModelPlannerApp._entry_type_color = _entry_type_color_with_lora_merge
+    ModelPlannerApp._line_summary = _line_summary_with_lora_merge
+    ModelPlannerApp._build_plan_item_tooltip_text = _build_plan_item_tooltip_text_with_lora_merge
+    ModelPlannerApp._planner_convert_entry_type_preserving_common_fields = _planner_convert_entry_type_preserving_common_fields_with_lora_merge
+    ModelPlannerApp._planner_apply_entry_defaults = _planner_apply_entry_defaults_with_lora_merge
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Additional Signatures candidate expansion for merge.py / lora_bake.py options
+# -----------------------------------------------------------------------------
+try:
+    _sig_orig_candidates = getattr(ModelPlannerApp, "_signature_autocomplete_candidates", None)
+    def _signature_autocomplete_candidates_extended(self):
+        base = list(_sig_orig_candidates(self) if _sig_orig_candidates else [])
+        extra = [
+            # merge.py
+            "--m0_name NAME", "--m1_name NAME", "--m2_name NAME",
+            "--use_dif_10", "--use_dif_20", "--use_dif_21",
+            "--rand_alpha 0.1,0.3", "--rand_beta 0.1,0.3",
+            "--cosine0", "--cosine1", "--cosine2", "--keep_ema", "--delete_source", "--no_metadata", "--force",
+            "--turbo", "--deturbo", "--seed 1234", "--rebasin 8", "--memo text", "--fine key_spec", "--fine_sat 0.85",
+            "--cfg_sens 1.10", "--cfg_sens_targets kv,out",
+            "--sat_boost 1.5", "--sat_boost_side alpha", "--sat_boost_side beta", "--sat_boost_side both",
+            "--sat_boost_tags IN00,OUT03", "--sat_profile legacy", "--sat_profile safe_attn2_out",
+            "--sat_delta_cap_pct 99.5", "--sat_boost_mix 0.5", "--boost_clamp auto", "--boost_clamp clamp01", "--boost_clamp none", "--vae_sat 0.9",
+            # lora_bake.py bake
+            "--dare", "--bake_clip_scale 0.8", "--bake_unet_only", "--bake_norm sqrt", "--bake_norm mean", "--bake_norm none",
+            "--bake_scale 1.0", "--bake_rank_cap 64", "--bake_clamp_q 0.999", "--bake_delta_cap 0.05",
+            "--bake_fp32", "--bake_guard auto", "--bake_guard cap", "--bake_guard none", "--bake_guard_cap 0.05", "--bake_guard_skip 0.25", "--bake_budget_report",
+            # lora_bake.py --merge_loras
+            "--merge_loras", "--merge_rank 64", "--merge_arch auto", "--merge_arch sdxl", "--merge_arch flux", "--merge_arch zi", "--merge_arch am",
+            "--merge_norm none", "--merge_norm sqrt", "--merge_norm mean", "--merge_scale 1.0", "--merge_unet_only",
+            "--merge_clamp_q 0.99", "--merge_intermediate_mult 4",
+        ]
+        return list(dict.fromkeys(base + extra))
+    ModelPlannerApp._signature_autocomplete_candidates = _signature_autocomplete_candidates_extended
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Signature-less options UI / layout refinements
+# -----------------------------------------------------------------------------
+try:
+    if "Randomize" not in RATIO_MODES:
+        RATIO_MODES.append("Randomize")
+
+    RIGHT_PANEL_FIELD_HELP.update({
+        "Unmapped Legacy Signatures": {
+            "short": "Legacy @/-- tokens that could not be represented by structured options.",
+            "detail": "Additional Signatures are no longer shown as a separate editor. When old plans are imported, supported tokens are converted into Option controls; unknown or unsupported tokens are preserved here and appended during export/run.",
+        },
+        "Architecture": {
+            "short": "Architecture hint imported from @arch.",
+            "detail": "Legacy @arch values are loaded here. When exporting to legacy txt, this is written back as @arch.",
+        },
+        "Precision": {
+            "short": "Save precision imported from @p/@precision.",
+            "detail": "This controls save precision and is written to legacy txt as @p when it is not the default half precision.",
+        },
+    })
+
+    _SIGLESS_PRECISION_CHOICES = ["half", "bhalf", "quarter", "fp32"]
+    _SIGLESS_ARCH_CHOICES = ["", "auto", "sd", "sdxl", "flux", "zi", "am", "anima", "zimage"]
+    _SIGLESS_SEED_MODES = {"DARE"}
+
+    def _sigless_ensure_cli_options(entry: Dict[str, Any]) -> Dict[str, Any]:
+        etype = str(entry.get("type") or "")
+        defaults = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(etype, {})) if '_LORA_MERGE_DEFAULTS' in globals() else {}
+        # rand_alpha/rand_beta moved into Ratio Mode.
+        defaults.pop("rand_alpha", None)
+        defaults.pop("rand_beta", None)
+        raw = entry.get("cli_options")
+        if isinstance(raw, dict):
+            defaults.update({k: v for k, v in raw.items() if k in defaults})
+        entry["cli_options"] = defaults
+        entry.setdefault("architecture", "")
+        entry.setdefault("precision", "")
+        entry.setdefault("unmapped_signatures", "")
+        return defaults
+
+    def _sigless_mode_uses_seed(entry: Dict[str, Any]) -> bool:
+        return str(entry.get("merge_mode") or "").upper() in _SIGLESS_SEED_MODES
+
+    def _sigless_model_count(self, entry: Dict[str, Any], mode_info: Dict[str, Any]) -> int:
+        key = str(mode_info.get("key") or entry.get("merge_mode") or "").upper()
+        opts = _sigless_ensure_cli_options(entry)
+        if key in {"NOIN", "RM"}:
+            return 1
+        if mode_info.get("needs_m2") or bool(opts.get("turbo")) or bool(opts.get("deturbo")):
+            return 3
+        return 2
+
+    def _sigless_option_changed(self, entry: Dict[str, Any], key: str, value, default):
+        opts = _sigless_ensure_cli_options(entry)
+        if isinstance(default, bool):
+            opts[key] = bool(value)
+        else:
+            opts[key] = str(value or "")
+        self._after_entry_change()
+
+    def _sigless_special_option_row(self, parent, entry: Dict[str, Any], key: str, label: str, choices: List[str]):
+        row = Frame(parent)
+        row.pack(fill="x", pady=2)
+        Label(row, text=label, width=18, anchor="w").pack(side="left")
+        var = tk.StringVar(value=str(entry.get(key) or ""))
+        combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=18)
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        var.trace_add("write", lambda *_args, e=entry, k=key, v=var: (e.__setitem__(k, v.get()), self._after_entry_change()))
+        self._attach_tooltip(row, self._right_help(label).get("detail", ""))
+
+    def _sigless_build_unmapped_editor(self, parent, entry: Dict[str, Any]):
+        box = LabelFrame(parent, text="Unmapped Legacy Signatures", padx=6, pady=6)
+        box.pack(fill="x", pady=4)
+        msg = Label(box, text="Unsupported legacy @/-- tokens are preserved here.", anchor="w", justify="left", fg="#64748b")
+        msg.pack(fill="x", pady=(0, 4))
+        txt = Text(box, height=3, font=("Consolas", 10), undo=True, maxundo=-1)
+        txt.pack(fill="both", expand=True)
+        txt.insert("1.0", str(entry.get("unmapped_signatures") or ""))
+        def sync(_event=None, e=entry, w=txt):
+            e["unmapped_signatures"] = w.get("1.0", "end-1c").strip()
+            self._after_entry_change()
+        txt.bind("<KeyRelease>", sync)
+        self._bind_multiline_text_scroll_priority(txt)
+        self._attach_tooltip(box, self._right_help("Unmapped Legacy Signatures").get("detail", ""))
+
+    _SIGLESS_CLI_SPECS = copy.deepcopy(_LORA_MERGE_CLI_SPECS) if '_LORA_MERGE_CLI_SPECS' in globals() else {}
+    try:
+        # Drop random alpha/beta from Checkpoint Options.
+        new_groups = []
+        for group_name, fields in _SIGLESS_CLI_SPECS.get("Checkpoint Merge", {}).get("groups", []):
+            filtered = [f for f in fields if f[0] not in {"rand_alpha", "rand_beta", "seed"}]
+            if filtered:
+                new_groups.append((group_name, filtered))
+        _SIGLESS_CLI_SPECS.setdefault("Checkpoint Merge", {})["groups"] = new_groups
+    except Exception:
+        pass
+
+    def _sigless_build_cli_options_panel(self, parent, entry: Dict[str, Any], entry_type: str):
+        specs = copy.deepcopy(_SIGLESS_CLI_SPECS.get(entry_type, {}).get("groups", []))
+        if entry_type == "Checkpoint Merge" and _sigless_mode_uses_seed(entry):
+            specs.insert(1, ("Seed", [("seed", "Seed", "text", "")]))
+        if not specs and entry_type not in ("Checkpoint Merge", "LoRA Bake"):
+            return
+        opts = _sigless_ensure_cli_options(entry)
+        try:
+            wrapper = self._build_collapsible_section(
+                parent,
+                f"{entry_type} Options",
+                key=f"sigless_cli_options_{entry_type}_{entry.get('id','')}",
+                default_open=False,
+                body_fill="x",
+                body_expand=False,
+                padx=6,
+                pady=6,
+            )
+        except Exception:
+            wrapper = self._build_labeled_frame(parent, f"{entry_type} Options")
+
+        if entry_type in ("Checkpoint Merge", "LoRA Bake"):
+            basics = LabelFrame(wrapper, text="Basic", padx=6, pady=6)
+            basics.pack(fill="x", pady=4)
+            _sigless_special_option_row(self, basics, entry, "architecture", "Architecture", _SIGLESS_ARCH_CHOICES)
+            _sigless_special_option_row(self, basics, entry, "precision", "Precision", _SIGLESS_PRECISION_CHOICES)
+
+        for group_name, fields in specs:
+            gf = LabelFrame(wrapper, text=group_name, padx=6, pady=6)
+            gf.pack(fill="x", pady=4)
+            for idx, field in enumerate(fields):
+                key, label, kind, default = field[:4]
+                row = Frame(gf)
+                row.grid(row=idx // 2, column=(idx % 2) * 2, columnspan=2, sticky="ew", padx=3, pady=2)
+                gf.grid_columnconfigure(1, weight=1)
+                gf.grid_columnconfigure(3, weight=1)
+                Label(row, text=label, width=18, anchor="w").pack(side="left")
+                if kind == "bool":
+                    var = tk.BooleanVar(value=bool(opts.get(key, default)))
+                    chk = ttk.Checkbutton(row, variable=var, command=lambda v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    chk.pack(side="left")
+                elif kind == "choice":
+                    choices = field[4] if len(field) > 4 else []
+                    var = tk.StringVar(value=str(opts.get(key, default) or default))
+                    combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=16)
+                    self._bind_combobox_mousewheel_passthrough(combo)
+                    combo.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                else:
+                    var = tk.StringVar(value=str(opts.get(key, default) or ""))
+                    ent = Entry(row, textvariable=var, width=28)
+                    ent.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+        _sigless_build_unmapped_editor(self, wrapper, entry)
+        reset_row = Frame(wrapper)
+        reset_row.pack(fill="x", pady=(4, 0))
+        def reset_options(e=entry, et=entry_type):
+            e["cli_options"] = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(et, {})) if '_LORA_MERGE_DEFAULTS' in globals() else {}
+            e["cli_options"].pop("rand_alpha", None)
+            e["cli_options"].pop("rand_beta", None)
+            self._after_entry_change()
+            self._schedule_rerender_current_line()
+        ttk.Button(reset_row, text="Reset Options", command=reset_options).pack(side="right")
+
+    def _sigless_ratio_presets(self) -> Dict[str, Any]:
+        self._planner_dev_ensure_config() if hasattr(self, "_planner_dev_ensure_config") else None
+        presets = self.config.setdefault("ratio_presets", {})
+        if not isinstance(presets, dict):
+            presets = {}
+            self.config["ratio_presets"] = presets
+        return presets
+
+    def _planner_save_ratio_preset(self, ratio: Dict[str, Any]):
+        name = simpledialog.askstring("Save Ratio Preset", "Preset name:", parent=self.root)
+        if not name:
+            return
+        _sigless_ratio_presets(self)[name.strip()] = copy.deepcopy(ratio)
+        self._schedule_config_save()
+        messagebox.showinfo("Save Ratio Preset", f"Saved ratio preset: {name.strip()}")
+
+    def _planner_load_ratio_preset(self, ratio: Dict[str, Any]):
+        presets = _sigless_ratio_presets(self)
+        if not presets:
+            messagebox.showinfo("Load Ratio Preset", "No ratio presets saved yet.")
+            return
+        name = simpledialog.askstring("Load Ratio Preset", "Preset name:\n" + "\n".join(sorted(presets)), parent=self.root)
+        if not name:
+            return
+        key = name.strip()
+        if key not in presets:
+            messagebox.showwarning("Load Ratio Preset", f"Preset not found: {key}")
+            return
+        ratio.clear()
+        ratio.update(copy.deepcopy(presets[key]))
+        self._after_entry_change()
+        self._schedule_rerender_current_line()
+
+    def _planner_build_ratio_preset_buttons(self, parent, ratio: Dict[str, Any]):
+        row = Frame(parent)
+        row.pack(fill="x", pady=(4, 0))
+        ttk.Button(row, text="Save Ratio Preset", command=lambda r=ratio: self._planner_save_ratio_preset(r)).pack(side="left", padx=(0, 4))
+        ttk.Button(row, text="Load Ratio Preset", command=lambda r=ratio: self._planner_load_ratio_preset(r)).pack(side="left")
+
+    _sigless_orig_build_ratio_value_widget = ModelPlannerApp._build_ratio_value_widget
+    def _build_ratio_value_widget_sigless(self, parent, ratio: Dict[str, Any], allow_block_weight: bool):
+        if str(ratio.get("mode") or "") == "Randomize":
+            row = Frame(parent)
+            row.pack(fill="x", pady=3)
+            Label(row, text="Random Range", width=18, anchor="w").pack(side="left")
+            var = tk.StringVar(value=str(ratio.get("value") or "0.0,1.0"))
+            ent = Entry(row, textvariable=var)
+            ent.pack(side="left", fill="x", expand=True, padx=4)
+            var.trace_add("write", lambda *_args, r=ratio, v=var: self._sync_ratio_value(r, v.get()))
+            Label(parent, text="Example: 0.05,0.20 or block/random syntax accepted by backend rand_ratio().", fg="#64748b", anchor="w", justify="left", wraplength=720).pack(fill="x", padx=4)
+            return
+        return _sigless_orig_build_ratio_value_widget(self, parent, ratio, allow_block_weight)
+
+    def _build_ratio_section_sigless(self, parent, entry: Dict[str, Any], key: str, title: str):
+        wrapper = self._build_collapsible_section(
+            parent,
+            title,
+            key=f"ratio_section_{entry.get('id', '')}_{key}",
+            default_open=True,
+            body_fill="x",
+            body_expand=False,
+        )
+        ratio = entry.setdefault(key, default_ratio("Single"))
+        row = Frame(wrapper)
+        row.pack(fill="x", pady=3)
+        label_widget = Label(row, text="Ratio Mode", width=18, anchor="w")
+        label_widget.pack(side="left")
+        mode_var = tk.StringVar(value=ratio.get("mode", "Single"))
+        combo = ttk.Combobox(row, textvariable=mode_var, values=RATIO_MODES, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            ratio["mode"] = mode_var.get()
+            if ratio["mode"] == "Single" and not ratio.get("value"):
+                ratio["value"] = "0.5"
+            elif ratio["mode"] == "Randomize" and not ratio.get("value"):
+                ratio["value"] = "0.0,1.0"
+            elif ratio["mode"] == "Block weight" and not ratio.get("value"):
+                ratio["value"] = self._serialize_block_values([0.0] * len(self._current_block_names()), trailing_comma=False)
+            self._schedule_rerender_current_line()
+        mode_var.trace_add("write", sync_mode)
+        self._attach_tooltip(label_widget, self._right_help("Ratio Mode").get("detail", ""))
+        self._add_right_inline_help(wrapper, "Ratio Mode")
+        self._build_ratio_value_widget(wrapper, ratio, allow_block_weight=True)
+        self._planner_build_ratio_preset_buttons(wrapper, ratio)
+
+    def _sigless_lora_ratio_mode_combo(self, row, ratio: Dict[str, Any], on_ratio_mode):
+        ratio_var = tk.StringVar(value=ratio.get("mode", "Single"))
+        combo = ttk.Combobox(row, textvariable=ratio_var, values=["Single", "Elemental"], state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        ratio_var.trace_add("write", on_ratio_mode)
+        return combo, ratio_var
+
+    def _render_checkpoint_merge_entry_sigless(self, parent, entry: Dict[str, Any]):
+        _sigless_ensure_cli_options(entry)
+        frame = self._build_labeled_frame(parent, "Checkpoint Merge")
+        ckpts = self._collect_available_models(self.current_index).get("Checkpoint", [])
+        mode_labels = [f"{m['key']} - {m['label']}" for m in self.merge_modes]
+        current_mode = entry.get("merge_mode", self.merge_modes[0]["key"])
+        current_label = next((f"{m['key']} - {m['label']}" for m in self.merge_modes if m["key"] == current_mode), mode_labels[0])
+        row = Frame(frame)
+        row.pack(fill="x", pady=3)
+        Label(row, text="Merge Mode", width=18, anchor="w").pack(side="left")
+        var = tk.StringVar(value=current_label)
+        combo = ttk.Combobox(row, textvariable=var, values=mode_labels, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            label = var.get()
+            key = label.split(" - ", 1)[0]
+            entry["merge_mode"] = key
+            self._schedule_rerender_current_line()
+        var.trace_add("write", sync_mode)
+        mode_info = self.merge_mode_map.get(entry.get("merge_mode"), self.merge_modes[0])
+        model_count = _sigless_model_count(self, entry, mode_info)
+        if model_count >= 1:
+            self._build_combo_row(frame, "Model 0", entry, "model0", ckpts or [""])
+        if model_count >= 2:
+            self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
+        if model_count >= 3:
+            self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
+        if mode_info.get("key") != "CLIPXOR":
+            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        if mode_info.get("needs_beta"):
+            self._build_ratio_section(parent, entry, "beta", "Beta")
+        out_frame = self._build_labeled_frame(parent, "Output")
+        self._build_entry_row(out_frame, "Output Name", entry, "output_name")
+        _sigless_build_cli_options_panel(self, parent, entry, "Checkpoint Merge")
+
+    def _render_lora_bake_entry_sigless(self, parent, entry: Dict[str, Any]):
+        _sigless_ensure_cli_options(entry)
+        frame = self._build_labeled_frame(parent, "LoRA Bake")
+        models = self._collect_available_models(self.current_index)
+        ckpts = models.get("Checkpoint", [])
+        if hasattr(self, "_build_source_backed_ref_row"):
+            self._build_source_backed_ref_row(
+                frame, "Checkpoint",
+                lambda e=entry: e.get("checkpoint", ""),
+                lambda value, e=entry: e.__setitem__("checkpoint", value),
+                lambda e=entry: self._get_entry_slot_source(e, "checkpoint"),
+                lambda spec, e=entry: self._set_entry_slot_source(e, "checkpoint", spec),
+                ckpts or [""], ["Checkpoint"], allow_local=True,
+            )
+        else:
+            self._build_combo_row(frame, "Checkpoint", entry, "checkpoint", ckpts or [""])
+        self._build_entry_row(frame, "Output Name", entry, "output_name")
+        add_lora_btn = ttk.Button(frame, text="+ Add LoRA", command=lambda: self._add_lora_block(entry))
+        add_lora_btn.pack(anchor="w", padx=4, pady=4)
+        lora_names = models.get("LoRA", []) + models.get("LyCORIS", [])
+        loras = entry.get("loras", []) or []
+        for idx, lora in enumerate(loras):
+            block = self._build_labeled_frame(parent, f"LoRA {idx + 1}")
+            top = Frame(block); top.pack(fill="x", pady=(0, 4))
+            ttk.Button(top, text="-", width=3, command=lambda i=idx: self._remove_lora_block(entry, i)).pack(side="left", padx=(0, 4))
+            if hasattr(self, "_move_lora_block"):
+                up_btn = ttk.Button(top, text="↑ Up", width=7, command=lambda i=idx: self._move_lora_block(entry, i, -1))
+                down_btn = ttk.Button(top, text="↓ Down", width=8, command=lambda i=idx: self._move_lora_block(entry, i, 1))
+                if idx <= 0: up_btn.state(["disabled"])
+                if idx >= len(loras) - 1: down_btn.state(["disabled"])
+                up_btn.pack(side="left", padx=(0, 4)); down_btn.pack(side="left", padx=(0, 8))
+            if hasattr(self, "_build_source_backed_ref_row"):
+                self._build_source_backed_ref_row(block, "LoRA Name", lambda lo=lora: lo.get("name", ""), lambda value, lo=lora: lo.__setitem__("name", value), lambda lo=lora: self._get_lora_source(lo), lambda spec, lo=lora: self._set_lora_source(lo, spec), lora_names or [""], ["LoRA", "LyCORIS"], allow_local=True)
+            else:
+                self._build_combo_row(block, "LoRA Name", lora, "name", lora_names or [""])
+            ratio = lora.setdefault("ratio", default_ratio("Single"))
+            ratio_wrap = self._build_collapsible_section(block, "Ratio", key=f"lora_ratio_{entry.get('id', '')}_{idx}", default_open=True, body_fill="x", body_expand=False, padx=0, pady=4)
+            row2 = Frame(ratio_wrap); row2.pack(fill="x", pady=3)
+            Label(row2, text="Ratio Mode", width=18, anchor="w").pack(side="left")
+            ratio_var = tk.StringVar(value=ratio.get("mode", "Single"))
+            combo2 = ttk.Combobox(row2, textvariable=ratio_var, values=["Single", "Elemental"], state="readonly")
+            self._bind_combobox_mousewheel_passthrough(combo2)
+            combo2.pack(side="left", fill="x", expand=True, padx=4)
+            def on_ratio_mode(*_args, lo=lora, rv=ratio_var):
+                lo["ratio"]["mode"] = rv.get()
+                if rv.get() == "Single": lo["ratio"].setdefault("value", "1.0")
+                self._schedule_rerender_current_line()
+            ratio_var.trace_add("write", on_ratio_mode)
+            self._build_ratio_value_widget(ratio_wrap, lora["ratio"], allow_block_weight=False)
+            self._planner_build_ratio_preset_buttons(ratio_wrap, lora["ratio"])
+        _sigless_build_cli_options_panel(self, parent, entry, "LoRA Bake")
+
+    def _render_lora_merge_entry_sigless(self, parent, entry: Dict[str, Any]):
+        _sigless_ensure_cli_options(entry)
+        frame = self._build_labeled_frame(parent, "LoRA Merge")
+        models = self._collect_available_models(self.current_index)
+        self._build_entry_row(frame, "Output Name", entry, "output_name")
+        add_lora_btn = ttk.Button(frame, text="+ Add LoRA", command=lambda: self._add_lora_block(entry))
+        add_lora_btn.pack(anchor="w", padx=4, pady=4)
+        lora_names = models.get("LoRA", []) + models.get("LyCORIS", [])
+        entry.setdefault("loras", [])
+        for idx, lora in enumerate(entry.get("loras", []) or []):
+            block = self._build_labeled_frame(parent, f"LoRA {idx + 1}")
+            top = Frame(block); top.pack(fill="x")
+            ttk.Button(top, text="-", width=3, command=lambda i=idx: self._remove_lora_block(entry, i)).pack(side="left", padx=(0, 4))
+            if hasattr(self, "_build_source_backed_ref_row"):
+                self._build_source_backed_ref_row(block, "LoRA Name", lambda lo=lora: lo.get("name", ""), lambda value, lo=lora: lo.__setitem__("name", value), lambda lo=lora: self._get_lora_source(lo), lambda spec, lo=lora: self._set_lora_source(lo, spec), lora_names or [""], ["LoRA", "LyCORIS"], allow_local=True)
+            else:
+                self._build_combo_row(block, "LoRA Name", lora, "name", lora_names or [""])
+            ratio = lora.setdefault("ratio", default_ratio("Single"))
+            ratio_wrap = self._build_collapsible_section(block, "Ratio", key=f"lora_merge_ratio_{entry.get('id', '')}_{idx}", default_open=True, body_fill="x", body_expand=False, padx=0, pady=4)
+            row2 = Frame(ratio_wrap); row2.pack(fill="x", pady=3)
+            Label(row2, text="Ratio Mode", width=18, anchor="w").pack(side="left")
+            ratio_var = tk.StringVar(value=ratio.get("mode", "Single"))
+            combo2 = ttk.Combobox(row2, textvariable=ratio_var, values=["Single", "Elemental"], state="readonly")
+            self._bind_combobox_mousewheel_passthrough(combo2)
+            combo2.pack(side="left", fill="x", expand=True, padx=4)
+            def on_ratio_mode(*_args, lo=lora, rv=ratio_var):
+                lo["ratio"]["mode"] = rv.get()
+                if rv.get() == "Single": lo["ratio"].setdefault("value", "1.0")
+                self._schedule_rerender_current_line()
+            ratio_var.trace_add("write", on_ratio_mode)
+            self._build_ratio_value_widget(ratio_wrap, lora["ratio"], allow_block_weight=False)
+            self._planner_build_ratio_preset_buttons(ratio_wrap, lora["ratio"])
+        _sigless_build_cli_options_panel(self, parent, entry, "LoRA Merge")
+
+    def _on_plan_help_click_sigless(self, event):
+        lb = getattr(self, "plan_listbox", None)
+        if lb is None or not getattr(self, "visible_entry_indices", None):
+            return
+        idx = lb.nearest(event.y)
+        if idx < 0 or idx >= len(self.visible_entry_indices):
+            return
+        bbox = lb.bbox(idx)
+        if not bbox:
+            return
+        bx, by, bw, bh = bbox
+        if not (by <= event.y <= by + bh):
+            return
+        near_right = event.x >= max(bx + bw - 36, lb.winfo_width() - 48)
+        if not near_right:
+            return
+        model_idx = self.visible_entry_indices[idx]
+        entry = self.plan_data.get("entries", [])[model_idx]
+        problems = getattr(self, "_plan_problem_map_cache", {}).get(model_idx, [])
+        text = self._build_plan_item_tooltip_text(model_idx, entry, problems)
+        messagebox.showinfo(f"Line {model_idx + 1} Help", text)
+        return "break"
+
+    _sigless_orig_on_plan_motion = getattr(ModelPlannerApp, "_on_plan_list_motion", None)
+    def _on_plan_list_motion_sigless(self, event):
+        lb = getattr(self, "plan_listbox", None)
+        if lb is not None and getattr(self, "visible_entry_indices", None):
+            idx = lb.nearest(event.y)
+            if 0 <= idx < len(self.visible_entry_indices):
+                bbox = lb.bbox(idx)
+                if bbox:
+                    bx, by, bw, bh = bbox
+                    near_right = event.x >= max(bx + bw - 36, lb.winfo_width() - 48)
+                    if near_right and by <= event.y <= by + bh:
+                        model_idx = self.visible_entry_indices[idx]
+                        entry = self.plan_data.get("entries", [])[model_idx]
+                        problems = getattr(self, "_plan_problem_map_cache", {}).get(model_idx, [])
+                        text = self._build_plan_item_tooltip_text(model_idx, entry, problems)
+                        if idx != getattr(self, "_plan_hover_index", None) or text != getattr(self, "_plan_hover_text", ""):
+                            self._plan_hover_index = idx; self._plan_hover_text = text
+                            self._show_plan_item_hover(event, text)
+                        return
+        if _sigless_orig_on_plan_motion:
+            return _sigless_orig_on_plan_motion(self, event)
+
+    def _build_left_panel_sigless(self, parent):
+        self._planner_dev_ensure_config()
+        base_builder = globals().get("_dev_base_build_left_panel")
+        result = base_builder(self, parent) if callable(base_builder) else None
+        try:
+            section = self._build_collapsible_section(parent, "Developer (Experiment) Mode", key="left_developer_mode", default_open=bool(self.config.get("dev_mode", False)), body_fill="x", body_expand=False)
+        except Exception:
+            section = LabelFrame(parent, text="Developer (Experiment) Mode", padx=8, pady=8); section.pack(fill="x", pady=6)
+        self.dev_mode_var = tk.BooleanVar(value=bool(self.config.get("dev_mode", False)))
+        button_refs = []
+        def refresh_dev_buttons():
+            enabled = self._planner_dev_mode_enabled()
+            self.config["dev_mode"] = enabled
+            for btn in button_refs:
+                try: btn.configure(state=("normal" if enabled else "disabled"))
+                except Exception: pass
+            self._schedule_config_save()
+        top = Frame(section); top.pack(fill="x", pady=(0, 6))
+        chk = ttk.Checkbutton(top, variable=self.dev_mode_var, command=refresh_dev_buttons)
+        chk.pack(side="left", padx=(0, 4))
+        Label(top, text="Enable Dev Mode", anchor="w").pack(side="left")
+        grid = Frame(section); grid.pack(fill="x")
+        for c in range(3): grid.grid_columnconfigure(c, weight=1)
+        actions = [
+            ("T2I Settings", lambda: self._planner_dev_only(self._planner_open_t2i_settings)),
+            ("Ratio Sweep", lambda: self._planner_dev_only(self._planner_open_ratio_sweep)),
+            ("Compare Images", lambda: self._planner_dev_only(self._planner_show_image_compare)),
+            ("Ratio Diff", lambda: self._planner_dev_only(self._planner_show_ratio_diff)),
+            ("Model Anatomy", lambda: self._planner_dev_only(self._planner_model_anatomy_scan)),
+            ("LoRA Check", lambda: self._planner_dev_only(self._planner_lora_compatibility_check)),
+        ]
+        for idx, (label, cmd) in enumerate(actions):
+            btn = ttk.Button(grid, text=label, command=cmd)
+            btn.grid(row=idx//3, column=idx%3, sticky="ew", padx=3, pady=3)
+            button_refs.append(btn)
+        self._developer_mode_buttons = [(b, True) for b in button_refs]
+        refresh_dev_buttons()
+        return result
+
+    # Replace methods after previous extension layers.
+    ModelPlannerApp._build_ratio_value_widget = _build_ratio_value_widget_sigless
+    ModelPlannerApp._build_ratio_section = _build_ratio_section_sigless
+    ModelPlannerApp._planner_save_ratio_preset = _planner_save_ratio_preset
+    ModelPlannerApp._planner_load_ratio_preset = _planner_load_ratio_preset
+    ModelPlannerApp._planner_build_ratio_preset_buttons = _planner_build_ratio_preset_buttons
+    ModelPlannerApp._render_checkpoint_merge_entry = _render_checkpoint_merge_entry_sigless
+    ModelPlannerApp._render_lora_bake_entry = _render_lora_bake_entry_sigless
+    ModelPlannerApp._render_lora_merge_entry = _render_lora_merge_entry_sigless
+    ModelPlannerApp._on_plan_help_click = _on_plan_help_click_sigless
+    ModelPlannerApp._on_plan_list_motion = _on_plan_list_motion_sigless
+    ModelPlannerApp._build_left_panel = _build_left_panel_sigless
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Final UI polish: robust disk estimator, display-only arch/precision names,
+# and clearly disabled Developer Mode controls.
+# -----------------------------------------------------------------------------
+try:
+    _DISPLAY_PRECISION_CHOICES = ["", "FP16", "BF16", "FP8", "FP32"]
+    _DISPLAY_ARCH_CHOICES = ["", "Auto", "SD1.5", "SDXL", "Flux", "ZImage", "Anima"]
+
+    _PRECISION_DISPLAY_ALIASES = {
+        "": "", "half": "FP16", "fp16": "FP16", "float16": "FP16", "16": "FP16",
+        "bhalf": "BF16", "bf16": "BF16", "bfloat16": "BF16",
+        "quarter": "FP8", "fp8": "FP8", "float8": "FP8", "8": "FP8",
+        "fp32": "FP32", "float32": "FP32", "full": "FP32", "32": "FP32",
+    }
+    _ARCH_DISPLAY_ALIASES = {
+        "": "", "auto": "Auto",
+        "sd": "SD1.5", "sd15": "SD1.5", "sd1.5": "SD1.5", "sd-1.5": "SD1.5", "sd_1.5": "SD1.5",
+        "xl": "SDXL", "sdxl": "SDXL", "sd-xl": "SDXL", "sd_xl": "SDXL",
+        "flux": "Flux",
+        "zi": "ZImage", "zimage": "ZImage", "z-image": "ZImage", "z_image": "ZImage",
+        "am": "Anima", "anima": "Anima",
+    }
+
+    def _planner_display_precision_name(value):
+        raw = str(value or "").strip()
+        key = raw.lower().replace(" ", "")
+        return _PRECISION_DISPLAY_ALIASES.get(key, raw.upper() if raw else "")
+
+    def _planner_display_arch_name(value):
+        raw = str(value or "").strip()
+        key = raw.lower().replace(" ", "").replace("_", "-")
+        return _ARCH_DISPLAY_ALIASES.get(key, raw[:1].upper() + raw[1:] if raw else "")
+
+    # Replace global choice lists used by the sigless options renderer.
+    _SIGLESS_PRECISION_CHOICES = list(_DISPLAY_PRECISION_CHOICES)
+    _SIGLESS_ARCH_CHOICES = list(_DISPLAY_ARCH_CHOICES)
+
+    # Normalize LoRA Merge architecture choices without duplicates in the UI.
+    try:
+        for idx, group in enumerate(_SIGLESS_CLI_SPECS.get("LoRA Merge", {}).get("groups", [])):
+            gname, fields = group
+            patched = []
+            for field in fields:
+                if len(field) >= 5 and field[0] == "merge_arch":
+                    patched.append((field[0], field[1], field[2], "Auto", list(_DISPLAY_ARCH_CHOICES[1:])))
+                else:
+                    patched.append(field)
+            _SIGLESS_CLI_SPECS["LoRA Merge"]["groups"][idx] = (gname, patched)
+        if "_LORA_MERGE_DEFAULTS" in globals():
+            _LORA_MERGE_DEFAULTS.setdefault("LoRA Merge", {})["merge_arch"] = "Auto"
+    except Exception:
+        pass
+
+    def _sigless_special_option_row_display(self, parent, entry: Dict[str, Any], key: str, label: str, choices: List[str]):
+        row = Frame(parent)
+        row.pack(fill="x", pady=2)
+        Label(row, text=label, width=18, anchor="w").pack(side="left")
+        if key == "precision":
+            value = _planner_display_precision_name(entry.get(key))
+            choices = _DISPLAY_PRECISION_CHOICES
+        elif key == "architecture":
+            value = _planner_display_arch_name(entry.get(key))
+            choices = _DISPLAY_ARCH_CHOICES
+        else:
+            value = str(entry.get(key) or "")
+        var = tk.StringVar(value=value)
+        combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=18)
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def _sync(*_args, e=entry, k=key, v=var):
+            e[k] = v.get()
+            self._after_entry_change()
+        var.trace_add("write", _sync)
+        self._attach_tooltip(row, self._right_help(label).get("detail", ""))
+
+    _sigless_special_option_row = _sigless_special_option_row_display
+
+    _old_sigless_ensure_cli_options = _sigless_ensure_cli_options
+    def _sigless_ensure_cli_options_display(entry: Dict[str, Any]) -> Dict[str, Any]:
+        opts = _old_sigless_ensure_cli_options(entry)
+        if entry.get("type") == "LoRA Merge" and "merge_arch" in opts:
+            opts["merge_arch"] = _planner_display_arch_name(opts.get("merge_arch") or "Auto")
+            entry["cli_options"] = opts
+        if entry.get("architecture"):
+            entry["architecture"] = _planner_display_arch_name(entry.get("architecture"))
+        if entry.get("precision"):
+            entry["precision"] = _planner_display_precision_name(entry.get("precision"))
+        return opts
+
+    _sigless_ensure_cli_options = _sigless_ensure_cli_options_display
+
+    _old_sigless_option_changed = _sigless_option_changed
+    def _sigless_option_changed_display(self, entry: Dict[str, Any], key: str, value, default):
+        if key == "merge_arch":
+            value = _planner_display_arch_name(value)
+        return _old_sigless_option_changed(self, entry, key, value, default)
+
+    _sigless_option_changed = _sigless_option_changed_display
+
+    def _planner_nearest_existing_path(path_value):
+        import os as _os
+        from pathlib import Path as _Path
+        raw = str(path_value or "").strip().strip('"')
+        candidates = []
+        if raw:
+            try:
+                p = _Path(raw).expanduser()
+                candidates.append(p)
+                candidates.extend(p.parents)
+            except Exception:
+                pass
+        candidates.extend([_Path.cwd(), _Path.home(), _Path(_os.getenv("TMPDIR") or _os.getenv("TEMP") or _os.getenv("TMP") or _os.getcwd()), _Path(_os.getcwd())])
+        seen = set()
+        for cand in candidates:
+            try:
+                key = str(cand)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if cand.exists():
+                    return str(cand)
+            except Exception:
+                continue
+        return _os.getcwd()
+
+    def _planner_disk_usage_for_path(path_value):
+        import shutil as _shutil
+        p = _planner_nearest_existing_path(path_value)
+        total, used, free = _shutil.disk_usage(p)
+        return {"path": p, "total": total, "used": used, "free": free}
+
+    def _planner_unique_disk_key(path_value):
+        import os as _os
+        p = _planner_nearest_existing_path(path_value)
+        try:
+            stat = _os.stat(p)
+            return (getattr(stat, "st_dev", None), _os.path.splitdrive(_os.path.abspath(p))[0].lower())
+        except Exception:
+            return (_os.path.splitdrive(_os.path.abspath(p))[0].lower(), p)
+
+    def _planner_collect_disk_usages(self):
+        import os as _os, tempfile as _tempfile, string as _string
+        targets = []
+        try:
+            if self.entries.get("workpath"):
+                targets.append(("Workspace", self.entries.get("workpath").get()))
+        except Exception:
+            pass
+        try:
+            if self.entries.get("model_dir"):
+                targets.append(("Model Dir", self.entries.get("model_dir").get()))
+        except Exception:
+            pass
+        try:
+            if self.entries.get("vae_dir"):
+                targets.append(("VAE Dir", self.entries.get("vae_dir").get()))
+        except Exception:
+            pass
+        try:
+            fp = self.entries.get("filepath").get() if self.entries.get("filepath") else ""
+            if fp:
+                targets.append(("Plan File", str(Path(fp).expanduser().parent)))
+        except Exception:
+            pass
+        targets.extend([("Current Directory", _os.getcwd()), ("Temp", _tempfile.gettempdir()), ("Home", str(Path.home()))])
+        if _os.name == "nt":
+            for letter in _string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if _os.path.exists(drive):
+                    targets.append((f"Drive {letter}:", drive))
+        else:
+            for p in ("/", "/mnt", "/mnt/data", "/tmp"):
+                if _os.path.exists(p):
+                    targets.append((p, p))
+        out = []
+        seen = set()
+        for label, p in targets:
+            try:
+                info = _planner_disk_usage_for_path(p)
+                key = _planner_unique_disk_key(info["path"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                info["label"] = label
+                out.append(info)
+            except Exception:
+                continue
+        return out
+
+    def _planner_estimate_disk_runtime_robust(self):
+        entries = self.plan_data.get("entries", []) if isinstance(getattr(self, "plan_data", None), dict) else []
+
+        # FP16 / pruned checkpoint-size heuristics requested for peak estimation.
+        checkpoint_size_by_base = {
+            "SD1.5": 1.99,
+            "SDXL": 6.46,
+            "Flux": 22.17,
+            "ZImage": 11.46,
+            "Anima": 3.90,
+        }
+        lora_size_gb = 0.25
+
+        def _gb_from_bytes(value) -> float:
+            return float(value or 0) / (1024 ** 3)
+
+        def _fmt_gb(value) -> str:
+            return f"{float(value or 0.0):.2f} GB"
+
+        def _display_base_name(value: str) -> str:
+            raw = str(value or "").strip()
+            if not raw:
+                return "SDXL"
+            try:
+                if callable(globals().get("_planner_display_arch_name")):
+                    shown = globals()["_planner_display_arch_name"](raw)
+                    if shown:
+                        return shown
+            except Exception:
+                pass
+            key = raw.lower().replace(" ", "").replace("_", "").replace("-", "")
+            aliases = {
+                "sd": "SD1.5",
+                "sd15": "SD1.5",
+                "sd1.5": "SD1.5",
+                "sdxl": "SDXL",
+                "xl": "SDXL",
+                "flux": "Flux",
+                "zi": "ZImage",
+                "zimage": "ZImage",
+                "am": "Anima",
+                "anima": "Anima",
+            }
+            return aliases.get(key, raw[:1].upper() + raw[1:])
+
+        base = _display_base_name(self.base_model_var.get() if hasattr(self, "base_model_var") else "")
+        checkpoint_size_gb = float(checkpoint_size_by_base.get(base, checkpoint_size_by_base.get("SDXL", 6.46)))
+
+        def _kind_size_gb(kind: str) -> float:
+            k = str(kind or "").strip().lower()
+            if k in ("lora", "lycoris"):
+                return lora_size_gb
+            return checkpoint_size_gb
+
+        def _path_size_gb(path_value: str, kind: str = "Checkpoint") -> float:
+            raw = str(path_value or "").strip()
+            if raw:
+                try:
+                    p = Path(raw).expanduser()
+                    if p.exists() and p.is_file():
+                        return _gb_from_bytes(p.stat().st_size)
+                except Exception:
+                    pass
+            return _kind_size_gb(kind)
+
+        def _alias_from_source_spec(spec, fallback: str = "") -> str:
+            try:
+                alias = self._source_alias_from_spec(spec, fallback)
+                if alias:
+                    return str(alias).strip()
+            except Exception:
+                pass
+            if isinstance(spec, dict):
+                alias = str(spec.get("alias") or "").strip()
+                if alias:
+                    return alias
+                local_path = str(spec.get("local_path") or "").strip()
+                if local_path:
+                    return Path(local_path).stem
+            return str(fallback or "").strip()
+
+        def _source_size_gb(spec, kind: str = "Checkpoint") -> float:
+            if isinstance(spec, dict):
+                source_kind = str(spec.get("kind") or kind or "Checkpoint").strip()
+                if str(spec.get("mode") or "") == "local":
+                    return _path_size_gb(spec.get("local_path") or "", source_kind)
+                return _kind_size_gb(source_kind)
+            return _kind_size_gb(kind)
+
+        def _active_total(active: Dict[str, Dict[str, Any]]) -> float:
+            return sum(float(item.get("size_gb", 0.0) or 0.0) for item in active.values())
+
+        def _active_lookup_size(active: Dict[str, Dict[str, Any]], alias: str, kind: str = "Checkpoint") -> float:
+            name = str(alias or "").strip()
+            if name and name in active:
+                return float(active[name].get("size_gb", 0.0) or 0.0)
+            return _kind_size_gb(kind)
+
+        def _register_active(active: Dict[str, Dict[str, Any]], alias: str, kind: str, size_gb: float, source: str = ""):
+            name = str(alias or "").strip()
+            if not name:
+                return
+            active[name] = {
+                "kind": str(kind or "Checkpoint").strip() or "Checkpoint",
+                "size_gb": max(0.0, float(size_gb or 0.0)),
+                "source": str(source or "").strip(),
+            }
+
+        def _entry_cli_options(entry: Dict[str, Any]) -> Dict[str, Any]:
+            try:
+                opts = self._sigless_ensure_cli_options(entry)
+                return opts if isinstance(opts, dict) else {}
+            except Exception:
+                value = entry.get("cli_options")
+                return value if isinstance(value, dict) else {}
+
+        def _entry_used_models(entry: Dict[str, Any]) -> List[tuple[str, str, Any]]:
+            etype = str(entry.get("type") or "")
+            out: List[tuple[str, str, Any]] = []
+            if etype == "Checkpoint Merge":
+                mode = str(entry.get("merge_mode") or "WS").strip() or "WS"
+                mode_info = self.merge_mode_map.get(mode, {}) if hasattr(self, "merge_mode_map") else {}
+                opts = _entry_cli_options(entry)
+                use_model2 = bool(mode_info.get("needs_m2")) or bool(opts.get("turbo")) or bool(opts.get("deturbo"))
+                for slot in ("model0", "model1"):
+                    alias = str(entry.get(slot) or "").strip()
+                    spec = None
+                    try:
+                        spec = self._get_entry_slot_source(entry, slot)
+                    except Exception:
+                        spec = None
+                    alias = alias or _alias_from_source_spec(spec)
+                    if alias or spec:
+                        out.append((alias, "Checkpoint", spec))
+                if use_model2:
+                    spec = None
+                    try:
+                        spec = self._get_entry_slot_source(entry, "model2")
+                    except Exception:
+                        spec = None
+                    alias = str(entry.get("model2") or "").strip() or _alias_from_source_spec(spec)
+                    if alias or spec:
+                        out.append((alias, "Checkpoint", spec))
+            elif etype == "LoRA Bake":
+                spec = None
+                try:
+                    spec = self._get_entry_slot_source(entry, "checkpoint")
+                except Exception:
+                    spec = None
+                alias = str(entry.get("checkpoint") or "").strip() or _alias_from_source_spec(spec)
+                if alias or spec:
+                    out.append((alias, "Checkpoint", spec))
+                for lora in entry.get("loras", []) or []:
+                    spec = None
+                    try:
+                        spec = self._get_lora_source(lora)
+                    except Exception:
+                        spec = None
+                    kind = "LoRA"
+                    if isinstance(spec, dict):
+                        kind = str(spec.get("kind") or kind)
+                    alias = str(lora.get("name") or "").strip() or _alias_from_source_spec(spec)
+                    if alias or spec:
+                        out.append((alias, kind, spec))
+            elif etype == "LoRA Merge":
+                for lora in entry.get("loras", []) or []:
+                    spec = None
+                    try:
+                        spec = self._get_lora_source(lora)
+                    except Exception:
+                        spec = None
+                    kind = "LoRA"
+                    if isinstance(spec, dict):
+                        kind = str(spec.get("kind") or kind)
+                    alias = str(lora.get("name") or "").strip() or _alias_from_source_spec(spec)
+                    if alias or spec:
+                        out.append((alias, kind, spec))
+            return out
+
+        output_count = sum(1 for e in entries if e.get("type") in ("Checkpoint Merge", "LoRA Bake") and str(e.get("output_name") or "").strip())
+        lora_output_count = sum(1 for e in entries if e.get("type") == "LoRA Merge" and str(e.get("output_name") or "").strip())
+
+        download_count = 0
+        local_paths = []
+        for e in entries:
+            try:
+                if e.get("type") == "Download Model":
+                    download_count += 1
+                embedded_sources = list(self._iter_embedded_sources(e))
+                download_count += sum(1 for *_x, s in embedded_sources if isinstance(s, dict) and s.get("mode") == "download")
+                for *_x, spec in embedded_sources:
+                    if isinstance(spec, dict) and spec.get("mode") == "local" and spec.get("local_path"):
+                        local_paths.append(spec.get("local_path"))
+            except Exception:
+                pass
+            if e.get("type") == "Local Model" and e.get("local_path"):
+                local_paths.append(e.get("local_path"))
+
+        local_bytes = 0
+        for pth in set(local_paths):
+            try:
+                local_bytes += Path(pth).expanduser().stat().st_size
+            except Exception:
+                pass
+
+        generated_gb = output_count * checkpoint_size_gb + lora_output_count * lora_size_gb
+        estimated_total = generated_gb + local_bytes / (1024**3)
+
+        # Peak scratch-space estimate. At each merge-like line:
+        #   active remaining models + models used by this line + one new output model.
+        # This intentionally double-counts inputs that are also active, matching the
+        # requested macOS-style conservative working-space formula.
+        active_models: Dict[str, Dict[str, Any]] = {}
+        most_output_size_gb = 0.0
+        most_output_line = ""
+        most_output_breakdown = (0.0, 0.0, 0.0)
+
+        for idx, entry in enumerate(entries, start=1):
+            etype = str(entry.get("type") or "")
+            if etype == "Remove Model":
+                alias = str(entry.get("model") or "").strip()
+                if alias:
+                    active_models.pop(alias, None)
+                continue
+
+            if etype == "Download Model":
+                alias = str(entry.get("model_name") or "").strip()
+                kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                _register_active(active_models, alias, kind, _kind_size_gb(kind), "download")
+                continue
+
+            if etype == "Local Model":
+                local_path = str(entry.get("local_path") or "").strip()
+                alias = str(entry.get("model_name") or "").strip() or (Path(local_path).stem if local_path else "")
+                kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                _register_active(active_models, alias, kind, _path_size_gb(local_path, kind), local_path)
+                continue
+
+            if etype in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+                remaining_gb = _active_total(active_models)
+                used_gb = 0.0
+                for alias, kind, spec in _entry_used_models(entry):
+                    if isinstance(spec, dict):
+                        source_size = _source_size_gb(spec, kind)
+                        if alias and alias in active_models:
+                            used_gb += _active_lookup_size(active_models, alias, kind)
+                        else:
+                            used_gb += source_size
+                    else:
+                        used_gb += _active_lookup_size(active_models, alias, kind)
+
+                output_alias = str(entry.get("output_name") or "").strip()
+                output_kind = "LoRA" if etype == "LoRA Merge" else "Checkpoint"
+                one_output_gb = _kind_size_gb(output_kind)
+                peak_gb = remaining_gb + used_gb + one_output_gb
+                if peak_gb > most_output_size_gb:
+                    most_output_size_gb = peak_gb
+                    most_output_line = f"Line {idx}: {etype}" + (f" -> {output_alias}" if output_alias else "")
+                    most_output_breakdown = (remaining_gb, used_gb, one_output_gb)
+
+                if output_alias:
+                    _register_active(active_models, output_alias, output_kind, one_output_gb, f"line {idx}")
+                continue
+
+        if most_output_size_gb <= 0.0:
+            most_output_size_gb = _active_total(active_models)
+            most_output_line = "No merge-like line detected"
+            most_output_breakdown = (most_output_size_gb, 0.0, 0.0)
+
+        disk_infos = _planner_collect_disk_usages(self)
+        try:
+            work_target = self.entries.get("workpath").get() if self.entries.get("workpath") else os.getcwd()
+            target_disk = _planner_disk_usage_for_path(work_target)
+        except Exception:
+            target_disk = disk_infos[0] if disk_infos else {"path": os.getcwd(), "free": 0, "total": 0, "used": 0}
+        free_gb = float(target_disk.get("free", 0)) / (1024**3)
+        risk_basis = max(float(estimated_total or 0.0), float(most_output_size_gb or 0.0))
+        risk = "LOW" if free_gb > risk_basis * 1.4 else "MEDIUM" if free_gb > risk_basis * 0.9 else "HIGH"
+
+        remaining_peak_gb, used_peak_gb, output_peak_gb = most_output_breakdown
+        lines = [
+            "Disk / Runtime Estimator", "",
+            f"Base model: {base}",
+            f"Reference checkpoint size: {_fmt_gb(checkpoint_size_gb)} (FP16, pruned heuristic)",
+            f"Merge/Bake outputs: {output_count}",
+            f"LoRA Merge outputs: {lora_output_count}",
+            f"Download source count: {download_count}",
+            f"Known local source size: {local_bytes/(1024**3):.2f} GB",
+            f"Estimated generated outputs: {generated_gb:.2f} GB ({checkpoint_size_gb:.2f} GB/checkpoint heuristic, {lora_size_gb:.2f} GB/LoRA heuristic)",
+            f"Most output size: {most_output_size_gb:.2f} GB",
+            f"  Peak line: {most_output_line}",
+            f"  Formula: remaining models {remaining_peak_gb:.2f} GB + current input models {used_peak_gb:.2f} GB + one output model {output_peak_gb:.2f} GB",
+            f"Current free disk: {free_gb:.2f} GB  ({target_disk.get('path', '')})",
+            f"Risk: {risk}", "",
+            "Detected disks / mount points:",
+        ]
+        if disk_infos:
+            for info in disk_infos:
+                lines.append(f"- {info.get('label','Disk')}: {info.get('path','')} | free {_gb_from_bytes(info.get('free',0)):.2f} GB / total {_gb_from_bytes(info.get('total',0)):.2f} GB")
+        else:
+            lines.append("- No disk usage information could be collected.")
+        lines.extend([
+            "",
+            "Suggestions:",
+            "- Use Optimize Plan before large sweep runs.",
+            "- Insert Remove Model after last use for long chains.",
+            "- Keep workspace/model/output paths on a disk with enough free space.",
+        ])
+        self._show_scrollable_text_dialog("Disk / Runtime Estimator", "\n".join(lines))
+
+    ModelPlannerApp._planner_estimate_disk_runtime = _planner_estimate_disk_runtime_robust
+
+    def _build_left_panel_final_dev(self, parent):
+        self._planner_dev_ensure_config()
+        base_builder = globals().get("_dev_base_build_left_panel")
+        result = base_builder(self, parent) if callable(base_builder) else None
+        try:
+            section = self._build_collapsible_section(parent, "Developer (Experiment) Mode", key="left_developer_mode", default_open=bool(self.config.get("dev_mode", False)), body_fill="x", body_expand=False)
+        except Exception:
+            section = LabelFrame(parent, text="Developer (Experiment) Mode", padx=8, pady=8)
+            section.pack(fill="x", pady=6)
+        self.dev_mode_var = tk.BooleanVar(value=bool(self.config.get("dev_mode", False)))
+        button_refs = []
+        colors = self._theme_colors() if hasattr(self, "_theme_colors") else {"surface": "#ffffff", "text": "#111111", "muted": "#777777", "border": "#cccccc"}
+        def _button_colors(enabled):
+            if enabled:
+                return {"state": "normal", "fg": colors.get("text", "#111111"), "disabledforeground": colors.get("muted", "#777777"), "relief": "raised"}
+            return {"state": "disabled", "fg": colors.get("muted", "#777777"), "disabledforeground": colors.get("muted", "#777777"), "relief": "groove"}
+        def refresh_dev_buttons():
+            enabled = self._planner_dev_mode_enabled()
+            self.config["dev_mode"] = enabled
+            for btn in button_refs:
+                try:
+                    btn.configure(**_button_colors(enabled))
+                except Exception:
+                    try:
+                        btn.configure(state=("normal" if enabled else "disabled"))
+                    except Exception:
+                        pass
+            self._schedule_config_save()
+        top = Frame(section)
+        top.pack(fill="x", pady=(0, 6))
+        chk = ttk.Checkbutton(top, variable=self.dev_mode_var, command=refresh_dev_buttons)
+        chk.pack(side="left", padx=(0, 4))
+        header_btn = tk.Button(top, text="Developer Mode", padx=8, pady=2, relief="groove", state="disabled", disabledforeground=colors.get("muted", "#777777"))
+        header_btn.pack(side="left", fill="x", expand=True)
+        grid = Frame(section)
+        grid.pack(fill="x")
+        for c in range(3):
+            grid.grid_columnconfigure(c, weight=1)
+        actions = [
+            ("T2I Settings", lambda: self._planner_dev_only(self._planner_open_t2i_settings)),
+            ("Ratio Sweep", lambda: self._planner_dev_only(self._planner_open_ratio_sweep)),
+            ("Compare Images", lambda: self._planner_dev_only(self._planner_show_image_compare)),
+            ("Ratio Diff", lambda: self._planner_dev_only(self._planner_show_ratio_diff)),
+            ("Model Anatomy", lambda: self._planner_dev_only(self._planner_model_anatomy_scan)),
+            ("LoRA Check", lambda: self._planner_dev_only(self._planner_lora_compatibility_check)),
+        ]
+        for idx, (label, cmd) in enumerate(actions):
+            btn = tk.Button(grid, text=label, command=cmd, padx=6, pady=3, disabledforeground=colors.get("muted", "#777777"), fg=colors.get("text", "#111111"))
+            btn.grid(row=idx//3, column=idx%3, sticky="ew", padx=3, pady=3)
+            button_refs.append(btn)
+        self._developer_mode_buttons = [(b, True) for b in button_refs]
+        refresh_dev_buttons()
+        return result
+
+    ModelPlannerApp._build_left_panel = _build_left_panel_final_dev
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Hover help expansion for Options, choices, merge modes, and model selectors.
+# -----------------------------------------------------------------------------
+try:
+    class _PlannerDynamicTooltip(Tooltip):
+        def __init__(self, widget, text_provider, *, delay: int = 700, wraplength: int = 760):
+            self._text_provider = text_provider
+            super().__init__(widget, "", delay=delay, wraplength=wraplength)
+
+        def _schedule(self, _event=None):
+            try:
+                text = self._text_provider() if callable(self._text_provider) else str(self._text_provider or "")
+            except Exception:
+                text = ""
+            self.text = str(text or "").strip()
+            if not self.text:
+                return
+            return super()._schedule(_event)
+
+    _TOOLTIP_CATALOG = PLANNER_TOOLTIP_CATALOG
+    _OPTION_HELP_TEXT = dict(_TOOLTIP_CATALOG.get("options") or {})
+    _CHOICE_HELP_TEXT = dict(_TOOLTIP_CATALOG.get("choices") or {})
+    _MODE_HELP_TEXT = dict(_TOOLTIP_CATALOG.get("modes") or {})
+
+    def _planner_mode_key_from_label(raw: str) -> str:
+        text = str(raw or "").strip()
+        if " - " in text:
+            text = text.split(" - ", 1)[0]
+        return text.strip()
+
+    def _planner_mode_catalog_entry(mode_key: str):
+        key = str(mode_key or "").strip()
+        if not key:
+            return None
+        if key in _MODE_HELP_TEXT:
+            return _MODE_HELP_TEXT.get(key)
+        key_lower = key.lower()
+        for candidate_key, value in _MODE_HELP_TEXT.items():
+            if str(candidate_key).lower() == key_lower:
+                return value
+        return None
+
+    def _planner_mode_label_from_info(mode_key: str, mode_info=None) -> str:
+        entry = _planner_mode_catalog_entry(mode_key)
+        if isinstance(entry, dict):
+            label = str(entry.get("label") or entry.get("name") or "").strip()
+            if label:
+                return label
+        if isinstance(mode_info, dict):
+            label = str(mode_info.get("label") or mode_info.get("name") or "").strip()
+            if label:
+                return label
+        return str(mode_key or "").strip()
+
+    def _planner_mode_detail_text(mode_key: str, mode_info=None, *, fallback: str = "Backend merge mode.") -> str:
+        entry = _planner_mode_catalog_entry(mode_key)
+        if isinstance(entry, str):
+            return entry.strip() or fallback
+        if isinstance(entry, dict):
+            parts = []
+            short = str(entry.get("short") or "").strip()
+            detail = str(entry.get("detail") or entry.get("description") or entry.get("help") or "").strip()
+            if short and detail and short != detail and short not in detail:
+                parts.append(short)
+            if detail:
+                parts.append(detail)
+            req = []
+            needs_m2 = bool(entry.get("needs_m2") or (isinstance(mode_info, dict) and mode_info.get("needs_m2")))
+            uses_beta = bool(entry.get("uses_beta") or entry.get("needs_beta") or (isinstance(mode_info, dict) and mode_info.get("needs_beta")))
+            if needs_m2:
+                req.append("Model 2")
+            if uses_beta:
+                req.append("Beta")
+            if req and not any("Required inputs:" in p or "Inputs:" in p for p in parts):
+                parts.append("Required inputs: " + ", ".join(req))
+            if parts:
+                return "\n\n".join(parts).strip()
+        return fallback
+
+    def _planner_attach_dynamic_tooltip(self, widgets, provider, *, delay=700, wraplength=860):
+        if not isinstance(widgets, (list, tuple, set)):
+            widgets = [widgets]
+        for widget in widgets:
+            if widget is not None:
+                _PlannerDynamicTooltip(widget, provider, delay=delay, wraplength=wraplength)
+
+    def _planner_mode_choice_tooltip(self, current_label: str = "") -> str:
+        current_key = str(current_label or "").split(" - ", 1)[0].strip()
+        lines = ["Merge Mode", ""]
+        if current_key:
+            lines.append(f"Selected: {current_key}")
+            lines.append(_planner_mode_detail_text(current_key, None, fallback="Backend merge mode. Check merge.py for exact tensor behavior."))
+            lines.append("")
+        lines.append("Available modes:")
+        try:
+            modes = list(getattr(self, "merge_modes", []) or [])
+        except Exception:
+            modes = []
+        seen = set()
+        for m in modes:
+            key = str(m.get("key") or "").strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            label = str(m.get("label") or key)
+            detail = _planner_mode_detail_text(key, m, fallback="Backend-provided merge mode.")
+            req = []
+            if m.get("needs_m2"):
+                req.append("Model 2")
+            if m.get("needs_beta"):
+                req.append("Beta")
+            suffix = f" Requires: {', '.join(req)}." if req else ""
+            lines.append(f"- {key} ({label}): {detail}{suffix}")
+        return "\n".join(lines)
+
+    def _planner_choice_help_lines(label_or_key: str, choices=None) -> list[str]:
+        label = str(label_or_key or "")
+        table = _CHOICE_HELP_TEXT.get(label) or _CHOICE_HELP_TEXT.get(label.replace(" ", "_")) or _CHOICE_HELP_TEXT.get(label.lower())
+        out = []
+        if table:
+            for choice in choices or table.keys():
+                c = str(choice)
+                if c == "":
+                    continue
+                out.append(f"- {c}: {table.get(c, table.get(c.lower(), '')) or 'Available choice.'}")
+        elif choices:
+            for choice in choices:
+                c = str(choice)
+                if c:
+                    out.append(f"- {c}")
+        return out
+
+    def _planner_option_tooltip_text(self, entry_type: str, key: str, label: str, kind: str = "", choices=None, current=None) -> str:
+        key = str(key or "")
+        label = str(label or key)
+        lines = [label]
+        if entry_type:
+            lines.append(f"Scope: {entry_type}")
+        detail = _OPTION_HELP_TEXT.get(key) or self._right_help(label).get("detail", "") if hasattr(self, "_right_help") else ""
+        if detail:
+            lines.extend(["", detail])
+        if current is not None and str(current) != "":
+            lines.extend(["", f"Current: {current}"])
+        if choices:
+            lines.extend(["", "Choices:"])
+            lines.extend(_planner_choice_help_lines(key, choices) or _planner_choice_help_lines(label, choices))
+        return "\n".join(lines).strip()
+
+    def _planner_model_choice_tooltip_text(self, label: str, current: str = "", values=None) -> str:
+        current = str(current or "").strip()
+        label = str(label or "Model")
+        lines = [label, ""]
+        if current:
+            lines.append(f"Selected: {current}")
+        records = []
+        try:
+            records = list(self._planner_source_records()) if hasattr(self, "_planner_source_records") else []
+        except Exception:
+            records = []
+        recs = [r for r in records if str(r.get("alias") or "") == current]
+        if recs:
+            lines.append("Source / previous registration:")
+            for r in recs[-4:]:
+                detail = str(r.get("detail") or "")
+                if len(detail) > 160:
+                    detail = detail[:157] + "…"
+                embedded = "embedded " if r.get("embedded") else ""
+                lines.append(f"- line {int(r.get('idx', -1)) + 1}: {embedded}{r.get('mode', '')} {r.get('kind', '')} → {detail}")
+        else:
+            try:
+                analysis = self._planner_analysis() if hasattr(self, "_planner_analysis") else {}
+                lines_for_alias = (analysis.get("producer_lines") or {}).get(current, [])
+                if lines_for_alias:
+                    lines.append("Produced / registered by:")
+                    for i in lines_for_alias[-4:]:
+                        try:
+                            entry = (self.plan_data or {}).get("entries", [])[i]
+                            summary = self._line_summary(entry) if hasattr(self, "_line_summary") else str(entry.get("type"))
+                            lines.append(f"- line {i + 1}: {summary}")
+                        except Exception:
+                            lines.append(f"- line {i + 1}")
+            except Exception:
+                pass
+        if values:
+            vals = [str(v) for v in values if str(v).strip()]
+            if vals:
+                lines.extend(["", "Available choices:"])
+                for v in vals[:24]:
+                    marker = "*" if v == current else "-"
+                    extra = ""
+                    for r in records:
+                        if str(r.get("alias") or "") == v:
+                            mode = str(r.get("mode") or "")
+                            kind = str(r.get("kind") or "")
+                            detail = str(r.get("detail") or "")
+                            short = Path(detail).name if mode == "local" else (detail[:48] + ("…" if len(detail) > 48 else ""))
+                            extra = f" [{mode} {kind}: {short}]"
+                    lines.append(f"{marker} {v}{extra}")
+                if len(vals) > 24:
+                    lines.append(f"... {len(vals) - 24} more choices")
+        return "\n".join(lines).strip()
+
+    # Patch normal combo rows so model-like selectors show selected source / previous use.
+    _hover_prev_build_combo_row = ModelPlannerApp._build_combo_row
+    def _build_combo_row_hover(self, parent, label: str, entry: Dict[str, Any], key: str, values: List[str], callback=None):
+        before = set(parent.winfo_children())
+        var = _hover_prev_build_combo_row(self, parent, label, entry, key, values, callback)
+        try:
+            new_children = [w for w in parent.winfo_children() if w not in before]
+            target_row = new_children[-1] if new_children else None
+            combos = []
+            labels = []
+            if target_row is not None:
+                for child in target_row.winfo_children():
+                    if isinstance(child, ttk.Combobox) or child.winfo_class() == "TCombobox":
+                        combos.append(child)
+                    elif child.winfo_class() == "Label":
+                        labels.append(child)
+            is_modelish = any(t in str(label).lower() for t in ("model", "checkpoint", "lora", "lycoris", "local selection"))
+            if is_modelish:
+                provider = lambda v=var, vals=list(values or []), lab=label: self._planner_model_choice_tooltip_text(lab, v.get(), vals)
+            else:
+                provider = lambda v=var, vals=list(values or []), lab=label: self._planner_option_tooltip_text("", key, lab, "choice", vals, v.get())
+            self._planner_attach_dynamic_tooltip([target_row] + combos + labels, provider)
+        except Exception:
+            pass
+        return var
+    ModelPlannerApp._build_combo_row = _build_combo_row_hover
+
+    # Patch embedded source rows in the same style.
+    _hover_prev_source_row = getattr(ModelPlannerApp, "_build_source_backed_ref_row", None)
+    if callable(_hover_prev_source_row):
+        def _build_source_backed_ref_row_hover(self, parent, label: str, get_value, set_value, get_source, set_source, candidates, kind_options, allow_local: bool = True):
+            before = set(parent.winfo_children())
+            var = _hover_prev_source_row(self, parent, label, get_value, set_value, get_source, set_source, candidates, kind_options, allow_local)
+            try:
+                new_children = [w for w in parent.winfo_children() if w not in before]
+                target = new_children[-1] if new_children else None
+                widgets = [target]
+                if target is not None:
+                    stack = list(target.winfo_children())
+                    while stack:
+                        w = stack.pop(0)
+                        widgets.append(w)
+                        try:
+                            stack.extend(w.winfo_children())
+                        except Exception:
+                            pass
+                provider = lambda v=var, vals=list(candidates or []), lab=label: self._planner_model_choice_tooltip_text(lab, v.get(), vals)
+                self._planner_attach_dynamic_tooltip(widgets, provider)
+            except Exception:
+                pass
+            return var
+        ModelPlannerApp._build_source_backed_ref_row = _build_source_backed_ref_row_hover
+
+    def _sigless_special_option_row_hover(self, parent, entry: Dict[str, Any], key: str, label: str, choices: List[str]):
+        row = Frame(parent)
+        row.pack(fill="x", pady=2)
+        lab = Label(row, text=label, width=18, anchor="w")
+        lab.pack(side="left")
+        if key == "precision":
+            value = _planner_display_precision_name(entry.get(key)) if "_planner_display_precision_name" in globals() else str(entry.get(key) or "")
+            choices = _DISPLAY_PRECISION_CHOICES if "_DISPLAY_PRECISION_CHOICES" in globals() else choices
+            help_key = "Precision"
+        elif key == "architecture":
+            value = _planner_display_arch_name(entry.get(key)) if "_planner_display_arch_name" in globals() else str(entry.get(key) or "")
+            choices = _DISPLAY_ARCH_CHOICES if "_DISPLAY_ARCH_CHOICES" in globals() else choices
+            help_key = "Architecture"
+        else:
+            value = str(entry.get(key) or "")
+            help_key = label
+        var = tk.StringVar(value=value)
+        combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=18)
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def _sync(*_args, e=entry, k=key, v=var):
+            e[k] = v.get()
+            self._after_entry_change()
+        var.trace_add("write", _sync)
+        provider = lambda v=var, k=key, labl=label, ch=list(choices or []): self._planner_option_tooltip_text("Common", k, labl, "choice", ch, v.get())
+        self._planner_attach_dynamic_tooltip([row, lab, combo], provider)
+    _sigless_special_option_row = _sigless_special_option_row_hover
+
+    def _sigless_build_cli_options_panel_hover(self, parent, entry: Dict[str, Any], entry_type: str):
+        specs = copy.deepcopy(_SIGLESS_CLI_SPECS.get(entry_type, {}).get("groups", []))
+        if entry_type == "Checkpoint Merge" and _sigless_mode_uses_seed(entry):
+            specs.insert(1, ("Seed", [("seed", "Seed", "text", "")]))
+        if not specs and entry_type not in ("Checkpoint Merge", "LoRA Bake"):
+            return
+        opts = _sigless_ensure_cli_options(entry)
+        try:
+            wrapper = self._build_collapsible_section(
+                parent,
+                f"{entry_type} Options",
+                key=f"sigless_cli_options_{entry_type}_{entry.get('id','')}",
+                default_open=False,
+                body_fill="x",
+                body_expand=False,
+                padx=6,
+                pady=6,
+            )
+        except Exception:
+            wrapper = self._build_labeled_frame(parent, f"{entry_type} Options")
+        self._planner_attach_dynamic_tooltip(wrapper, lambda et=entry_type: self._right_help(f"{et} Options").get("detail", ""))
+
+        if entry_type in ("Checkpoint Merge", "LoRA Bake"):
+            basics = LabelFrame(wrapper, text="Basic", padx=6, pady=6)
+            basics.pack(fill="x", pady=4)
+            _sigless_special_option_row(self, basics, entry, "architecture", "Architecture", _SIGLESS_ARCH_CHOICES)
+            _sigless_special_option_row(self, basics, entry, "precision", "Precision", _SIGLESS_PRECISION_CHOICES)
+
+        for group_name, fields in specs:
+            gf = LabelFrame(wrapper, text=group_name, padx=6, pady=6)
+            gf.pack(fill="x", pady=4)
+            self._planner_attach_dynamic_tooltip(gf, lambda gn=group_name, et=entry_type: f"{et} Options / {gn}")
+            for idx, field in enumerate(fields):
+                key, label, kind, default = field[:4]
+                row = Frame(gf)
+                row.grid(row=idx // 2, column=(idx % 2) * 2, columnspan=2, sticky="ew", padx=3, pady=2)
+                gf.grid_columnconfigure(1, weight=1)
+                gf.grid_columnconfigure(3, weight=1)
+                lab = Label(row, text=label, width=18, anchor="w")
+                lab.pack(side="left")
+                control = None
+                choices = field[4] if len(field) > 4 else []
+                if kind == "bool":
+                    var = tk.BooleanVar(value=bool(opts.get(key, default)))
+                    chk = ttk.Checkbutton(row, variable=var, command=lambda v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    chk.pack(side="left")
+                    control = chk
+                    provider = lambda v=var, k=key, labl=label, et=entry_type: self._planner_option_tooltip_text(et, k, labl, "bool", None, "On" if v.get() else "Off")
+                elif kind == "choice":
+                    var = tk.StringVar(value=str(opts.get(key, default) or default))
+                    combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=16)
+                    self._bind_combobox_mousewheel_passthrough(combo)
+                    combo.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    control = combo
+                    provider = lambda v=var, k=key, labl=label, et=entry_type, ch=list(choices or []): self._planner_option_tooltip_text(et, k, labl, "choice", ch, v.get())
+                else:
+                    var = tk.StringVar(value=str(opts.get(key, default) or ""))
+                    ent = Entry(row, textvariable=var, width=28)
+                    ent.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    control = ent
+                    provider = lambda v=var, k=key, labl=label, et=entry_type: self._planner_option_tooltip_text(et, k, labl, "text", None, v.get())
+                self._planner_attach_dynamic_tooltip([row, lab, control], provider)
+        _sigless_build_unmapped_editor(self, wrapper, entry)
+        reset_row = Frame(wrapper)
+        reset_row.pack(fill="x", pady=(4, 0))
+        def reset_options(e=entry, et=entry_type):
+            e["cli_options"] = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(et, {})) if '_LORA_MERGE_DEFAULTS' in globals() else {}
+            e["cli_options"].pop("rand_alpha", None)
+            e["cli_options"].pop("rand_beta", None)
+            self._after_entry_change()
+            self._schedule_rerender_current_line()
+        reset_btn = ttk.Button(reset_row, text="Reset Options", command=reset_options)
+        reset_btn.pack(side="right")
+        self._planner_attach_dynamic_tooltip(reset_btn, lambda: "Reset this line's structured Options to their defaults. Unmapped legacy signatures are left untouched.")
+    _sigless_build_cli_options_panel = _sigless_build_cli_options_panel_hover
+
+    # Patch alpha/beta ratio section so Ratio Mode choices explain Single/Block/Elemental/Randomize.
+    def _build_ratio_section_hover(self, parent, entry: Dict[str, Any], key: str, title: str):
+        wrapper = self._build_collapsible_section(
+            parent,
+            title,
+            key=f"ratio_{entry.get('id', '')}_{key}",
+            default_open=True,
+            body_fill="x",
+            body_expand=False,
+            padx=6,
+            pady=6,
+        )
+        ratio = entry.setdefault(key, default_ratio("Single"))
+        row = Frame(wrapper)
+        row.pack(fill="x", pady=3)
+        label_widget = Label(row, text="Ratio Mode", width=18, anchor="w")
+        label_widget.pack(side="left")
+        mode_var = tk.StringVar(value=ratio.get("mode", "Single"))
+        combo = ttk.Combobox(row, textvariable=mode_var, values=RATIO_MODES, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            ratio["mode"] = mode_var.get()
+            if ratio["mode"] == "Single" and not ratio.get("value"):
+                ratio["value"] = "0.5"
+            elif ratio["mode"] == "Randomize" and not ratio.get("value"):
+                ratio["value"] = "0.0,1.0"
+            elif ratio["mode"] == "Block weight" and not ratio.get("value"):
+                ratio["value"] = self._serialize_block_values([0.0] * len(self._current_block_names()), trailing_comma=False)
+            self._schedule_rerender_current_line()
+        mode_var.trace_add("write", sync_mode)
+        provider = lambda v=mode_var: self._planner_option_tooltip_text("Ratio", "Ratio Mode", "Ratio Mode", "choice", RATIO_MODES, v.get())
+        self._planner_attach_dynamic_tooltip([row, label_widget, combo], provider)
+        self._add_right_inline_help(wrapper, "Ratio Mode")
+        self._build_ratio_value_widget(wrapper, ratio, allow_block_weight=True)
+        self._planner_build_ratio_preset_buttons(wrapper, ratio)
+    ModelPlannerApp._build_ratio_section = _build_ratio_section_hover
+
+    def _render_checkpoint_merge_entry_hover(self, parent, entry: Dict[str, Any]):
+        _sigless_ensure_cli_options(entry)
+        frame = self._build_labeled_frame(parent, "Checkpoint Merge")
+        ckpts = self._collect_available_models(self.current_index).get("Checkpoint", [])
+        mode_labels = [f"{m['key']} - {m['label']}" for m in self.merge_modes]
+        current_mode = entry.get("merge_mode", self.merge_modes[0]["key"])
+        current_label = next((f"{m['key']} - {m['label']}" for m in self.merge_modes if m["key"] == current_mode), mode_labels[0])
+        row = Frame(frame)
+        row.pack(fill="x", pady=3)
+        lab = Label(row, text="Merge Mode", width=18, anchor="w")
+        lab.pack(side="left")
+        var = tk.StringVar(value=current_label)
+        combo = ttk.Combobox(row, textvariable=var, values=mode_labels, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            label = var.get()
+            key2 = label.split(" - ", 1)[0]
+            entry["merge_mode"] = key2
+            self._schedule_rerender_current_line()
+        var.trace_add("write", sync_mode)
+        self._planner_attach_dynamic_tooltip([row, lab, combo], lambda v=var: self._planner_mode_choice_tooltip(v.get()))
+        mode_info = self.merge_mode_map.get(entry.get("merge_mode"), self.merge_modes[0])
+        model_count = _sigless_model_count(self, entry, mode_info)
+        if model_count >= 1:
+            self._build_combo_row(frame, "Model 0", entry, "model0", ckpts or [""])
+        if model_count >= 2:
+            self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
+        if model_count >= 3:
+            self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
+        if mode_info.get("key") != "CLIPXOR":
+            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        if mode_info.get("needs_beta"):
+            self._build_ratio_section(parent, entry, "beta", "Beta")
+        out_frame = self._build_labeled_frame(parent, "Output")
+        self._build_entry_row(out_frame, "Output Name", entry, "output_name")
+        _sigless_build_cli_options_panel(self, parent, entry, "Checkpoint Merge")
+    ModelPlannerApp._render_checkpoint_merge_entry = _render_checkpoint_merge_entry_hover
+
+    # Expose helper methods on the class.
+    ModelPlannerApp._planner_attach_dynamic_tooltip = _planner_attach_dynamic_tooltip
+    ModelPlannerApp._planner_option_tooltip_text = _planner_option_tooltip_text
+    ModelPlannerApp._planner_model_choice_tooltip_text = _planner_model_choice_tooltip_text
+    ModelPlannerApp._planner_mode_choice_tooltip = _planner_mode_choice_tooltip
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Final hover/dropdown refinement: compact mode help, per-item dropdown help,
+# line-type help, and stronger Dev Mode visual states.
+# -----------------------------------------------------------------------------
+try:
+    RIGHT_PANEL_FIELD_HELP.setdefault("LoRA Merge", {
+        "short": "Merge multiple LoRA/LyCORIS models into one LoRA.",
+        "detail": "This line merges several LoRA or LyCORIS inputs into a new LoRA file without baking them into a checkpoint. The result is registered as a LoRA and can be selected later by LoRA Bake or another LoRA Merge line.",
+    })
+    RIGHT_PANEL_FIELD_HELP["LoRA Merge"].setdefault("detail", "Merge multiple LoRA/LyCORIS models into one LoRA without baking into a checkpoint.")
+
+    def _planner_line_type_tooltip_text(self, current: str = "") -> str:
+        current = str(current or "").strip()
+        title = "Model Merge Type"
+        if not current:
+            return f"{title}\n\nSelect the type of plan line to edit."
+        info = self._right_help(current) if hasattr(self, "_right_help") else RIGHT_PANEL_FIELD_HELP.get(current, {})
+        detail = str((info or {}).get("detail") or (info or {}).get("short") or "").strip()
+        if not detail:
+            detail = "No detailed description is registered for this plan line type yet."
+        return f"{title}\n\nSelected: {current}\n{detail}"
+
+    def _planner_mode_choice_tooltip_compact(self, current_label: str = "") -> str:
+        raw = str(current_label or "").strip()
+        current_key = raw.split(" - ", 1)[0].strip()
+        label = ""
+        mode_info = None
+        try:
+            for m in list(getattr(self, "merge_modes", []) or []):
+                if str(m.get("key") or "") == current_key:
+                    mode_info = m
+                    label = str(m.get("label") or current_key)
+                    break
+        except Exception:
+            mode_info = None
+        if not current_key:
+            return "Merge Mode\n\nNo mode is currently selected."
+        lines = ["Merge Mode", "", f"Selected: {current_key}" + (f" - {label}" if label and label != current_key else "")]
+        detail = _planner_mode_detail_text(current_key, mode_info, fallback="Backend merge mode. Check merge.py / merge_modes.py for exact tensor behavior.") if "_MODE_HELP_TEXT" in globals() else "Backend merge mode."
+        lines.append(detail)
+        req = []
+        try:
+            if mode_info and mode_info.get("needs_m2"):
+                req.append("Model 2")
+            if mode_info and mode_info.get("needs_beta"):
+                req.append("Beta")
+        except Exception:
+            pass
+        if req:
+            lines.extend(["", "Required inputs: " + ", ".join(req)])
+        return "\n".join(lines).strip()
+
+    def _planner_mode_dropdown_item_tooltip(self, value: str = "") -> str:
+        return self._planner_mode_choice_tooltip_compact(value)
+
+    def _planner_choice_dropdown_item_tooltip(self, label_or_key: str, value: str = "") -> str:
+        value = str(value or "").strip()
+        if str(label_or_key or "") == "Model Merge Type":
+            return self._planner_line_type_tooltip_text(value)
+        if not value:
+            return ""
+        table = None
+        try:
+            table = _CHOICE_HELP_TEXT.get(label_or_key) or _CHOICE_HELP_TEXT.get(str(label_or_key).replace(" ", "_")) or _CHOICE_HELP_TEXT.get(str(label_or_key).lower())
+        except Exception:
+            table = None
+        detail = ""
+        if isinstance(table, dict):
+            detail = str(table.get(value) or table.get(value.lower()) or "")
+        if not detail:
+            try:
+                detail = str(_OPTION_HELP_TEXT.get(label_or_key) or _OPTION_HELP_TEXT.get(str(label_or_key).replace(" ", "_")) or _OPTION_HELP_TEXT.get(str(label_or_key).lower()) or "")
+            except Exception:
+                detail = ""
+        if not detail:
+            detail = str(value)
+        return f"{label_or_key}\n\nSelected: {value}\n{detail}".strip()
+
+    def _planner_hide_dropdown_tooltip(self, _event=None):
+        tip = getattr(self, "_planner_dropdown_tip", None)
+        if tip is not None:
+            try:
+                tip.destroy()
+            except Exception:
+                pass
+            self._planner_dropdown_tip = None
+
+    def _planner_show_dropdown_tooltip(self, text: str, x_root: int, y_root: int):
+        text = str(text or "").strip()
+        if not text:
+            self._planner_hide_dropdown_tooltip()
+            return
+        old_text = getattr(self, "_planner_dropdown_tip_text", None)
+        tip = getattr(self, "_planner_dropdown_tip", None)
+        if tip is not None and old_text == text:
+            try:
+                tip.wm_geometry(f"+{int(x_root) + 18}+{int(y_root) + 12}")
+                return
+            except Exception:
+                self._planner_hide_dropdown_tooltip()
+        self._planner_hide_dropdown_tooltip()
+        try:
+            colors = self._theme_colors() if hasattr(self, "_theme_colors") else {"surface": "#131a30", "panel": "#0f1528", "text": "#eef2ff", "border": "#2a355d"}
+        except Exception:
+            colors = {"surface": "#131a30", "panel": "#0f1528", "text": "#eef2ff", "border": "#2a355d"}
+        try:
+            tip = tk.Toplevel(self.root)
+            tip.wm_overrideredirect(True)
+            tip.wm_geometry(f"+{int(x_root) + 18}+{int(y_root) + 12}")
+            tip.configure(bg=colors.get("panel", "#0f1528"))
+            card = Frame(tip, bg=colors.get("surface", "#131a30"), highlightthickness=1, highlightbackground=colors.get("border", "#2a355d"), padx=2, pady=2)
+            card.pack(fill="both", expand=True)
+            Label(card, text=text, justify="left", anchor="w", wraplength=720, bg=colors.get("surface", "#131a30"), fg=colors.get("text", "#eef2ff"), padx=12, pady=10, font=("MS Gothic", 10)).pack(fill="both", expand=True)
+            self._planner_dropdown_tip = tip
+            self._planner_dropdown_tip_text = text
+        except Exception:
+            self._planner_dropdown_tip = None
+            self._planner_dropdown_tip_text = None
+
+    def _planner_combobox_listbox(self, combo):
+        try:
+            popdown = combo.tk.eval("ttk::combobox::PopdownWindow %s" % str(combo))
+            # Tk's ttk combobox popdown usually contains .f.l. Keep a short fallback search.
+            for suffix in (".f.l", ".f.listbox", ".listbox"):
+                try:
+                    return combo.nametowidget(popdown + suffix)
+                except Exception:
+                    pass
+            try:
+                return combo.nametowidget(popdown).children.get("f").children.get("l")
+            except Exception:
+                return None
+        except Exception:
+            return None
+
+    def _planner_attach_combobox_dropdown_tooltips(self, combo, item_provider):
+        if combo is None or not callable(item_provider):
+            return
+        try:
+            if getattr(combo, "_planner_dropdown_tooltip_bound", False):
+                return
+            setattr(combo, "_planner_dropdown_tooltip_bound", True)
+        except Exception:
+            pass
+        def install(_event=None, c=combo):
+            def _do_install():
+                lb = self._planner_combobox_listbox(c)
+                if lb is None:
+                    return
+                try:
+                    if getattr(lb, "_planner_dropdown_tooltip_bound", False):
+                        return
+                    setattr(lb, "_planner_dropdown_tooltip_bound", True)
+                except Exception:
+                    pass
+                def on_motion(ev, listbox=lb):
+                    try:
+                        idx = listbox.nearest(ev.y)
+                        if idx < 0 or idx >= listbox.size():
+                            self._planner_hide_dropdown_tooltip()
+                            return
+                        value = str(listbox.get(idx))
+                        text = item_provider(value)
+                        self._planner_show_dropdown_tooltip(text, ev.x_root, ev.y_root)
+                    except Exception:
+                        self._planner_hide_dropdown_tooltip()
+                def on_leave(_ev=None):
+                    self._planner_hide_dropdown_tooltip()
+                try:
+                    lb.bind("<Motion>", on_motion, add="+")
+                    lb.bind("<Leave>", on_leave, add="+")
+                    lb.bind("<ButtonRelease-1>", on_leave, add="+")
+                    lb.bind("<FocusOut>", on_leave, add="+")
+                except Exception:
+                    pass
+            try:
+                c.after(80, _do_install)
+                c.after(220, _do_install)
+            except Exception:
+                pass
+        try:
+            combo.bind("<ButtonPress-1>", install, add="+")
+            combo.bind("<Alt-Down>", install, add="+")
+            combo.bind("<Down>", install, add="+")
+            combo.bind("<<ComboboxSelected>>", lambda _e: self._planner_hide_dropdown_tooltip(), add="+")
+            combo.bind("<Destroy>", lambda _e: self._planner_hide_dropdown_tooltip(), add="+")
+        except Exception:
+            pass
+
+    def _planner_model_item_provider(self, label: str):
+        return lambda value, lab=label: self._planner_model_choice_tooltip_text(lab, value, [value])
+
+    # Replace mode tooltip with compact selected-only output.
+    ModelPlannerApp._planner_mode_choice_tooltip = _planner_mode_choice_tooltip_compact
+    ModelPlannerApp._planner_mode_dropdown_item_tooltip = _planner_mode_dropdown_item_tooltip
+    ModelPlannerApp._planner_line_type_tooltip_text = _planner_line_type_tooltip_text
+    ModelPlannerApp._planner_choice_dropdown_item_tooltip = _planner_choice_dropdown_item_tooltip
+    ModelPlannerApp._planner_hide_dropdown_tooltip = _planner_hide_dropdown_tooltip
+    ModelPlannerApp._planner_show_dropdown_tooltip = _planner_show_dropdown_tooltip
+    ModelPlannerApp._planner_combobox_listbox = _planner_combobox_listbox
+    ModelPlannerApp._planner_attach_combobox_dropdown_tooltips = _planner_attach_combobox_dropdown_tooltips
+
+    # Patch combo rows: selected-only hover on the combobox itself; per-item hover inside the dropdown list.
+    _refined_base_combo_row = globals().get("_hover_prev_build_combo_row", getattr(ModelPlannerApp, "_build_combo_row", None))
+    def _build_combo_row_dropdown_refined(self, parent, label: str, entry: Dict[str, Any], key: str, values: List[str], callback=None):
+        before = set(parent.winfo_children())
+        var = _refined_base_combo_row(self, parent, label, entry, key, values, callback) if callable(_refined_base_combo_row) else None
+        try:
+            new_children = [w for w in parent.winfo_children() if w not in before]
+            target_row = new_children[-1] if new_children else None
+            widgets = [target_row]
+            combos = []
+            labels = []
+            if target_row is not None:
+                for child in target_row.winfo_children():
+                    widgets.append(child)
+                    if isinstance(child, ttk.Combobox) or child.winfo_class() == "TCombobox":
+                        combos.append(child)
+                    elif child.winfo_class() == "Label":
+                        labels.append(child)
+            is_modelish = any(t in str(label).lower() for t in ("model", "checkpoint", "lora", "lycoris", "local selection")) and str(label) != "Model Merge Type"
+            if str(label) == "Model Merge Type":
+                provider = lambda v=var: self._planner_line_type_tooltip_text(v.get() if v is not None else "")
+                item_provider = lambda value: self._planner_line_type_tooltip_text(value)
+            elif is_modelish:
+                provider = lambda v=var, lab=label: self._planner_model_choice_tooltip_text(lab, v.get() if v is not None else "", None)
+                item_provider = self._planner_model_item_provider(label) if hasattr(self, "_planner_model_item_provider") else (lambda value, lab=label: self._planner_model_choice_tooltip_text(lab, value, [value]))
+            else:
+                provider = lambda v=var, lab=label, k=key: self._planner_option_tooltip_text("", k, lab, "choice", None, v.get() if v is not None else "")
+                item_provider = lambda value, lab=label, k=key: self._planner_choice_dropdown_item_tooltip(lab if lab else k, value)
+            self._planner_attach_dynamic_tooltip(widgets + labels + combos, provider)
+            for combo in combos:
+                self._planner_attach_combobox_dropdown_tooltips(combo, item_provider)
+        except Exception:
+            pass
+        return var
+    ModelPlannerApp._build_combo_row = _build_combo_row_dropdown_refined
+
+    # Patch source-backed model rows for dropdown item model help.
+    _refined_source_row = globals().get("_hover_prev_source_row", getattr(ModelPlannerApp, "_build_source_backed_ref_row", None))
+    if callable(_refined_source_row):
+        def _build_source_backed_ref_row_dropdown_refined(self, parent, label: str, get_value, set_value, get_source, set_source, candidates, kind_options, allow_local: bool = True):
+            before = set(parent.winfo_children())
+            var = _refined_source_row(self, parent, label, get_value, set_value, get_source, set_source, candidates, kind_options, allow_local)
+            try:
+                new_children = [w for w in parent.winfo_children() if w not in before]
+                target = new_children[-1] if new_children else None
+                widgets = [target]
+                combos = []
+                if target is not None:
+                    stack = list(target.winfo_children())
+                    while stack:
+                        w = stack.pop(0)
+                        widgets.append(w)
+                        try:
+                            if isinstance(w, ttk.Combobox) or w.winfo_class() == "TCombobox":
+                                combos.append(w)
+                            stack.extend(w.winfo_children())
+                        except Exception:
+                            pass
+                provider = lambda v=var, lab=label: self._planner_model_choice_tooltip_text(lab, v.get(), None)
+                self._planner_attach_dynamic_tooltip(widgets, provider)
+                item_provider = self._planner_model_item_provider(label) if hasattr(self, "_planner_model_item_provider") else (lambda value, lab=label: self._planner_model_choice_tooltip_text(lab, value, [value]))
+                for combo in combos:
+                    self._planner_attach_combobox_dropdown_tooltips(combo, item_provider)
+            except Exception:
+                pass
+            return var
+        ModelPlannerApp._build_source_backed_ref_row = _build_source_backed_ref_row_dropdown_refined
+
+    # Special Architecture / Precision rows: no all-choice wall on normal hover, but dropdown item help reacts per row.
+    def _sigless_special_option_row_dropdown_refined(self, parent, entry: Dict[str, Any], key: str, label: str, choices: List[str]):
+        row = Frame(parent)
+        row.pack(fill="x", pady=2)
+        lab = Label(row, text=label, width=18, anchor="w")
+        lab.pack(side="left")
+        if key == "precision":
+            value = _planner_display_precision_name(entry.get(key)) if "_planner_display_precision_name" in globals() else str(entry.get(key) or "")
+            choices = _DISPLAY_PRECISION_CHOICES if "_DISPLAY_PRECISION_CHOICES" in globals() else choices
+            help_key = "Precision"
+        elif key == "architecture":
+            value = _planner_display_arch_name(entry.get(key)) if "_planner_display_arch_name" in globals() else str(entry.get(key) or "")
+            choices = _DISPLAY_ARCH_CHOICES if "_DISPLAY_ARCH_CHOICES" in globals() else choices
+            help_key = "Architecture"
+        else:
+            value = str(entry.get(key) or "")
+            help_key = label
+        var = tk.StringVar(value=value)
+        combo = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=18)
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def _sync(*_args, e=entry, k=key, v=var):
+            e[k] = v.get()
+            self._after_entry_change()
+        var.trace_add("write", _sync)
+        provider = lambda v=var, k=key, labl=help_key: self._planner_option_tooltip_text("Common", k, labl, "choice", None, v.get())
+        self._planner_attach_dynamic_tooltip([row, lab, combo], provider)
+        self._planner_attach_combobox_dropdown_tooltips(combo, lambda value, labl=help_key: self._planner_choice_dropdown_item_tooltip(labl, value))
+    _sigless_special_option_row = _sigless_special_option_row_dropdown_refined
+
+    # Options panel: refine choice combobox hover/dropdown behavior.
+    def _sigless_build_cli_options_panel_dropdown_refined(self, parent, entry: Dict[str, Any], entry_type: str):
+        specs = copy.deepcopy(_SIGLESS_CLI_SPECS.get(entry_type, {}).get("groups", []))
+        if entry_type == "Checkpoint Merge" and _sigless_mode_uses_seed(entry):
+            specs.insert(1, ("Seed", [("seed", "Seed", "text", "")]))
+        if not specs and entry_type not in ("Checkpoint Merge", "LoRA Bake"):
+            return
+        opts = _sigless_ensure_cli_options(entry)
+        try:
+            wrapper = self._build_collapsible_section(parent, f"{entry_type} Options", key=f"sigless_cli_options_{entry_type}_{entry.get('id','')}", default_open=False, body_fill="x", body_expand=False, padx=6, pady=6)
+        except Exception:
+            wrapper = self._build_labeled_frame(parent, f"{entry_type} Options")
+        self._planner_attach_dynamic_tooltip(wrapper, lambda et=entry_type: self._right_help(f"{et} Options").get("detail", ""))
+        if entry_type in ("Checkpoint Merge", "LoRA Bake"):
+            basics = LabelFrame(wrapper, text="Basic", padx=6, pady=6)
+            basics.pack(fill="x", pady=4)
+            _sigless_special_option_row(self, basics, entry, "architecture", "Architecture", _SIGLESS_ARCH_CHOICES)
+            _sigless_special_option_row(self, basics, entry, "precision", "Precision", _SIGLESS_PRECISION_CHOICES)
+        for group_name, fields in specs:
+            gf = LabelFrame(wrapper, text=group_name, padx=6, pady=6)
+            gf.pack(fill="x", pady=4)
+            self._planner_attach_dynamic_tooltip(gf, lambda gn=group_name, et=entry_type: f"{et} Options / {gn}")
+            for idx, field in enumerate(fields):
+                key, label, kind, default = field[:4]
+                row = Frame(gf)
+                row.grid(row=idx // 2, column=(idx % 2) * 2, columnspan=2, sticky="ew", padx=3, pady=2)
+                gf.grid_columnconfigure(1, weight=1)
+                gf.grid_columnconfigure(3, weight=1)
+                lab = Label(row, text=label, width=18, anchor="w")
+                lab.pack(side="left")
+                choices = field[4] if len(field) > 4 else []
+                control = None
+                if kind == "bool":
+                    var = tk.BooleanVar(value=bool(opts.get(key, default)))
+                    control = ttk.Checkbutton(row, variable=var, command=lambda v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    control.pack(side="left")
+                    provider = lambda v=var, k=key, labl=label, et=entry_type: self._planner_option_tooltip_text(et, k, labl, "bool", None, "On" if v.get() else "Off")
+                elif kind == "choice":
+                    current = str(opts.get(key, default) or default)
+                    if key == "merge_arch" and "_planner_display_arch_name" in globals():
+                        current = _planner_display_arch_name(current)
+                    var = tk.StringVar(value=current)
+                    control = ttk.Combobox(row, textvariable=var, values=choices, state="readonly", width=16)
+                    self._bind_combobox_mousewheel_passthrough(control)
+                    control.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    provider = lambda v=var, k=key, labl=label, et=entry_type: self._planner_option_tooltip_text(et, k, labl, "choice", None, v.get())
+                    self._planner_attach_combobox_dropdown_tooltips(control, lambda value, k=key, labl=label: self._planner_choice_dropdown_item_tooltip(k if k in _CHOICE_HELP_TEXT else labl, value))
+                else:
+                    var = tk.StringVar(value=str(opts.get(key, default) or ""))
+                    control = Entry(row, textvariable=var, width=28)
+                    control.pack(side="left", fill="x", expand=True)
+                    var.trace_add("write", lambda *_args, v=var, k=key, d=default, e=entry: _sigless_option_changed(self, e, k, v.get(), d))
+                    provider = lambda v=var, k=key, labl=label, et=entry_type: self._planner_option_tooltip_text(et, k, labl, "text", None, v.get())
+                self._planner_attach_dynamic_tooltip([row, lab, control], provider)
+        _sigless_build_unmapped_editor(self, wrapper, entry)
+        reset_row = Frame(wrapper)
+        reset_row.pack(fill="x", pady=(4, 0))
+        def reset_options(e=entry, et=entry_type):
+            e["cli_options"] = copy.deepcopy(_LORA_MERGE_DEFAULTS.get(et, {})) if '_LORA_MERGE_DEFAULTS' in globals() else {}
+            e["cli_options"].pop("rand_alpha", None)
+            e["cli_options"].pop("rand_beta", None)
+            self._after_entry_change()
+            self._schedule_rerender_current_line()
+        reset_btn = ttk.Button(reset_row, text="Reset Options", command=reset_options)
+        reset_btn.pack(side="right")
+        self._planner_attach_dynamic_tooltip(reset_btn, lambda: "Reset this line's structured Options to their defaults. Unmapped legacy signatures are left untouched.")
+    _sigless_build_cli_options_panel = _sigless_build_cli_options_panel_dropdown_refined
+
+    # Ratio Mode: compact current hover + per-choice dropdown hover.
+    def _build_ratio_section_dropdown_refined(self, parent, entry: Dict[str, Any], key: str, title: str):
+        wrapper = self._build_collapsible_section(parent, title, key=f"ratio_{entry.get('id', '')}_{key}", default_open=True, body_fill="x", body_expand=False, padx=6, pady=6)
+        ratio = entry.setdefault(key, default_ratio("Single"))
+        row = Frame(wrapper)
+        row.pack(fill="x", pady=3)
+        label_widget = Label(row, text="Ratio Mode", width=18, anchor="w")
+        label_widget.pack(side="left")
+        mode_var = tk.StringVar(value=ratio.get("mode", "Single"))
+        combo = ttk.Combobox(row, textvariable=mode_var, values=RATIO_MODES, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            ratio["mode"] = mode_var.get()
+            if ratio["mode"] == "Single" and not ratio.get("value"):
+                ratio["value"] = "0.5"
+            elif ratio["mode"] == "Randomize" and not ratio.get("value"):
+                ratio["value"] = "0.0,1.0"
+            elif ratio["mode"] == "Block weight" and not ratio.get("value"):
+                ratio["value"] = self._serialize_block_values([0.0] * len(self._current_block_names()), trailing_comma=False)
+            self._schedule_rerender_current_line()
+        mode_var.trace_add("write", sync_mode)
+        provider = lambda v=mode_var: self._planner_option_tooltip_text("Ratio", "Ratio Mode", "Ratio Mode", "choice", None, v.get())
+        self._planner_attach_dynamic_tooltip([row, label_widget, combo], provider)
+        self._planner_attach_combobox_dropdown_tooltips(combo, lambda value: self._planner_choice_dropdown_item_tooltip("Ratio Mode", value))
+        self._add_right_inline_help(wrapper, "Ratio Mode")
+        self._build_ratio_value_widget(wrapper, ratio, allow_block_weight=True)
+        self._planner_build_ratio_preset_buttons(wrapper, ratio)
+    ModelPlannerApp._build_ratio_section = _build_ratio_section_dropdown_refined
+
+    # Checkpoint Merge renderer: add dropdown item hover for merge modes.
+    def _render_checkpoint_merge_entry_dropdown_refined(self, parent, entry: Dict[str, Any]):
+        _sigless_ensure_cli_options(entry)
+        frame = self._build_labeled_frame(parent, "Checkpoint Merge")
+        ckpts = self._collect_available_models(self.current_index).get("Checkpoint", [])
+        mode_labels = [f"{m['key']} - {m['label']}" for m in self.merge_modes]
+        current_mode = entry.get("merge_mode", self.merge_modes[0]["key"])
+        current_label = next((f"{m['key']} - {m['label']}" for m in self.merge_modes if m["key"] == current_mode), mode_labels[0])
+        row = Frame(frame)
+        row.pack(fill="x", pady=3)
+        lab = Label(row, text="Merge Mode", width=18, anchor="w")
+        lab.pack(side="left")
+        var = tk.StringVar(value=current_label)
+        combo = ttk.Combobox(row, textvariable=var, values=mode_labels, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+        def sync_mode(*_args):
+            label = var.get()
+            key2 = label.split(" - ", 1)[0]
+            entry["merge_mode"] = key2
+            self._schedule_rerender_current_line()
+        var.trace_add("write", sync_mode)
+        self._planner_attach_dynamic_tooltip([row, lab, combo], lambda v=var: self._planner_mode_choice_tooltip(v.get()))
+        self._planner_attach_combobox_dropdown_tooltips(combo, lambda value: self._planner_mode_dropdown_item_tooltip(value))
+        mode_info = self.merge_mode_map.get(entry.get("merge_mode"), self.merge_modes[0])
+        model_count = _sigless_model_count(self, entry, mode_info)
+        if model_count >= 1:
+            self._build_combo_row(frame, "Model 0", entry, "model0", ckpts or [""])
+        if model_count >= 2:
+            self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
+        if model_count >= 3:
+            self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
+        if mode_info.get("key") != "CLIPXOR":
+            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        if mode_info.get("needs_beta"):
+            self._build_ratio_section(parent, entry, "beta", "Beta")
+        out_frame = self._build_labeled_frame(parent, "Output")
+        self._build_entry_row(out_frame, "Output Name", entry, "output_name")
+        _sigless_build_cli_options_panel(self, parent, entry, "Checkpoint Merge")
+    ModelPlannerApp._render_checkpoint_merge_entry = _render_checkpoint_merge_entry_dropdown_refined
+
+    # Dev Mode: muted real button colors when disabled, theme button colors when enabled.
+    def _planner_blend_hex(self, a: str, b: str = "#808080", ratio: float = 0.55) -> str:
+        """Blend two #RRGGBB colors.
+
+        This method is intentionally registered on ModelPlannerApp below because the
+        Developer Mode button renderer calls it through ``self``. Earlier patch
+        layers defined it only as a local function, which caused an undefined
+        attribute error when the refined Dev Mode panel was built.
+        """
+        def _rgb(x):
+            x = str(x or "#808080").lstrip("#")
+            if len(x) != 6:
+                x = "808080"
+            return [int(x[i:i+2], 16) for i in (0, 2, 4)]
+        ar = _rgb(a); br = _rgb(b)
+        rr = [int(ar[i] * (1.0 - ratio) + br[i] * ratio) for i in range(3)]
+        return "#" + "".join(f"{max(0, min(255, v)):02x}" for v in rr)
+
+    ModelPlannerApp._planner_blend_hex = _planner_blend_hex
+
+    def _build_left_panel_refined_dev_buttons(self, parent):
+        self._planner_dev_ensure_config()
+        base_builder = globals().get("_dev_base_build_left_panel")
+        result = base_builder(self, parent) if callable(base_builder) else None
+        try:
+            section = self._build_collapsible_section(parent, "Developer (Experiment) Mode", key="left_developer_mode", default_open=bool(self.config.get("dev_mode", False)), body_fill="x", body_expand=False)
+        except Exception:
+            section = LabelFrame(parent, text="Developer (Experiment) Mode", padx=8, pady=8)
+            section.pack(fill="x", pady=6)
+        self.dev_mode_var = tk.BooleanVar(value=bool(self.config.get("dev_mode", False)))
+        button_refs = []
+        colors = self._theme_colors() if hasattr(self, "_theme_colors") else {"button_bg": "#e7ecfb", "button_fg": "#25315b", "button_hover": "#dce4fb", "button_pressed": "#ced9f7", "muted": "#777777", "text": "#111111", "border": "#cccccc"}
+        disabled_bg = self._planner_blend_hex(colors.get("button_bg", "#e7ecfb"), "#808080", 0.62)
+        disabled_active = self._planner_blend_hex(colors.get("button_hover", colors.get("button_bg", "#e7ecfb")), "#808080", 0.68)
+        def _button_colors(enabled: bool):
+            if enabled:
+                return {
+                    "state": "normal", "fg": colors.get("button_fg", colors.get("text", "#111111")), "background": colors.get("button_bg", "#e7ecfb"),
+                    "activeforeground": colors.get("button_fg", colors.get("text", "#111111")), "activebackground": colors.get("button_hover", "#dce4fb"),
+                    "disabledforeground": colors.get("muted", "#777777"), "relief": "raised", "bd": 1, "highlightthickness": 1, "highlightbackground": colors.get("border", "#cccccc"),
+                }
+            return {
+                "state": "disabled", "fg": colors.get("muted", "#777777"), "background": disabled_bg,
+                "activeforeground": colors.get("muted", "#777777"), "activebackground": disabled_active,
+                "disabledforeground": colors.get("muted", "#777777"), "relief": "groove", "bd": 1, "highlightthickness": 1, "highlightbackground": colors.get("border", "#cccccc"),
+            }
+        def refresh_dev_buttons():
+            enabled = self._planner_dev_mode_enabled()
+            self.config["dev_mode"] = enabled
+            for btn in button_refs:
+                try:
+                    btn.configure(**_button_colors(enabled))
+                except Exception:
+                    try:
+                        btn.configure(state=("normal" if enabled else "disabled"))
+                    except Exception:
+                        pass
+            self._schedule_config_save()
+        top = Frame(section)
+        top.pack(fill="x", pady=(0, 6))
+        chk = ttk.Checkbutton(top, variable=self.dev_mode_var, command=refresh_dev_buttons)
+        chk.pack(side="left", padx=(0, 4))
+        header_btn = tk.Button(top, text="Developer Mode", padx=8, pady=2, relief="groove", state="disabled", background=disabled_bg, disabledforeground=colors.get("muted", "#777777"), highlightthickness=1, highlightbackground=colors.get("border", "#cccccc"))
+        header_btn.pack(side="left", fill="x", expand=True)
+        grid = Frame(section)
+        grid.pack(fill="x")
+        for c in range(3):
+            grid.grid_columnconfigure(c, weight=1)
+        actions = [
+            ("T2I Settings", lambda: self._planner_dev_only(self._planner_open_t2i_settings)),
+            ("Ratio Sweep", lambda: self._planner_dev_only(self._planner_open_ratio_sweep)),
+            ("Compare Images", lambda: self._planner_dev_only(self._planner_show_image_compare)),
+            ("Ratio Diff", lambda: self._planner_dev_only(self._planner_show_ratio_diff)),
+            ("Model Anatomy", lambda: self._planner_dev_only(self._planner_model_anatomy_scan)),
+            ("LoRA Check", lambda: self._planner_dev_only(self._planner_lora_compatibility_check)),
+        ]
+        for idx, (label, cmd) in enumerate(actions):
+            btn = tk.Button(grid, text=label, command=cmd, padx=8, pady=4, takefocus=False)
+            btn.grid(row=idx//3, column=idx%3, sticky="ew", padx=3, pady=3)
+            button_refs.append(btn)
+        self._developer_mode_buttons = [(b, True) for b in button_refs]
+        refresh_dev_buttons()
+        return result
+    ModelPlannerApp._build_left_panel = _build_left_panel_refined_dev_buttons
+except Exception:
+    pass
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = ModelPlannerApp(root)
     root.mainloop()
-
-
