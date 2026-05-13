@@ -12420,7 +12420,7 @@ try:
 
     _SIGLESS_PRECISION_CHOICES = ["half", "bhalf", "quarter", "fp32"]
     _SIGLESS_ARCH_CHOICES = ["", "auto", "sd", "sdxl", "flux", "zi", "am", "anima", "zimage"]
-    _SIGLESS_SEED_MODES = {"DARE"}
+    _SIGLESS_SEED_MODES = {"DARE", "XDARE"}
 
     def _sigless_ensure_cli_options(entry: Dict[str, Any]) -> Dict[str, Any]:
         etype = str(entry.get("type") or "")
