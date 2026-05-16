@@ -14409,6 +14409,358 @@ try:
 except Exception:
     pass
 
+
+# -----------------------------------------------------------------------------
+# Final source-backed model selector restoration:
+# keep hover/dropdown help while preserving Download / Local / Clear buttons.
+# -----------------------------------------------------------------------------
+try:
+    def _planner_build_source_model_row_final(self, parent, entry: Dict[str, Any], slot: str, label: str, candidates, kind_options):
+        """Build a model reference row that supports embedded Download/Local sources.
+
+        This intentionally routes model-like rows through _build_source_backed_ref_row
+        instead of the plain combobox row so the selector can keep both:
+        - compact hover/dropdown explanations
+        - Download..., Local..., and Clear buttons
+        """
+        if hasattr(self, "_build_source_backed_ref_row") and callable(getattr(self, "_build_source_backed_ref_row", None)):
+            return self._build_source_backed_ref_row(
+                parent,
+                label,
+                lambda e=entry, s=slot: e.get(s, ""),
+                lambda value, e=entry, s=slot: e.__setitem__(s, value),
+                lambda e=entry, s=slot: self._get_entry_slot_source(e, s),
+                lambda spec, e=entry, s=slot: self._set_entry_slot_source(e, s, spec),
+                candidates or [""],
+                kind_options,
+                allow_local=True,
+            )
+        return self._build_combo_row(parent, label, entry, slot, candidates or [""])
+
+    def _planner_attach_merge_mode_help_final(self, row, label_widget, combo, mode_var):
+        """Attach selected-mode and dropdown-item help when those helpers are available."""
+        try:
+            if hasattr(self, "_planner_attach_dynamic_tooltip") and callable(getattr(self, "_planner_attach_dynamic_tooltip", None)):
+                self._planner_attach_dynamic_tooltip(
+                    [row, label_widget, combo],
+                    lambda v=mode_var: self._planner_mode_choice_tooltip(v.get())
+                    if hasattr(self, "_planner_mode_choice_tooltip")
+                    else str(v.get() or ""),
+                )
+            elif hasattr(self, "_attach_tooltip"):
+                self._attach_tooltip([row, label_widget, combo], self._right_help("Merge Mode").get("detail", ""))
+        except Exception:
+            pass
+        try:
+            if (
+                hasattr(self, "_planner_attach_combobox_dropdown_tooltips")
+                and hasattr(self, "_planner_mode_dropdown_item_tooltip")
+            ):
+                self._planner_attach_combobox_dropdown_tooltips(
+                    combo,
+                    lambda value: self._planner_mode_dropdown_item_tooltip(value),
+                )
+        except Exception:
+            pass
+
+    def _render_checkpoint_merge_entry_source_buttons_final(self, parent, entry: Dict[str, Any]):
+        ensure_cli = globals().get("_sigless_ensure_cli_options")
+        if callable(ensure_cli):
+            ensure_cli(entry)
+
+        frame = self._build_labeled_frame(parent, "Checkpoint Merge")
+        ckpts = self._collect_available_models(self.current_index).get("Checkpoint", [])
+
+        mode_labels = [f"{m['key']} - {m['label']}" for m in self.merge_modes]
+        current_mode = entry.get("merge_mode", self.merge_modes[0]["key"])
+        current_label = next(
+            (f"{m['key']} - {m['label']}" for m in self.merge_modes if m["key"] == current_mode),
+            mode_labels[0] if mode_labels else str(current_mode or ""),
+        )
+
+        row = Frame(frame)
+        row.pack(fill="x", pady=3)
+        lab = Label(row, text="Merge Mode", width=18, anchor="w")
+        lab.pack(side="left")
+        mode_var = tk.StringVar(value=current_label)
+        combo = ttk.Combobox(row, textvariable=mode_var, values=mode_labels, state="readonly")
+        self._bind_combobox_mousewheel_passthrough(combo)
+        combo.pack(side="left", fill="x", expand=True, padx=4)
+
+        def sync_mode(*_args):
+            label = mode_var.get()
+            key2 = label.split(" - ", 1)[0]
+            entry["merge_mode"] = key2
+            self._schedule_rerender_current_line()
+
+        mode_var.trace_add("write", sync_mode)
+        self._planner_attach_merge_mode_help_final(row, lab, combo, mode_var)
+
+        mode_info = self.merge_mode_map.get(entry.get("merge_mode"), self.merge_modes[0])
+        model_count_func = globals().get("_sigless_model_count")
+        if callable(model_count_func):
+            model_count = model_count_func(self, entry, mode_info)
+        else:
+            model_count = 3 if mode_info.get("needs_m2") else 2
+
+        if model_count >= 1:
+            self._planner_build_source_model_row_final(frame, entry, "model0", "Model 0", ckpts, ["Checkpoint"])
+        if model_count >= 2:
+            self._planner_build_source_model_row_final(frame, entry, "model1", "Model 1", ckpts, ["Checkpoint"])
+        if model_count >= 3:
+            self._planner_build_source_model_row_final(frame, entry, "model2", "Model 2", ckpts, ["Checkpoint"])
+
+        if mode_info.get("key") != "CLIPXOR":
+            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        if mode_info.get("needs_beta"):
+            self._build_ratio_section(parent, entry, "beta", "Beta")
+
+        out_frame = self._build_labeled_frame(parent, "Output")
+        self._build_entry_row(out_frame, "Output Name", entry, "output_name")
+
+        build_cli = globals().get("_sigless_build_cli_options_panel") or globals().get("_lm_build_cli_options_panel")
+        if callable(build_cli):
+            build_cli(self, parent, entry, "Checkpoint Merge")
+        else:
+            self._build_text_row(parent, "Additional Signatures", entry, "raw_signatures", height=5)
+
+    ModelPlannerApp._planner_build_source_model_row_final = _planner_build_source_model_row_final
+    ModelPlannerApp._planner_attach_merge_mode_help_final = _planner_attach_merge_mode_help_final
+    ModelPlannerApp._render_checkpoint_merge_entry = _render_checkpoint_merge_entry_source_buttons_final
+
+    # Keep explicit hover on Add LoRA controls in the final sigless renderers too.
+    _source_buttons_prev_lora_bake_renderer = getattr(ModelPlannerApp, "_render_lora_bake_entry", None)
+    def _render_lora_bake_entry_source_buttons_hover_final(self, parent, entry: Dict[str, Any]):
+        if callable(_source_buttons_prev_lora_bake_renderer):
+            _source_buttons_prev_lora_bake_renderer(self, parent, entry)
+            try:
+                # Previous renderer already uses source-backed rows; this pass only restores
+                # the Add LoRA hover text when the final sigless renderer omitted it.
+                for frame in parent.winfo_children():
+                    for child in frame.winfo_children():
+                        try:
+                            if child.winfo_class() == "TButton" and str(child.cget("text")) == "+ Add LoRA":
+                                detail = self._right_help("+ Add LoRA").get("detail", "")
+                                if detail:
+                                    self._attach_tooltip(child, detail)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            return
+        return None
+    ModelPlannerApp._render_lora_bake_entry = _render_lora_bake_entry_source_buttons_hover_final
+
+    _source_buttons_prev_lora_merge_renderer = getattr(ModelPlannerApp, "_render_lora_merge_entry", None)
+    def _render_lora_merge_entry_source_buttons_hover_final(self, parent, entry: Dict[str, Any]):
+        if callable(_source_buttons_prev_lora_merge_renderer):
+            _source_buttons_prev_lora_merge_renderer(self, parent, entry)
+            try:
+                for frame in parent.winfo_children():
+                    for child in frame.winfo_children():
+                        try:
+                            if child.winfo_class() == "TButton" and str(child.cget("text")) == "+ Add LoRA":
+                                detail = self._right_help("+ Add LoRA").get("detail", "")
+                                if detail:
+                                    self._attach_tooltip(child, detail)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            return
+        return None
+    ModelPlannerApp._render_lora_merge_entry = _render_lora_merge_entry_source_buttons_hover_final
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Final safety patch: do not expose outputs from disabled or unresolved producers.
+# -----------------------------------------------------------------------------
+try:
+    def _planner_source_spec_is_usable_final(self, spec) -> bool:
+        """Return True when an embedded Download/Local source has enough data to run."""
+        if not isinstance(spec, dict):
+            return False
+        mode = str(spec.get('mode') or '').strip().lower()
+        if mode == 'download':
+            return bool(str(spec.get('link') or '').strip())
+        if mode == 'local':
+            return bool(str(spec.get('local_path') or '').strip())
+        return bool(mode)
+
+    def _planner_bucket_has_ref_final(self, available, kind: str, ref: str) -> bool:
+        ref = str(ref or '').strip()
+        if not ref:
+            return False
+        kind = str(kind or 'Checkpoint').strip()
+        if kind == 'Checkpoint':
+            return ref in (available.get('Checkpoint') or []) or ref in (available.get('Checkpoint') or {})
+        if kind in {'LoRA', 'LyCORIS'}:
+            return (
+                ref in (available.get('LoRA') or []) or ref in (available.get('LoRA') or {})
+                or ref in (available.get('LyCORIS') or []) or ref in (available.get('LyCORIS') or {})
+            )
+        return ref in (available.get(kind) or []) or ref in (available.get(kind) or {})
+
+    def _planner_ref_resolves_final(self, entry, slot: str, available, kind: str = 'Checkpoint') -> bool:
+        spec = self._get_entry_slot_source(entry, slot) if hasattr(self, '_get_entry_slot_source') else None
+        ref = str(entry.get(slot) or '').strip()
+        if isinstance(spec, dict):
+            return self._planner_source_spec_is_usable_final(spec)
+        return self._planner_bucket_has_ref_final(available, kind, ref)
+
+    def _planner_lora_ref_resolves_final(self, lora_entry, available) -> bool:
+        spec = self._get_lora_source(lora_entry) if hasattr(self, '_get_lora_source') else None
+        name = str((lora_entry or {}).get('name') or '').strip()
+        if isinstance(spec, dict):
+            return self._planner_source_spec_is_usable_final(spec)
+        return self._planner_bucket_has_ref_final(available, 'LoRA', name)
+
+    def _planner_merge_requires_model2_final(self, entry) -> bool:
+        mode_raw = str(entry.get('merge_mode') or 'WS').strip()
+        try:
+            mode_key = self._resolve_merge_mode_key(mode_raw) if hasattr(self, '_resolve_merge_mode_key') else mode_raw
+        except Exception:
+            mode_key = mode_raw
+        mode_info = {}
+        try:
+            mode_info = self.merge_mode_map.get(mode_key, {}) if hasattr(self, 'merge_mode_map') else {}
+        except Exception:
+            mode_info = {}
+        opts = entry.get('cli_options') if isinstance(entry.get('cli_options'), dict) else {}
+        return bool(mode_info.get('needs_m2')) or bool(opts.get('turbo')) or bool(opts.get('deturbo')) or bool(str(entry.get('model2') or '').strip())
+
+    def _planner_entry_can_produce_final(self, entry, available) -> bool:
+        """Only register an output alias when the line itself can resolve its inputs.
+
+        This prevents a disabled upstream Download/Local/Merge line from indirectly
+        leaking a broken downstream output into later selector choices.
+        """
+        if not isinstance(entry, dict) or self._entry_is_disabled(entry):
+            return False
+        etype = entry.get('type')
+        if etype == 'Download Model':
+            return bool(str(entry.get('model_name') or '').strip()) and bool(str(entry.get('link') or '').strip())
+        if etype == 'Local Model':
+            path = str(entry.get('local_path') or '').strip()
+            alias = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+            return bool(alias and path)
+        if etype == 'Checkpoint Merge':
+            # Model 0 is always required for merge.py style checkpoint outputs.
+            if not self._planner_ref_resolves_final(entry, 'model0', available, 'Checkpoint'):
+                return False
+            # Most user-facing merge modes need Model 1; keep RM/NoIn as special metadata/no-input cases.
+            mode = str(entry.get('merge_mode') or '').strip().upper()
+            if mode not in {'RM', 'NOIN'}:
+                if not self._planner_ref_resolves_final(entry, 'model1', available, 'Checkpoint'):
+                    return False
+            if self._planner_merge_requires_model2_final(entry):
+                if not self._planner_ref_resolves_final(entry, 'model2', available, 'Checkpoint'):
+                    return False
+            return bool(str(entry.get('output_name') or '').strip())
+        if etype == 'LoRA Bake':
+            if not str(entry.get('output_name') or '').strip():
+                return False
+            if not self._planner_ref_resolves_final(entry, 'checkpoint', available, 'Checkpoint'):
+                return False
+            for lora in entry.get('loras', []) or []:
+                if not self._planner_lora_ref_resolves_final(lora, available):
+                    return False
+            return True
+        if etype == 'LoRA Merge':
+            if not str(entry.get('output_name') or '').strip():
+                return False
+            loras = entry.get('loras', []) or []
+            if not loras:
+                return False
+            for lora in loras:
+                if not self._planner_lora_ref_resolves_final(lora, available):
+                    return False
+            return True
+        return True
+
+    def _collect_available_models_dependency_safe_final(self, upto_index: int) -> Dict[str, List[str]]:
+        available: Dict[str, Dict[str, str]] = {'Checkpoint': {}, 'LoRA': {}, 'LyCORIS': {}}
+        entries = (self.plan_data or {}).get('entries', []) or []
+        for entry in entries[:max(0, int(upto_index or 0))]:
+            if self._entry_is_disabled(entry):
+                continue
+            etype = entry.get('type')
+            if etype == 'Remove Model':
+                name = str(entry.get('model') or '').strip()
+                if name:
+                    for bucket in available.values():
+                        bucket.pop(name, None)
+                continue
+
+            # Embedded Download/Local sources on an active line are real producers,
+            # but only if their own source fields are usable.
+            try:
+                for _slot, alias, kind, spec in self._iter_embedded_sources(entry):
+                    alias = str(alias or '').strip()
+                    kind = str(kind or 'Checkpoint').strip() or 'Checkpoint'
+                    if alias and self._planner_source_spec_is_usable_final(spec):
+                        available.setdefault(kind, {})[alias] = kind
+            except Exception:
+                pass
+
+            if not self._planner_entry_can_produce_final(entry, available):
+                continue
+
+            if etype == 'Download Model':
+                name = str(entry.get('model_name') or '').strip()
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if name:
+                    available.setdefault(kind, {})[name] = kind
+            elif etype == 'Local Model':
+                path = str(entry.get('local_path') or '').strip()
+                name = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+                kind = str(entry.get('model_type') or 'Checkpoint').strip() or 'Checkpoint'
+                if name:
+                    available.setdefault(kind, {})[name] = kind
+            elif etype in ('Checkpoint Merge', 'LoRA Bake'):
+                name = str(entry.get('output_name') or '').strip()
+                if name:
+                    available['Checkpoint'][name] = 'Checkpoint'
+            elif etype == 'LoRA Merge':
+                name = str(entry.get('output_name') or '').strip()
+                if name:
+                    available['LoRA'][name] = 'LoRA'
+        return {k: sorted(v.keys()) for k, v in available.items()}
+
+    def _entry_produced_aliases_dependency_safe_final(self, entry: Dict[str, Any]) -> List[str]:
+        if self._entry_is_disabled(entry):
+            return []
+        etype = entry.get('type')
+        produced = []
+        if etype == 'Download Model':
+            name = str(entry.get('model_name') or '').strip()
+            if name:
+                produced.append(name)
+        elif etype == 'Local Model':
+            path = str(entry.get('local_path') or '').strip()
+            name = str(entry.get('model_name') or '').strip() or (Path(path).stem if path else '')
+            if name:
+                produced.append(name)
+        elif etype in ('Checkpoint Merge', 'LoRA Bake', 'LoRA Merge'):
+            name = str(entry.get('output_name') or '').strip()
+            if name:
+                produced.append(name)
+        return produced
+
+    ModelPlannerApp._planner_source_spec_is_usable_final = _planner_source_spec_is_usable_final
+    ModelPlannerApp._planner_bucket_has_ref_final = _planner_bucket_has_ref_final
+    ModelPlannerApp._planner_ref_resolves_final = _planner_ref_resolves_final
+    ModelPlannerApp._planner_lora_ref_resolves_final = _planner_lora_ref_resolves_final
+    ModelPlannerApp._planner_merge_requires_model2_final = _planner_merge_requires_model2_final
+    ModelPlannerApp._planner_entry_can_produce_final = _planner_entry_can_produce_final
+    ModelPlannerApp._collect_available_models = _collect_available_models_dependency_safe_final
+    ModelPlannerApp._entry_produced_aliases = _entry_produced_aliases_dependency_safe_final
+except Exception:
+    pass
+
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = ModelPlannerApp(root)
