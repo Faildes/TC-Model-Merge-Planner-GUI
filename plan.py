@@ -1345,7 +1345,7 @@ def get_dl(url, version=None, mode="checkpoint"):
                     model = k
                     model_version = k["name"]
                     break
-            meta_list = [a["metadata"] for a in model["files"]]
+            meta_list = [a["metadata"] for a in model["files"] if a["type"] == "Model"]
             file = None
             for p in prefs:
                 try:
