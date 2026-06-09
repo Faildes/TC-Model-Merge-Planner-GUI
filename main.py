@@ -159,7 +159,7 @@ def save_config_to_disk(config):
 
 INIT_CONFIG = {
     "filepath": "",
-    "workpath": "/kaggle",
+    "workpath": "/kaggle/working",
     "title": "merge_plan",
     "vae": "",
     "vae_name": "VAE",
@@ -176,6 +176,7 @@ INIT_CONFIG = {
     "saveas": "",
     "base_model": "SDXL",
     "ignore_install_deps": False,
+    "use_online": False,
     "upload_after_merge": True,
     "run_t2i": False,
     "theme_mode": "dark",
@@ -242,6 +243,8 @@ def load_config_from_disk():
                 cfg = pickle.load(f)
             merged = INIT_CONFIG.copy()
             merged.update(cfg)
+            if os.path.normpath(str(merged.get("workpath", "") or "")) == os.path.normpath("/kaggle"):
+                merged["workpath"] = "/kaggle/working"
             ur = str(merged.get("UR", "") or "").strip()
             repo = str(merged.get("hf_repo_id", "") or "").strip()
             if repo and (not ur or ur == INIT_CONFIG.get("UR", "")):
@@ -1028,7 +1031,7 @@ def discover_merge_modes() -> List[Dict[str, Any]]:
 
 class ModelPlannerApp:
     NOTEBOOK_PARAMS_KEYS = [
-        "filepath", "workpath", "title", "vae", "vae_name", "bake_vae", "CivitAPI", "HuggingAPI", "UR", "model_dir", "vae_dir", "ignore_install_deps", "upload_after_merge", "run_t2i"
+        "filepath", "workpath", "title", "vae", "vae_name", "bake_vae", "CivitAPI", "HuggingAPI", "UR", "model_dir", "vae_dir", "ignore_install_deps", "use_online", "upload_after_merge", "run_t2i"
     ]
 
     def __init__(self, root):
@@ -2559,15 +2562,24 @@ class ModelPlannerApp:
 
         install_opts = self._build_collapsible_section(
             parent,
-            "Notebook Run Options",
-            key="left_notebook_run_options",
+            "Notebook Option",
+            key="left_notebook_option",
             default_open=True,
             body_fill="x",
             body_expand=False,
         )
         self.ignore_install_deps_var = tk.BooleanVar(value=bool(self.config.get("ignore_install_deps", False)))
+        self.use_online_var = tk.BooleanVar(value=bool(self.config.get("use_online", False)))
         self.upload_after_merge_var = tk.BooleanVar(value=bool(self.config.get("upload_after_merge", False)))
         self.run_t2i_var = tk.BooleanVar(value=bool(self.config.get("run_t2i", False)))
+        use_online_cb = ttk.Checkbutton(
+            install_opts,
+            text="Use online",
+            variable=self.use_online_var,
+            command=self._schedule_config_save,
+        )
+        use_online_cb.pack(anchor="w")
+        self._add_inline_help(install_opts, "Use Online")
         ignore_cb = ttk.Checkbutton(
             install_opts,
             text="Ignore Install Deps",
@@ -3526,6 +3538,7 @@ class ModelPlannerApp:
         self.config["active_view"] = getattr(self, "active_view", "split")
         self.config["theme_mode"] = getattr(self, "theme_mode", "dark")
         self.config["ignore_install_deps"] = bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get())
+        self.config["use_online"] = bool(getattr(self, "use_online_var", tk.BooleanVar(value=False)).get())
         self.config["upload_after_merge"] = bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get())
         self.config["run_t2i"] = bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get())
         self.config["bake_vae"] = bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get())
@@ -3766,9 +3779,12 @@ class ModelPlannerApp:
             messagebox.showinfo("Export", f"TXT exported successfully.\n\n{path}")
         except Exception as e:
             self._show_detailed_error("Export TXT Error", e, context="Operation: export_as_txt")
-        # finally:
-        #     if temp_plan_path and os.path.exists(temp_plan_path):
-        #         os.remove(temp_plan_path)
+        finally:
+            if temp_plan_path and os.path.exists(temp_plan_path):
+                try:
+                    os.remove(temp_plan_path)
+                except Exception:
+                    pass
 
     def _export_as_notebook(self):
         try:
@@ -3798,6 +3814,7 @@ class ModelPlannerApp:
                 model_dir=params.get("model_dir", ""),
                 vae_dir=params.get("vae_dir", ""),
                 ignore_install_deps=bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get()),
+                use_online=bool(getattr(self, "use_online_var", tk.BooleanVar(value=False)).get()),
                 upload_after_merge=bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get()),
                 run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get()),
                 t2i_settings=self._planner_get_t2i_settings() if hasattr(self, "_planner_get_t2i_settings") else None
@@ -3809,9 +3826,12 @@ class ModelPlannerApp:
             messagebox.showinfo("Export", f"Notebook exported successfully.\n\n{path}")
         except Exception as e:
             self._show_detailed_error("Export Notebook Error", e, context="Operation: export_as_notebook")
-        # finally:
-        #     if temp_plan_path and os.path.exists(temp_plan_path):
-        #         os.remove(temp_plan_path)
+        finally:
+            if temp_plan_path and os.path.exists(temp_plan_path):
+                try:
+                    os.remove(temp_plan_path)
+                except Exception:
+                    pass
 
     def _on_base_model_change(self, _event=None):
         self._schedule_config_save()
@@ -4858,6 +4878,7 @@ def get_ipython():
                 model_dir=params.get("model_dir", ""),
                 vae_dir=params.get("vae_dir", ""),
                 ignore_install_deps=bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get()),
+                use_online=bool(getattr(self, "use_online_var", tk.BooleanVar(value=False)).get()),
                 upload_after_merge=bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get()),
                 run_t2i=bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get()),
                 t2i_settings=self._planner_get_t2i_settings() if hasattr(self, "_planner_get_t2i_settings") else None

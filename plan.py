@@ -73,6 +73,15 @@ def _preferred_toolpath() -> str:
     return str(candidates[0])
 
 
+def _notebook_runtime_workpath(workpath: str) -> str:
+    """Return the runtime root that should appear in generated scripts/notebooks."""
+    raw = str(workpath or "").strip() or "."
+    raw = raw.rstrip("/\\") or raw
+    if os.path.normpath(raw) == os.path.normpath("/kaggle"):
+        return "/kaggle/working"
+    return raw
+
+
 # ----------------------------
 # Generic helpers
 # ----------------------------
@@ -638,9 +647,32 @@ def export_plan_records_txt(filepath: str, plan: Dict[str, Any]) -> None:
 INSTALL_TPL = Template(r'''import os, platform, shutil, subprocess, sys
 
 IGNORE_INSTALL_DEPS = $ignore_install_deps
-WORKING_DIR = r"$workpath/working"
-REPO_DIR = r"$toolpath"
-os.makedirs(os.path.dirname(REPO_DIR), exist_ok=True)
+USE_ONLINE = $use_online
+WORKPATH_RAW = r"$workpath"
+
+
+def _planner_normalize_workpath(path: str) -> str:
+    path = os.path.abspath(os.path.expanduser(str(path or ".")))
+    # Kaggle's /kaggle root is read-only for user-created files. Use /kaggle/working.
+    if os.path.normpath(path) == os.path.normpath("/kaggle"):
+        return os.path.join(path, "working")
+    return path
+
+
+def _planner_working_dir(path: str) -> str:
+    path = _planner_normalize_workpath(path)
+    # If the user already chose /kaggle/working, do not append another /working.
+    if os.path.basename(os.path.normpath(path)).lower() == "working":
+        return path
+    return os.path.join(path, "working")
+
+
+WORKING_DIR = _planner_working_dir(WORKPATH_RAW)
+LOCAL_REPO_DIR = r"$toolpath"
+REPO_DIR = os.path.join(WORKING_DIR, "tools", "chattiori_model_merger") if USE_ONLINE else LOCAL_REPO_DIR
+if USE_ONLINE:
+    os.makedirs(os.path.dirname(REPO_DIR), exist_ok=True)
+print(f"[install] use_online={USE_ONLINE} working_dir={WORKING_DIR} repo_dir={REPO_DIR}")
 
 
 def _cmd_exists(name: str) -> bool:
@@ -746,16 +778,39 @@ CVToken = "$cv_token"
 VAE_URL = "$vae_url".strip()
 VAE_NAME = "$vae_name".strip() or "VAE"
 BAKE_VAE = $bake_vae
-workpath = r"$workpath"
+USE_ONLINE = $use_online
+WORKPATH_RAW = r"$workpath"
+
+
+def _planner_normalize_workpath(path: str) -> str:
+    path = os.path.abspath(os.path.expanduser(str(path or ".")))
+    # Kaggle's /kaggle root is read-only for user-created files. Use /kaggle/working.
+    if os.path.normpath(path) == os.path.normpath("/kaggle"):
+        return os.path.join(path, "working")
+    return path
+
+
+def _planner_working_dir(path: str) -> str:
+    path = _planner_normalize_workpath(path)
+    # If the user already chose /kaggle/working, do not append another /working.
+    if os.path.basename(os.path.normpath(path)).lower() == "working":
+        return path
+    return os.path.join(path, "working")
+
+
+workpath = _planner_normalize_workpath(WORKPATH_RAW)
+WORKING_DIR = _planner_working_dir(workpath)
 _md = r"$model_dir"
 _vd = r"$vae_dir"
 
 models_dir = _md if _md else f"{workpath}/tmp/models"
 vae_dir = _vd if _vd else f"{workpath}/tmp/vae"
 emb_dir = f"{workpath}/tmp/embeddings"
-merge_repo_dir = r"$toolpath"
+local_merge_repo_dir = r"$toolpath"
+merge_repo_dir = os.path.join(WORKING_DIR, "tools", "chattiori_model_merger") if USE_ONLINE else local_merge_repo_dir
 MERGE_PY = os.path.join(merge_repo_dir, "merge.py")
 LORA_BAKE_PY = os.path.join(merge_repo_dir, "lora_bake.py")
+print(f"[planner] use_online={USE_ONLINE} merge_repo_dir={merge_repo_dir}")
 for p in (f"{workpath}/tmp", models_dir, vae_dir, emb_dir):
     os.makedirs(p, exist_ok=True)
 
@@ -1787,7 +1842,8 @@ if RUN_T2I:
     guidance = float(settings.get("cfg", settings.get("guidance", 4.5)) or 4.5)
     num_gen = max(1, int(settings.get("num_gen") or 1))
     base_seed = int(settings.get("seed", -1) if str(settings.get("seed", "")).strip() else -1)
-    idir = os.path.join(r"$workpath", "working", "t2i_images")
+    _t2i_root = globals().get("WORKING_DIR", r"$workpath")
+    idir = os.path.join(_t2i_root, "t2i_images")
     os.makedirs(idir, exist_ok=True)
 
     if pipe is None:
@@ -1824,8 +1880,9 @@ if RUN_T2I:
     from pathlib import Path
 
     name = "download"
-    dst = os.path.join(r"$workpath", "working", f"{name}.zip")
-    idir = os.path.join(r"$workpath", "working", "t2i_images")
+    _zip_root = globals().get("WORKING_DIR", r"$workpath")
+    dst = os.path.join(_zip_root, f"{name}.zip")
+    idir = os.path.join(_zip_root, "t2i_images")
     if os.path.exists(dst):
         os.remove(dst)
     paths = [str(p) for p in Path(idir).rglob("*") if p.is_file()]
@@ -2173,10 +2230,12 @@ def create_plan(filepath: str, workpath: str, saveas: str, title: str,
                 model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
                 bake_vae: bool = True,
                 ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False):
-    _ensure_dirs(os.path.join(workpath, "tmp"), ["models", "embeddings", "vae"])
-    res, _ = planit(filepath, workpath, model_dir, vae_dir, bake_vae=bake_vae)
+    # Exporting a txt runner must not touch runtime-only directories on the local machine.
+    # The generated runner creates workpath/tmp, models, embeddings, and vae when it executes.
+    runtime_workpath = _notebook_runtime_workpath(workpath)
+    res, _ = planit(filepath, runtime_workpath, model_dir, vae_dir, bake_vae=bake_vae)
     prelude = PRELUDE_TPL.safe_substitute(
-        workpath=workpath,
+        workpath=runtime_workpath,
         toolpath=_preferred_toolpath(),
         hf_token=HuggingAPI,
         cv_token=CivitAPI,
@@ -2196,18 +2255,25 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
                       vae: str, CivitAPI: str, HuggingAPI: str, UR: str,
                       model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
                       bake_vae: bool = True,
-                      ignore_install_deps: bool = False, upload_after_merge: bool = False, run_t2i: bool = False,
+                      ignore_install_deps: bool = False, use_online: bool = False,
+                      upload_after_merge: bool = False, run_t2i: bool = False,
                       t2i_settings: Dict[str, Any] | None = None):
-    _ensure_dirs(os.path.join(workpath, "tmp"), ["models", "embeddings", "vae"])
-    act_model_dir = model_dir if model_dir else f"{workpath}/tmp/models"
+    # Export as notebook should only write an .ipynb. Do not create /kaggle or other
+    # runtime directories on the machine that is doing the export. The notebook itself
+    # creates those directories when it is executed in the target environment.
+    runtime_workpath = _notebook_runtime_workpath(workpath)
+    act_model_dir = model_dir if model_dir else f"{runtime_workpath}/tmp/models"
+    use_online_literal = "True" if use_online else "False"
     install = INSTALL_TPL.safe_substitute(
-        workpath=workpath,
+        workpath=runtime_workpath,
         toolpath=_preferred_toolpath(),
         ignore_install_deps=ignore_install_deps,
+        use_online=use_online_literal,
     )
     prelude = PRELUDE_TPL.safe_substitute(
-        workpath=workpath,
+        workpath=runtime_workpath,
         toolpath=_preferred_toolpath(),
+        use_online=use_online_literal,
         hf_token=HuggingAPI,
         cv_token=CivitAPI,
         vae_url=vae,
@@ -2216,13 +2282,13 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
         model_dir=model_dir,
         vae_dir=vae_dir,
     )
-    res, final = planit(filepath, workpath, model_dir, vae_dir, bake_vae=bake_vae)
+    res, final = planit(filepath, runtime_workpath, model_dir, vae_dir, bake_vae=bake_vae)
     plan_cell = f"#{title}\n\n" + prelude + "\n\n" + "\n\n".join(res)
-    upload = UPLOAD_TPL.safe_substitute(workpath=workpath, final=final or "", repo=UR, model_dir=act_model_dir, upload_after_merge=upload_after_merge)
-    t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i)
+    upload = UPLOAD_TPL.safe_substitute(workpath=runtime_workpath, final=final or "", repo=UR, model_dir=act_model_dir, upload_after_merge=upload_after_merge)
+    t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=runtime_workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i)
     t2i_settings_json = json.dumps(t2i_settings or {}, ensure_ascii=False)
-    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=workpath, run_t2i=run_t2i, t2i_settings_json=t2i_settings_json)
-    zipc = ZIP_TPL.safe_substitute(workpath=workpath, run_t2i=run_t2i)
+    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=runtime_workpath, run_t2i=run_t2i, t2i_settings_json=t2i_settings_json)
+    zipc = ZIP_TPL.safe_substitute(workpath=runtime_workpath, run_t2i=run_t2i)
     cells = [install, plan_cell, upload, t2i_cfg, t2i_run, zipc]
     with open(saveas, "w", encoding="utf-8") as f:
         f.write(_nb_json(cells))

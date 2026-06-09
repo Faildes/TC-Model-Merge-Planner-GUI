@@ -410,6 +410,10 @@
       "short": "Run image generation after the merge step.",
       "detail": "Enable this if your notebook template includes a text-to-image validation or preview stage after merging. It is useful for quick result checks inside the same run."
     },
+    "Use Online": {
+      "short": "Use exported notebook on external platforms.",
+      "detail": "Use the notebook runtime's WORKING_DIR/tools/chattiori_model_merger path and clone/update Chattiori Model Merger there. Enable this for Kaggle, Colab, or other external notebook sites."
+    },
     "▶ Run Merge Notebook": {
       "short": "Generate and execute the notebook from the current plan.",
       "detail": "This creates a temporary txt plan, exports a notebook, builds an execution-ready version, and runs it while forwarding logs and progress into the console window."
