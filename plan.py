@@ -649,6 +649,7 @@ INSTALL_TPL = Template(r'''import os, platform, shutil, subprocess, sys
 IGNORE_INSTALL_DEPS = $ignore_install_deps
 USE_ONLINE = $use_online
 WORKPATH_RAW = r"$workpath"
+DIFFUSION = "$diffusion"
 
 
 def _planner_normalize_workpath(path: str) -> str:
@@ -721,12 +722,7 @@ def install_system_tools():
     else:
         print(f"[install] Unsupported OS for automatic system dependency installation: {system}")
 
-
-if IGNORE_INSTALL_DEPS:
-    print("[install] Ignore Install Deps is enabled. Skipping dependency installation and repo setup.")
-else:
-    for pkg in [
-        ("torch",),
+packages = [("torch",),
         ("torchvision",),
         ("lora",),
         ("fake_useragent",),
@@ -734,9 +730,16 @@ else:
         ("torchsde",),
         ("git+https://github.com/huggingface/diffusers",),
         ("git+https://github.com/Faildes/sd_embed_negpip.git",),
+        ("git+https://github.com/Faildes/Chattiori_ImageKit",),
         ("-U", "peft"),
-        ("torchao", "--extra-index-url", "https://download.pytorch.org/whl/cu121"),
-    ]:
+        ("torchao", "--extra-index-url", "https://download.pytorch.org/whl/cu121"),]
+if DIFFUSION:
+    packages.append((DIFFUSION,))
+
+if IGNORE_INSTALL_DEPS:
+    print("[install] Ignore Install Deps is enabled. Skipping dependency installation and repo setup.")
+else:
+    for pkg in packages:
         ensure(*pkg)
 
     install_system_tools()
@@ -1760,9 +1763,11 @@ RUN_T2I = $run_t2i
 
 if RUN_T2I:
     import os
-    import diffusers
     import torch
-    from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline
+    import diffusers
+    $pipelines
+    base = "$base".strip()
+    pipeline = $pipeline
 
     checkpoint = "$final".strip()
     ext = "safetensors"
@@ -1786,15 +1791,17 @@ if RUN_T2I:
     scheduler_cls, scheduler_kwargs, scheduler_name = SCHEDULERS[scheduler]
 
     if checkpoint and os.path.exists(cpath):
-        base_pipe = StableDiffusionXLPipeline.from_single_file(cpath, torch_dtype=dtype, use_safetensors=True, variant="fp16")
+        base_pipe = pipeline.from_single_file(cpath, torch_dtype=dtype, use_safetensors=True, variant="fp16")
         scd = scheduler_cls.from_config(base_pipe.scheduler.config, **scheduler_kwargs)
-        pipe = StableDiffusionXLPipeline.from_single_file(cpath, torch_dtype=dtype, scheduler=scd, use_safetensors=True, variant="fp16")
+        pipe = pipeline.from_single_file(cpath, torch_dtype=dtype, scheduler=scd, use_safetensors=True, variant="fp16")
+        if base == "Anima":
+            pipe.scheduler.set_sampling_config(
+                sampler="euler_a_rf",      # flowmatch_euler | euler | euler_a_rf | euler_ancestral_rf
+                sigma_schedule="normal",     # uniform | beta | simple | normal
+            )
         pipe.safety_checker = None
         pipe = pipe.to("cuda:0" if torch.cuda.is_available() else "cpu")
-        refiner = StableDiffusionXLImg2ImgPipeline.from_single_file(cpath, torch_dtype=dtype, scheduler=scd, use_safetensors=True, variant="fp16")
-        refiner.safety_checker = None
-        refiner = refiner.to("cuda:0" if torch.cuda.is_available() else "cpu")
-        init_pipe, init_refiner = pipe, refiner
+        init_pipe = pipe
         scd_name = scheduler_name
         print(f"Loaded pipeline for {checkpoint}")
     else:
@@ -1808,14 +1815,37 @@ T2I_RUN_TPL = Template(r'''# t2i
 RUN_T2I = $run_t2i
 T2I_SETTINGS_JSON = r"""$t2i_settings_json"""
 
+def bpro(prompt):
+    k = prompt.split(",")
+    thu = []
+    for g in k:
+        f = g.count(" ")
+        thu.append([g, f+1])
+    off = 0
+    nl = []
+    t = 0
+    for x in thu:
+        if "BREAK" in x[0]:
+            tok = t+off
+            add = tok % 75
+            nl += [" "]*add
+            off += add
+            continue
+        t += x[1]
+        nl.append(x[0])
+    return ",".join(nl)
+    
 if RUN_T2I:
     import os
     import json
     import random
     from PIL import Image
     from IPython.display import display
-
+    from sd_embed.embedding_funcs import $encoder
+    
+    base = "$base".strip()
     pipe = globals().get("init_pipe")
+    encoder = $encoder
     default_settings = {
         "prompts": [{"name": "default", "prompt": "masterpiece, best quality, scenery", "negative": "lowres, bad anatomy, watermark"}],
         "seed": -1,
@@ -1853,6 +1883,10 @@ if RUN_T2I:
         for prompt_idx, item in enumerate(prompt_items):
             prompt = str(item.get("prompt") or "").strip() or default_settings["prompts"][0]["prompt"]
             neg = str(item.get("negative") or item.get("neg") or settings.get("negative") or default_settings["prompts"][0]["negative"])
+            if base != "SDXL":
+                embeds, negative_embeds=encoder(pipe,prompt=bpro(prompt),neg_prompt=neg)
+            else:
+                embeds, negative_embeds, pooled, neg_pooled=encoder(pipe,prompt=bpro(prompt),neg_prompt=neg)
             name = str(item.get("name") or f"prompt_{prompt_idx+1}").strip() or f"prompt_{prompt_idx+1}"
             safe_name = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)[:64] or f"prompt_{prompt_idx+1}"
             for i in range(num_gen):
@@ -1860,7 +1894,26 @@ if RUN_T2I:
                 if base_seed >= 0 and (prompt_idx or i):
                     seed = (base_seed + prompt_idx * max(1, num_gen) + i) % 4294967294
                 generator = torch.Generator(device="cpu").manual_seed(seed)
-                image = pipe(prompt=prompt, negative_prompt=neg, height=h, width=w, num_inference_steps=steps, guidance_scale=guidance, generator=generator).images[0]
+                if base != "SDXL":
+                    image = pipe(
+                        prompt=None, 
+                        prompt_embeds=embeds, 
+                        negative_prompt_embeds=negative_embeds, 
+                        height=h, width=w, 
+                        num_inference_steps=steps, 
+                        guidance_scale=guidance, 
+                        generator=generator).images[0]
+                else:
+                    image = pipe(
+                        prompt=None, 
+                        prompt_embeds=embeds, 
+                        pooled_prompt_embeds=pooled, 
+                        negative_prompt_embeds=negative_embeds, 
+                        negative_pooled_prompt_embeds=neg_pooled, 
+                        height=h, width=w, 
+                        num_inference_steps=steps, 
+                        guidance_scale=guidance, 
+                        generator=generator).images[0]
                 out_path = os.path.join(idir, f"{safe_name}_{i:03d}_{seed}.png")
                 image.save(out_path)
                 manifest.append({"path": out_path, "prompt_name": name, "prompt": prompt, "negative": neg, "seed": seed, "width": w, "height": h, "steps": steps, "cfg": guidance})
@@ -2254,7 +2307,7 @@ def create_plan(filepath: str, workpath: str, saveas: str, title: str,
 def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
                       vae: str, CivitAPI: str, HuggingAPI: str, UR: str,
                       model_dir: str = "", vae_dir: str = "", vae_name: str = "VAE",
-                      bake_vae: bool = True,
+                      base_model: str = "SDXL", bake_vae: bool = True,
                       ignore_install_deps: bool = False, use_online: bool = False,
                       upload_after_merge: bool = False, run_t2i: bool = False,
                       t2i_settings: Dict[str, Any] | None = None):
@@ -2264,11 +2317,13 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
     runtime_workpath = _notebook_runtime_workpath(workpath)
     act_model_dir = model_dir if model_dir else f"{runtime_workpath}/tmp/models"
     use_online_literal = "True" if use_online else "False"
+    diffusion = "git+https://github.com/Faildes/diffusers-anima@from_multiple_models" if base_model == "Anima" else ""
     install = INSTALL_TPL.safe_substitute(
         workpath=runtime_workpath,
         toolpath=_preferred_toolpath(),
         ignore_install_deps=ignore_install_deps,
         use_online=use_online_literal,
+        diffusion=diffusion,
     )
     prelude = PRELUDE_TPL.safe_substitute(
         workpath=runtime_workpath,
@@ -2285,9 +2340,13 @@ def create_plan_ipynb(filepath: str, workpath: str, saveas: str, title: str,
     res, final = planit(filepath, runtime_workpath, model_dir, vae_dir, bake_vae=bake_vae)
     plan_cell = f"#{title}\n\n" + prelude + "\n\n" + "\n\n".join(res)
     upload = UPLOAD_TPL.safe_substitute(workpath=runtime_workpath, final=final or "", repo=UR, model_dir=act_model_dir, upload_after_merge=upload_after_merge)
-    t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=runtime_workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i)
+    base = "StableDiffusionXL" if base_model == "SDXL" else ("Flux" if base_model == "Flux" else ("StableDiffusion" if base_model == "SD1.5" else base_model))
+    pipelines = "from diffusers_anima import AnimaPipeline\n    import diffusers_anima" if base_model == "Anima" else f"from diffusers import {base}Pipeline"
+    pipeline = f"{base}Pipeline"
+    t2i_cfg = T2I_CFG_TPL.safe_substitute(workpath=runtime_workpath, final=final or "", model_dir=act_model_dir, run_t2i=run_t2i, base=base, pipelines=pipelines, pipeline=pipeline)
     t2i_settings_json = json.dumps(t2i_settings or {}, ensure_ascii=False)
-    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=runtime_workpath, run_t2i=run_t2i, t2i_settings_json=t2i_settings_json)
+    encoder = f"get_weighted_text_embeddings_{base_model.lower().replace('.','').replace('flux','flux1')}"
+    t2i_run = T2I_RUN_TPL.safe_substitute(workpath=runtime_workpath, run_t2i=run_t2i, t2i_settings_json=t2i_settings_json, base=base, encoder=encoder)
     zipc = ZIP_TPL.safe_substitute(workpath=runtime_workpath, run_t2i=run_t2i)
     cells = [install, plan_cell, upload, t2i_cfg, t2i_run, zipc]
     with open(saveas, "w", encoding="utf-8") as f:

@@ -3813,6 +3813,7 @@ class ModelPlannerApp:
                 UR=params.get("UR", ""),
                 model_dir=params.get("model_dir", ""),
                 vae_dir=params.get("vae_dir", ""),
+                base_model=self.config.get("base_model", "SDXL"),
                 ignore_install_deps=bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get()),
                 use_online=bool(getattr(self, "use_online_var", tk.BooleanVar(value=False)).get()),
                 upload_after_merge=bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get()),
