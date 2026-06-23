@@ -311,7 +311,7 @@ def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
             if entry["type"] == "Checkpoint Merge":
                 entry["alpha"] = _normalize_ratio_spec(entry.get("alpha"), allow_block_weight=True, default_single="0.5")
                 entry["beta"] = _normalize_ratio_spec(entry.get("beta"), allow_block_weight=True, default_single="0.5")
-            if entry["type"] == "LoRA Bake":
+            if entry["type"] in ("LoRA Bake", "LoRA Merge"):
                 entry.setdefault("loras", [])
                 normalized_loras = []
                 for lora in entry.get("loras", []):
@@ -3203,3 +3203,33 @@ def _precision_args(entry: Dict[str, Any], command_signatures: str = "") -> str:
     elif p in ("half", "fp16", "float16"):
         args.insert(0, "--save_half")
     return _json_literal(args)
+
+
+# -----------------------------------------------------------------------------
+# Advanced project metadata compatibility patch
+# Preserve planner-side project extensions when plan.py normalizes project JSON.
+# -----------------------------------------------------------------------------
+try:
+    _tccm_adv_default_plan_base = default_plan
+    def default_plan() -> Dict[str, Any]:
+        plan = _tccm_adv_default_plan_base()
+        plan.setdefault("variants", [])
+        plan.setdefault("run_profiles", [])
+        plan.setdefault("current_variant", "")
+        plan.setdefault("schema_version", 3)
+        return plan
+
+    _tccm_adv_normalize_plan_base = normalize_plan
+    def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
+        plan = _tccm_adv_normalize_plan_base(data)
+        if isinstance(data, dict):
+            for key in ("variants", "run_profiles", "current_variant", "runtime", "schema_version", "migrated_from", "migrated_at"):
+                if key in data:
+                    plan[key] = data.get(key)
+        plan.setdefault("variants", [])
+        plan.setdefault("run_profiles", [])
+        plan.setdefault("current_variant", "")
+        plan.setdefault("schema_version", 3)
+        return plan
+except Exception:
+    pass

@@ -14782,6 +14782,2088 @@ try:
 except Exception:
     pass
 
+# -----------------------------------------------------------------------------
+# Project JSON I/O patch (.tccm.json)
+# -----------------------------------------------------------------------------
+try:
+    TCCM_PROJECT_EXTENSION = ".tccm.json"
+    TCCM_PROJECT_FORMAT = "tccm-planner-project"
+
+    def _planner_is_project_json_path(path: str | os.PathLike | None) -> bool:
+        raw = str(path or "").strip().lower()
+        return raw.endswith(TCCM_PROJECT_EXTENSION) or raw.endswith(".tccm")
+
+    def _planner_force_project_extension(path: str) -> str:
+        raw = str(path or "").strip()
+        if not raw:
+            return raw
+        low = raw.lower()
+        if low.endswith(TCCM_PROJECT_EXTENSION) or low.endswith(".tccm"):
+            return raw
+        if not Path(raw).suffix:
+            return raw + TCCM_PROJECT_EXTENSION
+        return raw
+
+    def _planner_timestamp() -> str:
+        return time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _planner_safe_title(self) -> str:
+        try:
+            title = self.entries["title"].get().strip()
+        except Exception:
+            title = ""
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", title or "merge_plan").strip("_") or "merge_plan"
+
+    def _planner_project_json_payload(self, *, include_runtime: bool = True) -> Dict[str, Any]:
+        apply_defaults = getattr(self, "_planner_apply_entry_defaults", None)
+        if callable(apply_defaults):
+            apply_defaults()
+        entries = copy.deepcopy((getattr(self, "plan_data", {}) or {}).get("entries", []) or [])
+        payload: Dict[str, Any] = {
+            "version": 3,
+            "format": TCCM_PROJECT_FORMAT,
+            "saved_at": _planner_timestamp(),
+            "current_index": int(getattr(self, "current_index", 0) or 0),
+            "entries": entries,
+        }
+        for key in ("final_memo", "history", "meta"):
+            if isinstance(getattr(self, "plan_data", None), dict) and key in self.plan_data:
+                payload[key] = copy.deepcopy(self.plan_data.get(key))
+        if include_runtime:
+            cfg = {}
+            try:
+                for key in getattr(self, "NOTEBOOK_PARAMS_KEYS", []):
+                    if key in getattr(self, "entries", {}):
+                        cfg[key] = self.entries[key].get()
+                    elif key in getattr(self, "config", {}):
+                        cfg[key] = copy.deepcopy(self.config.get(key))
+                cfg["base_model"] = self.base_model_var.get() if hasattr(self, "base_model_var") else self.config.get("base_model", "SDXL")
+                cfg["bake_vae"] = bool(getattr(self, "bake_vae_var", tk.BooleanVar(value=False)).get())
+                cfg["ignore_install_deps"] = bool(getattr(self, "ignore_install_deps_var", tk.BooleanVar(value=False)).get())
+                cfg["use_online"] = bool(getattr(self, "use_online_var", tk.BooleanVar(value=False)).get())
+                cfg["upload_after_merge"] = bool(getattr(self, "upload_after_merge_var", tk.BooleanVar(value=False)).get())
+                cfg["run_t2i"] = bool(getattr(self, "run_t2i_var", tk.BooleanVar(value=False)).get())
+            except Exception:
+                cfg = copy.deepcopy(getattr(self, "config", {}) or {})
+            payload["runtime"] = cfg
+        return payload
+
+    def _planner_effective_json_payload(self) -> Dict[str, Any]:
+        effective = self._planner_effective_plan_data() if hasattr(self, "_planner_effective_plan_data") else {"entries": copy.deepcopy(self.plan_data.get("entries", []))}
+        return {
+            "version": 3,
+            "format": "tccm-effective-plan",
+            "saved_at": _planner_timestamp(),
+            "source_format": TCCM_PROJECT_FORMAT,
+            "entries": copy.deepcopy((effective or {}).get("entries", []) or []),
+        }
+
+    def _planner_write_json_file(path: str | os.PathLike, payload: Dict[str, Any]) -> None:
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _planner_read_json_or_none(path: str | os.PathLike):
+        try:
+            raw = Path(path).read_text(encoding="utf-8")
+            stripped = raw.lstrip()
+            if stripped.startswith("{") or stripped.startswith("["):
+                return json.loads(raw)
+        except Exception:
+            return None
+        return None
+
+    def _planner_restore_project_payload(self, payload, *, source_path: str = ""):
+        if isinstance(payload, dict) and "plan_data" in payload:
+            payload = payload.get("plan_data")
+        if isinstance(payload, list):
+            payload = {"version": 3, "format": TCCM_PROJECT_FORMAT, "entries": payload}
+        if not isinstance(payload, dict):
+            payload = {"entries": []}
+        raw_entries = payload.get("entries") or []
+        entries = []
+        for raw_entry in raw_entries if isinstance(raw_entries, list) else []:
+            if not isinstance(raw_entry, dict):
+                continue
+            try:
+                entry = self._normalize_entry_preserving_embedded_sources(copy.deepcopy(raw_entry))
+            except Exception:
+                entry = copy.deepcopy(raw_entry)
+                entry.setdefault("id", make_entry(entry.get("type", "Checkpoint Merge")).get("id"))
+            entry["memo"] = str(raw_entry.get("memo") or entry.get("memo") or "")
+            entry["_locked"] = bool(raw_entry.get("_locked", entry.get("_locked", False)))
+            entry["_disabled"] = bool(raw_entry.get("_disabled", entry.get("_disabled", False)))
+            entry["_row_color"] = str(raw_entry.get("_row_color", entry.get("_row_color", "")) or "")
+            entries.append(entry)
+        self.plan_data = {
+            "version": 3,
+            "format": str(payload.get("format") or TCCM_PROJECT_FORMAT),
+            "entries": entries or [make_entry("Checkpoint Merge")],
+        }
+        for key in ("final_memo", "history", "meta"):
+            if key in payload:
+                self.plan_data[key] = copy.deepcopy(payload.get(key))
+        apply_defaults = getattr(self, "_planner_apply_entry_defaults", None)
+        if callable(apply_defaults):
+            apply_defaults()
+        try:
+            idx = int(payload.get("current_index", 0) or 0)
+        except Exception:
+            idx = 0
+        self.current_index = max(0, min(idx, len(self.plan_data.get("entries", [])) - 1))
+
+    def _ensure_plan_path_project_json(self) -> str:
+        path = self._normalize_user_path(self.entries["filepath"].get().strip())
+        if not path:
+            base_dir = self._normalize_user_path(os.getcwd())
+            title = _planner_safe_title(self)
+            path = os.path.join(base_dir, f"{title}{TCCM_PROJECT_EXTENSION}")
+        path = _planner_force_project_extension(path)
+        if path != self.entries["filepath"].get().strip():
+            self.entries["filepath"].delete(0, tk.END)
+            self.entries["filepath"].insert(0, path)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _planner_save_project_json(self, path: str | None = None, *, create_backup: bool = True, reason: str = "autosave") -> str:
+        path = self._normalize_user_path(path or self._ensure_plan_path())
+        path = _planner_force_project_extension(path) if not path.lower().endswith(".txt") else path
+        if _planner_is_project_json_path(path) or not path.lower().endswith(".txt"):
+            _planner_write_json_file(path, _planner_project_json_payload(self))
+        else:
+            export_plan_records_txt(path, self._planner_effective_plan_data())
+            save_meta = getattr(self, "_planner_save_meta_to_disk", None)
+            if callable(save_meta):
+                save_meta(path)
+        if create_backup:
+            maybe_backup = getattr(self, "_planner_maybe_create_backup", None)
+            if callable(maybe_backup):
+                maybe_backup(path, reason=reason)
+        self._schedule_config_save()
+        return path
+
+    def _save_plan_to_file_project_json(self):
+        self._planner_save_project_json(reason="autosave")
+
+    def _save_plan_text_button_project_json(self):
+        try:
+            path = self._planner_save_project_json(reason="manual-save")
+            label = "project JSON" if _planner_is_project_json_path(path) else "runner text"
+            self.status_label.config(text=f"Saved {label}: {self._path_display_name(path)}")
+            messagebox.showinfo("Save Plan", f"Saved {label} successfully.\n\n{path}")
+        except Exception as e:
+            self._show_detailed_error("Save Plan Error", e, context="Operation: save_plan")
+
+    def _write_temp_plan_text_project_json(self) -> str:
+        fd, temp_path = tempfile.mkstemp(prefix="planner_effective_", suffix=".txt")
+        os.close(fd)
+        export_plan_records_txt(temp_path, self._planner_effective_plan_data())
+        return temp_path
+
+    def _get_notebook_paths_project_json(self) -> tuple[str, str]:
+        plan_path = Path(self._ensure_plan_path())
+        title = _planner_safe_title(self) or plan_path.stem.replace(".tccm", "") or "merge_plan"
+        return str(plan_path.with_name(f"{title}.ipynb")), str(plan_path.with_name(f"{title}.executed.ipynb"))
+
+    def _suggest_export_txt_path_project_json(self) -> str:
+        plan_path = Path(self._ensure_plan_path())
+        title = _planner_safe_title(self) or plan_path.stem.replace(".tccm", "") or "merge_plan"
+        return str(plan_path.with_name(f"{title}.txt"))
+
+    def _browse_plan_file_project_json(self):
+        path = filedialog.askopenfilename(
+            title="Load planner project or legacy plan",
+            filetypes=[("TCCM Project", "*.tccm.json"), ("Planner / JSON / Text", "*.tccm.json *.json *.txt"), ("All files", "*.*")],
+        )
+        path = self._normalize_user_path(path)
+        if path:
+            self.entries["filepath"].delete(0, tk.END)
+            self.entries["filepath"].insert(0, path)
+            self._schedule_config_save()
+
+    def _new_plan_project_json(self):
+        current_filepath = self._normalize_user_path(self.entries["filepath"].get().strip()) if "filepath" in self.entries else ""
+        current_title = self.entries["title"].get().strip() if "title" in self.entries else ""
+        initial_name = Path(current_filepath).name if current_filepath else f"{(current_title or 'merge_plan')}{TCCM_PROJECT_EXTENSION}"
+        if not initial_name.lower().endswith(TCCM_PROJECT_EXTENSION):
+            initial_name = Path(initial_name).stem + TCCM_PROJECT_EXTENSION
+        initial_dir = str(Path(current_filepath).expanduser().parent) if current_filepath else os.getcwd()
+        try:
+            path = filedialog.asksaveasfilename(
+                title="Create new TCCM Project",
+                defaultextension=TCCM_PROJECT_EXTENSION,
+                initialfile=initial_name,
+                initialdir=initial_dir,
+                filetypes=[("TCCM Project", "*.tccm.json"), ("All files", "*.*")],
+            )
+            path = self._normalize_user_path(path)
+            if not path:
+                return
+            path = _planner_force_project_extension(path)
+            self.plan_data = self._planner_default_visible_plan()
+            self.current_index = 0
+            _planner_write_json_file(path, _planner_project_json_payload(self))
+            self.entries["filepath"].delete(0, tk.END)
+            self.entries["filepath"].insert(0, path)
+            self.entries["title"].delete(0, tk.END)
+            self.entries["title"].insert(0, Path(path).name.removesuffix(TCCM_PROJECT_EXTENSION))
+            self.notebook_path_var.set("")
+            self.executed_notebook_path_var.set("")
+            self._refresh_line_selector()
+            self._render_current_line()
+            self._save_current_state_to_config()
+            self._planner_maybe_create_backup(path, reason="new-project", force=True)
+            self.status_label.config(text=f"Created new project: {self._path_display_name(path)}")
+        except Exception as e:
+            self._show_detailed_error("New Project Error", e, context="Operation: new_project")
+
+    def _load_plan_from_path_project_json(self):
+        path = self._normalize_user_path(self.entries["filepath"].get().strip())
+        if not path:
+            messagebox.showwarning("Plan Path", "Plan path is empty.")
+            return
+        try:
+            payload = _planner_read_json_or_none(path)
+            is_project = _planner_is_project_json_path(path) or (isinstance(payload, dict) and payload.get("format") == TCCM_PROJECT_FORMAT)
+            if is_project:
+                self._planner_restore_project_payload(payload, source_path=path)
+            else:
+                raw = normalize_plan(load_plan_records(path))
+                collapse = getattr(self, "_collapse_internal_plan_entries", None)
+                self.plan_data = collapse(raw) if callable(collapse) else raw
+                load_meta = getattr(self, "_planner_load_meta_from_disk", None)
+                if callable(load_meta):
+                    load_meta(path)
+                apply_defaults = getattr(self, "_planner_apply_entry_defaults", None)
+                if callable(apply_defaults):
+                    apply_defaults()
+                self.current_index = 0
+            if hasattr(self, "_history_undo"):
+                self._history_undo.clear()
+            if hasattr(self, "_history_redo"):
+                self._history_redo.clear()
+            self._last_history_snapshot = self._planner_plan_snapshot() if hasattr(self, "_planner_plan_snapshot") else None
+            self._refresh_line_selector()
+            self._render_current_line()
+            self.status_label.config(text=f"Loaded plan: {self._path_display_name(path)}")
+            self.root.after(500, lambda p=path: self._planner_offer_newer_backup_restore(p))
+        except Exception as e:
+            self._show_detailed_error("Load Error", e)
+
+    def _restore_session_state_project_json(self):
+        filepath = self.entries["filepath"].get().strip()
+        if filepath and os.path.exists(filepath):
+            try:
+                payload = _planner_read_json_or_none(filepath)
+                is_project = _planner_is_project_json_path(filepath) or (isinstance(payload, dict) and payload.get("format") == TCCM_PROJECT_FORMAT)
+                if is_project:
+                    self._planner_restore_project_payload(payload, source_path=filepath)
+                else:
+                    raw = normalize_plan(load_plan_records(filepath))
+                    collapse = getattr(self, "_collapse_internal_plan_entries", None)
+                    self.plan_data = collapse(raw) if callable(collapse) else raw
+                    load_meta = getattr(self, "_planner_load_meta_from_disk", None)
+                    if callable(load_meta):
+                        load_meta(filepath)
+                    apply_defaults = getattr(self, "_planner_apply_entry_defaults", None)
+                    if callable(apply_defaults):
+                        apply_defaults()
+            except Exception:
+                self.plan_data = self._planner_default_visible_plan()
+        else:
+            self.plan_data = self._planner_default_visible_plan()
+        apply_defaults = getattr(self, "_planner_apply_entry_defaults", None)
+        if callable(apply_defaults):
+            apply_defaults()
+        if filepath:
+            try:
+                self.root.after(900, lambda p=filepath: self._planner_offer_newer_backup_restore(p))
+            except Exception:
+                pass
+
+    def _planner_export_json_common(self, *, effective: bool, clipboard: bool = False, current_line: bool = False):
+        if current_line:
+            entries = self.plan_data.get("entries", []) or []
+            payload = copy.deepcopy(entries[self.current_index]) if entries and 0 <= self.current_index < len(entries) else {}
+            default_name = f"{_planner_safe_title(self)}_line_{self.current_index + 1}.json"
+        elif effective:
+            payload = _planner_effective_json_payload(self)
+            default_name = f"{_planner_safe_title(self)}.effective.json"
+        else:
+            payload = _planner_project_json_payload(self)
+            default_name = f"{_planner_safe_title(self)}{TCCM_PROJECT_EXTENSION}"
+        text = json.dumps(payload, ensure_ascii=False, indent=2)
+        if clipboard:
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(text)
+                self.status_label.config(text="Copied JSON to clipboard")
+            except Exception as e:
+                self._show_detailed_error("Copy JSON Error", e, context="Operation: copy_json")
+            return None
+        initial_dir = str(Path(self._ensure_plan_path()).parent)
+        path = filedialog.asksaveasfilename(
+            title="Export JSON",
+            defaultextension=".json",
+            initialfile=default_name,
+            initialdir=initial_dir,
+            filetypes=[("TCCM Project", "*.tccm.json"), ("JSON", "*.json"), ("All files", "*.*")],
+        )
+        path = self._normalize_user_path(path)
+        if not path:
+            return None
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(text, encoding="utf-8")
+        self.status_label.config(text=f"Exported JSON: {self._path_display_name(path)}")
+        return path
+
+    def _export_full_json(self):
+        return self._planner_export_json_common(effective=False, clipboard=False)
+
+    def _export_effective_json(self):
+        return self._planner_export_json_common(effective=True, clipboard=False)
+
+    def _copy_full_json(self):
+        return self._planner_export_json_common(effective=False, clipboard=True)
+
+    def _copy_effective_json(self):
+        return self._planner_export_json_common(effective=True, clipboard=True)
+
+    def _copy_current_line_json(self):
+        return self._planner_export_json_common(effective=False, clipboard=True, current_line=True)
+
+    def _planner_meta_payload_id_aware(self):
+        entries = []
+        for entry in self.plan_data.get("entries", []) or []:
+            if isinstance(entry, dict):
+                entries.append({
+                    "id": str(entry.get("id") or ""),
+                    "type": str(entry.get("type") or ""),
+                    "output_name": str(entry.get("output_name") or entry.get("model_name") or entry.get("model") or ""),
+                    "memo": str(entry.get("memo") or ""),
+                    "_locked": bool(entry.get("_locked")),
+                    "_disabled": bool(entry.get("_disabled")),
+                    "_row_color": str(entry.get("_row_color") or ""),
+                })
+        return {"version": 2, "entries": entries}
+
+    def _planner_apply_loaded_meta_id_aware(self, payload):
+        self._planner_apply_entry_defaults()
+        entries = self.plan_data.get("entries", []) or []
+        meta_entries = payload.get("entries") if isinstance(payload, dict) else None
+        if not isinstance(meta_entries, list):
+            return
+        by_id = {str(m.get("id") or ""): m for m in meta_entries if isinstance(m, dict) and str(m.get("id") or "")}
+        for idx, entry in enumerate(entries):
+            meta = by_id.get(str(entry.get("id") or ""))
+            if meta is None and idx < len(meta_entries) and isinstance(meta_entries[idx], dict):
+                meta = meta_entries[idx]
+            if not isinstance(meta, dict):
+                continue
+            if "memo" in meta:
+                entry["memo"] = str(meta.get("memo") or "")
+            entry["_locked"] = bool(meta.get("_locked"))
+            entry["_disabled"] = bool(meta.get("_disabled"))
+            entry["_row_color"] = str(meta.get("_row_color") or "")
+
+    def _planner_maybe_create_backup_project(self, plan_path: str | None = None, *, reason: str = "autosave", force: bool = False):
+        try:
+            source_plan_path = ""
+            try:
+                source_plan_path = str(plan_path or (self.entries.get("filepath").get() if self.entries.get("filepath") else ""))
+            except Exception:
+                source_plan_path = str(plan_path or "")
+            payload = {
+                "bundle_version": 2,
+                "version": 2,
+                "saved_at": _planner_timestamp(),
+                "reason": str(reason or "autosave"),
+                "source_plan_path": source_plan_path,
+                "current_index": int(getattr(self, "current_index", 0) or 0),
+                "config": copy.deepcopy(getattr(self, "config", {}) or {}),
+                "plan_data": _planner_project_json_payload(self),
+                "effective_line_count": len((_planner_effective_json_payload(self).get("entries") or [])),
+            }
+            snapshot = json.dumps(payload["plan_data"], ensure_ascii=False, sort_keys=True)
+            now = time.time()
+            if not force:
+                if snapshot == getattr(self, "_last_backup_snapshot", None):
+                    return
+                if now - float(getattr(self, "_last_backup_time", 0.0) or 0.0) < 15.0:
+                    return
+            root = self._planner_backup_root(plan_path)
+            root.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            safe_reason = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(reason or "autosave")).strip("_") or "autosave"
+            out = root / f"{stamp}_{safe_reason}.planbundle.json"
+            out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            bundles = sorted(root.glob("*.planbundle.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            keep = max(3, int(getattr(self, "backup_keep_generations", 20) or 20))
+            for stale in bundles[keep:]:
+                try:
+                    stale.unlink()
+                except Exception:
+                    pass
+            self._last_backup_snapshot = snapshot
+            self._last_backup_time = now
+        except Exception:
+            pass
+
+    def _planner_offer_newer_backup_restore(self, plan_path: str | None = None):
+        try:
+            if not plan_path or not Path(plan_path).exists():
+                return
+            root = self._planner_backup_root(plan_path)
+            bundles = sorted(root.glob("*.planbundle.json"), key=lambda p: p.stat().st_mtime, reverse=True) if root.exists() else []
+            if not bundles:
+                return
+            latest = bundles[0]
+            if latest.stat().st_mtime <= Path(plan_path).stat().st_mtime + 1.0:
+                return
+            key = str(latest.resolve())
+            if getattr(self, "_last_offered_backup", None) == key:
+                return
+            self._last_offered_backup = key
+            if not messagebox.askyesno("Newer Backup Found", f"A newer backup exists.\n\n{latest.name}\n\nRestore this backup?"):
+                return
+            payload = json.loads(latest.read_text(encoding="utf-8"))
+            raw_plan = payload.get("plan_data") if isinstance(payload, dict) else payload
+            if hasattr(self, "_planner_push_history"):
+                self._planner_push_history()
+            self._planner_restore_project_payload(raw_plan, source_path=str(latest))
+            self._planner_save_project_json(plan_path, create_backup=False)
+            self._refresh_line_selector()
+            self._render_current_line()
+            self.status_label.config(text=f"Restored newer backup: {latest.name}")
+        except Exception:
+            pass
+
+    _tccm_base_create_menu = ModelPlannerApp._create_menu
+    def _create_menu_project_json(self):
+        _tccm_base_create_menu(self)
+        try:
+            menu_bar = self.root.nametowidget(self.root.cget("menu"))
+        except Exception:
+            menu_bar = tk.Menu(self.root)
+            self.root.config(menu=menu_bar)
+        project_menu = tk.Menu(menu_bar, tearoff=0)
+        try:
+            menu_bar.insert_cascade(0, label="File", menu=project_menu)
+        except Exception:
+            menu_bar.add_cascade(label="File", menu=project_menu)
+        project_menu.add_command(label="New Project (.tccm.json)…", command=self._new_plan)
+        project_menu.add_command(label="Load Project / Legacy Plan…", command=self._load_plan_from_path)
+        project_menu.add_command(label="Save Project", command=self._save_plan_text_button)
+        project_menu.add_separator()
+        project_menu.add_command(label="Export Full Project JSON…", command=self._export_full_json)
+        project_menu.add_command(label="Export Effective JSON…", command=self._export_effective_json)
+        project_menu.add_command(label="Copy Full Project JSON", command=self._copy_full_json)
+        project_menu.add_command(label="Copy Effective JSON", command=self._copy_effective_json)
+        project_menu.add_command(label="Copy Current Line JSON", command=self._copy_current_line_json)
+        project_menu.add_separator()
+        project_menu.add_command(label="Backup Manager…", command=self._show_backup_manager)
+
+    ModelPlannerApp._ensure_plan_path = _ensure_plan_path_project_json
+    ModelPlannerApp._save_plan_to_file = _save_plan_to_file_project_json
+    ModelPlannerApp._save_plan_text_button = _save_plan_text_button_project_json
+    ModelPlannerApp._write_temp_plan_text = _write_temp_plan_text_project_json
+    ModelPlannerApp._get_notebook_paths = _get_notebook_paths_project_json
+    ModelPlannerApp._suggest_export_txt_path = _suggest_export_txt_path_project_json
+    ModelPlannerApp._browse_plan_file = _browse_plan_file_project_json
+    ModelPlannerApp._new_plan = _new_plan_project_json
+    ModelPlannerApp._load_plan_from_path = _load_plan_from_path_project_json
+    ModelPlannerApp._restore_session_state = _restore_session_state_project_json
+    ModelPlannerApp._planner_project_json_payload = _planner_project_json_payload
+    ModelPlannerApp._planner_effective_json_payload = _planner_effective_json_payload
+    ModelPlannerApp._planner_restore_project_payload = _planner_restore_project_payload
+    ModelPlannerApp._planner_save_project_json = _planner_save_project_json
+    ModelPlannerApp._planner_export_json_common = _planner_export_json_common
+    ModelPlannerApp._export_full_json = _export_full_json
+    ModelPlannerApp._export_effective_json = _export_effective_json
+    ModelPlannerApp._copy_full_json = _copy_full_json
+    ModelPlannerApp._copy_effective_json = _copy_effective_json
+    ModelPlannerApp._copy_current_line_json = _copy_current_line_json
+    ModelPlannerApp._planner_meta_payload = _planner_meta_payload_id_aware
+    ModelPlannerApp._planner_apply_loaded_meta = _planner_apply_loaded_meta_id_aware
+    ModelPlannerApp._planner_maybe_create_backup = _planner_maybe_create_backup_project
+    ModelPlannerApp._planner_offer_newer_backup_restore = _planner_offer_newer_backup_restore
+    ModelPlannerApp._create_menu = _create_menu_project_json
+except Exception:
+    pass
+
+
+# Minor menu polish for the .tccm.json project patch.
+try:
+    def _open_plan_dialog_project_json(self):
+        self._browse_plan_file()
+        try:
+            path = self.entries["filepath"].get().strip()
+        except Exception:
+            path = ""
+        if path:
+            self._load_plan_from_path()
+
+    _tccm_project_create_menu_prev = ModelPlannerApp._create_menu
+    def _create_menu_project_json_open_dialog(self):
+        _tccm_project_create_menu_prev(self)
+        try:
+            menu_bar = self.root.nametowidget(self.root.cget("menu"))
+            # The first menu was added by the project patch.  Replace its second
+            # command with an actual open-dialog workflow when Tk allows it.
+            file_menu_name = menu_bar.entrycget(0, "menu")
+            file_menu = self.root.nametowidget(file_menu_name)
+            file_menu.entryconfigure(1, command=self._open_plan_dialog_project_json)
+        except Exception:
+            pass
+
+    ModelPlannerApp._open_plan_dialog_project_json = _open_plan_dialog_project_json
+    ModelPlannerApp._create_menu = _create_menu_project_json_open_dialog
+except Exception:
+    pass
+
+
+
+# -----------------------------------------------------------------------------
+# Advanced planner tools patch
+# Adds: health dashboard, dependency chain, backup diff/pin manager, variants,
+# run profiles, collision checker, provenance export, JSON schema export, and
+# safe migration to .tccm.json.
+# -----------------------------------------------------------------------------
+try:
+    TCCM_PROJECT_EXTENSION = globals().get("TCCM_PROJECT_EXTENSION", ".tccm.json")
+    TCCM_PROJECT_FORMAT = globals().get("TCCM_PROJECT_FORMAT", "tccm-planner-project")
+
+    def _tccm_timestamp() -> str:
+        return time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def _tccm_safe_filename(value: str, default: str = "item") -> str:
+        raw = str(value or default).strip() or default
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", raw).strip("_") or default
+
+    def _tccm_norm_text(value) -> str:
+        return str(value or "").strip().strip('"').strip("'")
+
+    def _tccm_aliases(value) -> set[str]:
+        raw = _tccm_norm_text(value)
+        if not raw:
+            return set()
+        aliases = {raw}
+        try:
+            base = Path(raw).name
+            if base:
+                aliases.add(base)
+                aliases.add(Path(base).stem)
+                if not base.lower().endswith(".safetensors"):
+                    aliases.add(base + ".safetensors")
+            if not raw.lower().endswith(".safetensors"):
+                aliases.add(raw + ".safetensors")
+        except Exception:
+            pass
+        return {a for a in aliases if a}
+
+    def _tccm_display_name(entry: dict) -> str:
+        if not isinstance(entry, dict):
+            return ""
+        for key in ("output_name", "model_name", "model", "name"):
+            val = _tccm_norm_text(entry.get(key))
+            if val:
+                return val
+        typ = str(entry.get("type") or "Line")
+        return typ
+
+    def _tccm_entry_output(entry: dict) -> str:
+        if not isinstance(entry, dict):
+            return ""
+        typ = str(entry.get("type") or "")
+        if typ in ("Checkpoint Merge", "LoRA Bake", "LoRA Merge"):
+            return _tccm_norm_text(entry.get("output_name"))
+        if typ in ("Download Model", "Local Model"):
+            return _tccm_norm_text(entry.get("model_name"))
+        return ""
+
+    def _tccm_entry_sources(entry: dict) -> list[str]:
+        if not isinstance(entry, dict):
+            return []
+        typ = str(entry.get("type") or "")
+        out: list[str] = []
+        def add(value):
+            value = _tccm_norm_text(value)
+            if value and value not in out:
+                out.append(value)
+        if typ == "Checkpoint Merge":
+            for key in ("model0", "model1", "model2"):
+                add(entry.get(key))
+        elif typ == "LoRA Bake":
+            add(entry.get("checkpoint"))
+            for item in entry.get("loras") or []:
+                if isinstance(item, dict):
+                    add(item.get("name"))
+                else:
+                    add(item)
+        elif typ == "LoRA Merge":
+            for item in entry.get("loras") or []:
+                if isinstance(item, dict):
+                    add(item.get("name"))
+                else:
+                    add(item)
+        elif typ == "Remove Model":
+            add(entry.get("model"))
+        return out
+
+    def _tccm_entry_summary(entry: dict, index: int) -> str:
+        status = "disabled" if bool(entry.get("_disabled")) else "enabled"
+        name = _tccm_display_name(entry)
+        return f"#{index + 1}: {entry.get('type', 'Line')} · {name or '(unnamed)'} · {status}"
+
+    def _tccm_make_text_window(self, title: str, text: str, *, width: int = 1100, height: int = 720, monospace: bool = True):
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.geometry(f"{width}x{height}+120+120")
+        outer = Frame(win, padx=8, pady=8)
+        outer.pack(fill="both", expand=True)
+        toolbar = Frame(outer)
+        toolbar.pack(fill="x", pady=(0, 6))
+        def copy_all():
+            try:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(widget.get("1.0", "end-1c"))
+                self.status_label.config(text=f"Copied {title} to clipboard")
+            except Exception as exc:
+                self._show_detailed_error("Copy Error", exc, context=title)
+        ttk.Button(toolbar, text="Copy", command=copy_all).pack(side="left")
+        ttk.Button(toolbar, text="Close", command=win.destroy).pack(side="right")
+        holder = Frame(outer)
+        holder.pack(fill="both", expand=True)
+        widget = Text(holder, wrap="none" if monospace else "word", font=("Consolas", 10) if monospace else ("MS Gothic", 10))
+        yscroll = Scrollbar(holder, orient="vertical", command=widget.yview)
+        xscroll = Scrollbar(holder, orient="horizontal", command=widget.xview)
+        widget.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
+        widget.grid(row=0, column=0, sticky="nsew")
+        yscroll.grid(row=0, column=1, sticky="ns")
+        xscroll.grid(row=1, column=0, sticky="ew")
+        holder.grid_rowconfigure(0, weight=1)
+        holder.grid_columnconfigure(0, weight=1)
+        widget.insert("1.0", text)
+        widget.configure(state="disabled")
+        return win, widget
+
+    def _tccm_ensure_extension_state(self):
+        if not isinstance(getattr(self, "plan_variants", None), list):
+            self.plan_variants = []
+        if not isinstance(getattr(self, "run_profiles", None), list):
+            self.run_profiles = []
+        if not hasattr(self, "current_variant_name"):
+            self.current_variant_name = ""
+
+    def _tccm_current_runtime_payload(self) -> dict:
+        payload: dict = {}
+        try:
+            for key in getattr(self, "NOTEBOOK_PARAMS_KEYS", []):
+                if key in getattr(self, "entries", {}):
+                    payload[key] = self.entries[key].get()
+                elif key in getattr(self, "config", {}):
+                    payload[key] = copy.deepcopy(self.config.get(key))
+            if hasattr(self, "base_model_var"):
+                payload["base_model"] = self.base_model_var.get()
+            for key, var_name in (
+                ("bake_vae", "bake_vae_var"),
+                ("ignore_install_deps", "ignore_install_deps_var"),
+                ("use_online", "use_online_var"),
+                ("upload_after_merge", "upload_after_merge_var"),
+                ("run_t2i", "run_t2i_var"),
+            ):
+                var = getattr(self, var_name, None)
+                if var is not None:
+                    payload[key] = bool(var.get())
+        except Exception:
+            payload = copy.deepcopy(getattr(self, "config", {}) or {})
+        return payload
+
+    def _tccm_apply_runtime_payload(self, runtime: dict):
+        if not isinstance(runtime, dict):
+            return
+        for key, value in runtime.items():
+            self.config[key] = value
+            try:
+                if key in getattr(self, "entries", {}):
+                    widget = self.entries[key]
+                    if hasattr(widget, "delete") and hasattr(widget, "insert"):
+                        widget.delete(0, tk.END)
+                        widget.insert(0, str(value))
+            except Exception:
+                pass
+        try:
+            if "base_model" in runtime and hasattr(self, "base_model_var"):
+                self.base_model_var.set(str(runtime.get("base_model") or self.base_model_var.get()))
+        except Exception:
+            pass
+        for key, var_name in (
+            ("bake_vae", "bake_vae_var"),
+            ("ignore_install_deps", "ignore_install_deps_var"),
+            ("use_online", "use_online_var"),
+            ("upload_after_merge", "upload_after_merge_var"),
+            ("run_t2i", "run_t2i_var"),
+        ):
+            try:
+                if key in runtime and hasattr(self, var_name):
+                    getattr(self, var_name).set(bool(runtime.get(key)))
+            except Exception:
+                pass
+        try:
+            self._schedule_config_save()
+        except Exception:
+            pass
+
+    def _tccm_analyze_plan(self) -> dict:
+        entries = copy.deepcopy((getattr(self, "plan_data", {}) or {}).get("entries", []) or [])
+        outputs: dict[str, list[dict]] = {}
+        canonical_outputs: list[dict] = []
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            out = _tccm_entry_output(entry)
+            if not out:
+                continue
+            item = {
+                "index": idx,
+                "line": idx + 1,
+                "entry_id": str(entry.get("id") or ""),
+                "type": str(entry.get("type") or ""),
+                "name": out,
+                "disabled": bool(entry.get("_disabled")),
+                "summary": _tccm_entry_summary(entry, idx),
+            }
+            canonical_outputs.append(item)
+            for alias in _tccm_aliases(out):
+                outputs.setdefault(alias, []).append(item)
+        duplicate_aliases = []
+        for alias, producers in sorted(outputs.items(), key=lambda kv: kv[0].lower()):
+            enabled = [p for p in producers if not p.get("disabled")]
+            if len(enabled) > 1:
+                duplicate_aliases.append({"alias": alias, "producers": enabled})
+        disabled_refs = []
+        forward_refs = []
+        untracked_refs = []
+        provenance = []
+        ref_counts: dict[str, int] = {}
+        for idx, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            if bool(entry.get("_disabled")):
+                continue
+            refs = _tccm_entry_sources(entry)
+            row_sources = []
+            for ref in refs:
+                matched = []
+                for alias in _tccm_aliases(ref):
+                    matched.extend(outputs.get(alias, []))
+                seen = {}
+                for m in matched:
+                    seen[(m["line"], m["name"], m["disabled"])] = m
+                matched = list(seen.values())
+                if matched:
+                    ref_counts[ref] = ref_counts.get(ref, 0) + 1
+                    disabled_matches = [m for m in matched if m.get("disabled")]
+                    prior_enabled = [m for m in matched if not m.get("disabled") and int(m.get("index", 0)) < idx]
+                    later_enabled = [m for m in matched if not m.get("disabled") and int(m.get("index", 0)) > idx]
+                    if disabled_matches and not prior_enabled:
+                        disabled_refs.append({"line": idx + 1, "entry": _tccm_entry_summary(entry, idx), "ref": ref, "producers": disabled_matches})
+                    elif later_enabled and not prior_enabled:
+                        forward_refs.append({"line": idx + 1, "entry": _tccm_entry_summary(entry, idx), "ref": ref, "producers": later_enabled})
+                    row_sources.append({"ref": ref, "matched": matched, "status": "tracked"})
+                else:
+                    untracked_refs.append({"line": idx + 1, "entry": _tccm_entry_summary(entry, idx), "ref": ref})
+                    row_sources.append({"ref": ref, "matched": [], "status": "external_or_untracked"})
+            provenance.append({
+                "line": idx + 1,
+                "entry_id": str(entry.get("id") or ""),
+                "type": str(entry.get("type") or ""),
+                "disabled": bool(entry.get("_disabled")),
+                "output": _tccm_entry_output(entry),
+                "sources": row_sources,
+                "memo": str(entry.get("memo") or ""),
+            })
+        unused_outputs = []
+        for item in canonical_outputs:
+            if item.get("disabled"):
+                continue
+            aliases = _tccm_aliases(item.get("name"))
+            used = any((ref in ref_counts) or bool(_tccm_aliases(ref) & aliases) for ref in ref_counts.keys())
+            if not used and item.get("type") not in ("Remove Model",):
+                unused_outputs.append(item)
+        errors = len(duplicate_aliases) + len(disabled_refs)
+        warnings = len(forward_refs)
+        info_count = len(untracked_refs) + len(unused_outputs)
+        return {
+            "entry_count": len(entries),
+            "enabled_count": sum(1 for e in entries if isinstance(e, dict) and not e.get("_disabled")),
+            "disabled_count": sum(1 for e in entries if isinstance(e, dict) and e.get("_disabled")),
+            "output_count": len(canonical_outputs),
+            "duplicate_aliases": duplicate_aliases,
+            "disabled_refs": disabled_refs,
+            "forward_refs": forward_refs,
+            "untracked_refs": untracked_refs,
+            "unused_outputs": unused_outputs,
+            "provenance": provenance,
+            "errors": errors,
+            "warnings": warnings,
+            "info_count": info_count,
+        }
+
+    def _tccm_format_analysis_report(analysis: dict) -> str:
+        lines = []
+        lines.append("TCCM Plan Health Dashboard")
+        lines.append("=" * 78)
+        lines.append(f"Entries         : {analysis.get('entry_count', 0)}")
+        lines.append(f"Enabled entries : {analysis.get('enabled_count', 0)}")
+        lines.append(f"Disabled entries: {analysis.get('disabled_count', 0)}")
+        lines.append(f"Produced outputs: {analysis.get('output_count', 0)}")
+        lines.append(f"Errors          : {analysis.get('errors', 0)}")
+        lines.append(f"Warnings        : {analysis.get('warnings', 0)}")
+        lines.append(f"Info items      : {analysis.get('info_count', 0)}")
+        lines.append("")
+        if not analysis.get("errors") and not analysis.get("warnings"):
+            lines.append("Result: no blocking internal dependency issues detected.")
+            lines.append("")
+        if analysis.get("duplicate_aliases"):
+            lines.append("[Errors] Output name collisions")
+            for item in analysis["duplicate_aliases"]:
+                lines.append(f"- Alias: {item['alias']}")
+                for p in item.get("producers", []):
+                    lines.append(f"    Line {p['line']}: {p['type']} -> {p['name']}")
+            lines.append("")
+        if analysis.get("disabled_refs"):
+            lines.append("[Errors] Enabled lines that depend on disabled outputs")
+            for item in analysis["disabled_refs"]:
+                lines.append(f"- Line {item['line']} uses {item['ref']}")
+                lines.append(f"    {item['entry']}")
+                for p in item.get("producers", []):
+                    lines.append(f"    Produced by disabled line {p['line']}: {p['name']}")
+            lines.append("")
+        if analysis.get("forward_refs"):
+            lines.append("[Warnings] Forward references")
+            for item in analysis["forward_refs"]:
+                lines.append(f"- Line {item['line']} uses {item['ref']} before it is produced")
+                for p in item.get("producers", []):
+                    lines.append(f"    Later producer line {p['line']}: {p['name']}")
+            lines.append("")
+        if analysis.get("untracked_refs"):
+            lines.append("[Info] External or untracked model references")
+            lines.append("These may be normal if the model already exists in your model directory.")
+            for item in analysis["untracked_refs"][:120]:
+                lines.append(f"- Line {item['line']}: {item['ref']}")
+            if len(analysis["untracked_refs"]) > 120:
+                lines.append(f"  ... and {len(analysis['untracked_refs']) - 120} more")
+            lines.append("")
+        if analysis.get("unused_outputs"):
+            lines.append("[Info] Produced outputs not used by later planner lines")
+            for item in analysis["unused_outputs"][:120]:
+                lines.append(f"- Line {item['line']}: {item['name']}")
+            if len(analysis["unused_outputs"]) > 120:
+                lines.append(f"  ... and {len(analysis['unused_outputs']) - 120} more")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _show_plan_health_dashboard(self):
+        analysis = self._tccm_analyze_plan()
+        self._tccm_make_text_window("Plan Health Dashboard", _tccm_format_analysis_report(analysis))
+
+    def _show_dependency_chain_viewer(self):
+        analysis = self._tccm_analyze_plan()
+        lines = ["Dependency Chain Viewer", "=" * 78, ""]
+        for row in analysis.get("provenance", []):
+            status = "DISABLED" if row.get("disabled") else "ENABLED"
+            out = row.get("output") or "(no output)"
+            lines.append(f"Line {row['line']} [{status}] {row.get('type')} -> {out}")
+            if row.get("memo"):
+                lines.append(f"  memo: {row['memo']}")
+            srcs = row.get("sources") or []
+            if not srcs:
+                lines.append("  sources: none")
+            for src in srcs:
+                matched = src.get("matched") or []
+                if not matched:
+                    lines.append(f"  uses {src['ref']} -> external/untracked")
+                else:
+                    parts = []
+                    for m in matched:
+                        flag = "disabled" if m.get("disabled") else "enabled"
+                        parts.append(f"line {m['line']} ({flag})")
+                    lines.append(f"  uses {src['ref']} -> {', '.join(parts)}")
+            lines.append("")
+        self._tccm_make_text_window("Dependency Chain Viewer", "\n".join(lines))
+
+    def _show_output_collision_checker(self):
+        analysis = self._tccm_analyze_plan()
+        duplicates = analysis.get("duplicate_aliases") or []
+        if not duplicates:
+            messagebox.showinfo("Output Name Collision Checker", "No enabled output-name collisions were detected.")
+            return
+        lines = ["Output Name Collision Checker", "=" * 78, ""]
+        for item in duplicates:
+            lines.append(f"Alias: {item['alias']}")
+            for p in item.get("producers", []):
+                lines.append(f"  Line {p['line']}: {p['type']} -> {p['name']}")
+            lines.append("")
+        self._tccm_make_text_window("Output Name Collision Checker", "\n".join(lines))
+
+    def _tccm_provenance_payload(self) -> dict:
+        analysis = self._tccm_analyze_plan()
+        return {
+            "version": 1,
+            "format": "tccm-model-provenance",
+            "generated_at": _tccm_timestamp(),
+            "summary": {
+                "entry_count": analysis.get("entry_count", 0),
+                "enabled_count": analysis.get("enabled_count", 0),
+                "disabled_count": analysis.get("disabled_count", 0),
+                "errors": analysis.get("errors", 0),
+                "warnings": analysis.get("warnings", 0),
+            },
+            "provenance": analysis.get("provenance", []),
+        }
+
+    def _show_model_provenance(self):
+        text = json.dumps(self._tccm_provenance_payload(), ensure_ascii=False, indent=2)
+        self._tccm_make_text_window("Model Line Provenance", text)
+
+    def _export_model_provenance_json(self):
+        default = _tccm_safe_filename(getattr(self, "entries", {}).get("title").get() if "title" in getattr(self, "entries", {}) else "merge_plan") + ".provenance.json"
+        path = filedialog.asksaveasfilename(
+            title="Export Model Provenance JSON",
+            defaultextension=".json",
+            initialfile=default,
+            filetypes=[("JSON", "*.json"), ("All files", "*.*")],
+        )
+        path = self._normalize_user_path(path)
+        if not path:
+            return
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps(self._tccm_provenance_payload(), ensure_ascii=False, indent=2), encoding="utf-8")
+        self.status_label.config(text=f"Exported provenance: {self._path_display_name(path)}")
+
+    def _tccm_choose_by_name(self, title: str, items: list[dict], *, label_key: str = "name"):
+        if not items:
+            messagebox.showinfo(title, "No items are available.")
+            return None
+        result = {"item": None}
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.geometry("560x420+180+180")
+        outer = Frame(win, padx=8, pady=8)
+        outer.pack(fill="both", expand=True)
+        listbox = tk.Listbox(outer, exportselection=False, activestyle="none")
+        listbox.pack(fill="both", expand=True)
+        for item in items:
+            name = str(item.get(label_key) or item.get("name") or "(unnamed)")
+            saved = str(item.get("saved_at") or "")
+            listbox.insert("end", f"{name}  {saved}".strip())
+        if items:
+            listbox.selection_set(0)
+        buttons = Frame(outer)
+        buttons.pack(fill="x", pady=(8, 0))
+        def ok(_event=None):
+            sel = listbox.curselection()
+            if sel:
+                result["item"] = items[int(sel[-1])]
+            win.destroy()
+        def cancel():
+            result["item"] = None
+            win.destroy()
+        listbox.bind("<Double-Button-1>", ok)
+        ttk.Button(buttons, text="OK", command=ok).pack(side="right", padx=(4, 0))
+        ttk.Button(buttons, text="Cancel", command=cancel).pack(side="right")
+        win.transient(self.root)
+        win.grab_set()
+        self.root.wait_window(win)
+        return result["item"]
+
+    def _save_current_as_variant(self):
+        self._tccm_ensure_extension_state()
+        name = simpledialog.askstring("Save Variant", "Variant name:", parent=self.root)
+        name = str(name or "").strip()
+        if not name:
+            return
+        existing = next((v for v in self.plan_variants if str(v.get("name")) == name), None)
+        if existing is not None and not messagebox.askyesno("Overwrite Variant", f"Variant '{name}' already exists. Overwrite it?"):
+            return
+        variant = {
+            "name": name,
+            "saved_at": _tccm_timestamp(),
+            "current_index": int(getattr(self, "current_index", 0) or 0),
+            "entries": copy.deepcopy((getattr(self, "plan_data", {}) or {}).get("entries", []) or []),
+            "final_memo": copy.deepcopy((getattr(self, "plan_data", {}) or {}).get("final_memo", "")),
+        }
+        if existing is None:
+            self.plan_variants.append(variant)
+        else:
+            existing.clear(); existing.update(variant)
+        self.current_variant_name = name
+        self._planner_save_project_json(reason="variant-save")
+        self.status_label.config(text=f"Saved variant: {name}")
+
+    def _load_variant(self):
+        self._tccm_ensure_extension_state()
+        item = self._tccm_choose_by_name("Load Variant", self.plan_variants)
+        if not item:
+            return
+        if not messagebox.askyesno("Load Variant", f"Replace the current visible plan with variant '{item.get('name')}'?"):
+            return
+        try:
+            if hasattr(self, "_planner_push_history"):
+                self._planner_push_history()
+            self.plan_data = {
+                "version": 3,
+                "format": TCCM_PROJECT_FORMAT,
+                "entries": copy.deepcopy(item.get("entries") or []),
+                "final_memo": copy.deepcopy(item.get("final_memo", "")),
+            }
+            if not self.plan_data["entries"]:
+                self.plan_data["entries"] = [make_entry("Checkpoint Merge")]
+            self.current_index = max(0, min(int(item.get("current_index", 0) or 0), len(self.plan_data["entries"]) - 1))
+            self.current_variant_name = str(item.get("name") or "")
+            if hasattr(self, "_planner_apply_entry_defaults"):
+                self._planner_apply_entry_defaults()
+            self._refresh_line_selector()
+            self._render_current_line()
+            self._planner_save_project_json(reason="variant-load")
+            self.status_label.config(text=f"Loaded variant: {self.current_variant_name}")
+        except Exception as exc:
+            self._show_detailed_error("Load Variant Error", exc)
+
+    def _delete_variant(self):
+        self._tccm_ensure_extension_state()
+        item = self._tccm_choose_by_name("Delete Variant", self.plan_variants)
+        if not item:
+            return
+        name = str(item.get("name") or "")
+        if not messagebox.askyesno("Delete Variant", f"Delete variant '{name}'?"):
+            return
+        self.plan_variants = [v for v in self.plan_variants if v is not item and str(v.get("name") or "") != name]
+        if getattr(self, "current_variant_name", "") == name:
+            self.current_variant_name = ""
+        self._planner_save_project_json(reason="variant-delete")
+        self.status_label.config(text=f"Deleted variant: {name}")
+
+    def _export_variants_json(self):
+        self._tccm_ensure_extension_state()
+        payload = {"version": 1, "format": "tccm-variants", "saved_at": _tccm_timestamp(), "variants": copy.deepcopy(self.plan_variants)}
+        path = filedialog.asksaveasfilename(title="Export Variants JSON", defaultextension=".json", initialfile="variants.json", filetypes=[("JSON", "*.json"), ("All files", "*.*")])
+        path = self._normalize_user_path(path)
+        if not path:
+            return
+        Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.status_label.config(text=f"Exported variants: {self._path_display_name(path)}")
+
+    def _save_current_as_run_profile(self):
+        self._tccm_ensure_extension_state()
+        name = simpledialog.askstring("Save Run Profile", "Profile name:", parent=self.root)
+        name = str(name or "").strip()
+        if not name:
+            return
+        existing = next((p for p in self.run_profiles if str(p.get("name")) == name), None)
+        if existing is not None and not messagebox.askyesno("Overwrite Run Profile", f"Profile '{name}' already exists. Overwrite it?"):
+            return
+        profile = {"name": name, "saved_at": _tccm_timestamp(), "runtime": self._tccm_current_runtime_payload()}
+        if existing is None:
+            self.run_profiles.append(profile)
+        else:
+            existing.clear(); existing.update(profile)
+        self._planner_save_project_json(reason="run-profile-save")
+        self.status_label.config(text=f"Saved run profile: {name}")
+
+    def _apply_run_profile(self):
+        self._tccm_ensure_extension_state()
+        item = self._tccm_choose_by_name("Apply Run Profile", self.run_profiles)
+        if not item:
+            return
+        self._tccm_apply_runtime_payload(item.get("runtime") or {})
+        self._planner_save_project_json(reason="run-profile-apply")
+        self.status_label.config(text=f"Applied run profile: {item.get('name')}")
+
+    def _delete_run_profile(self):
+        self._tccm_ensure_extension_state()
+        item = self._tccm_choose_by_name("Delete Run Profile", self.run_profiles)
+        if not item:
+            return
+        name = str(item.get("name") or "")
+        if not messagebox.askyesno("Delete Run Profile", f"Delete run profile '{name}'?"):
+            return
+        self.run_profiles = [p for p in self.run_profiles if p is not item and str(p.get("name") or "") != name]
+        self._planner_save_project_json(reason="run-profile-delete")
+        self.status_label.config(text=f"Deleted run profile: {name}")
+
+    def _export_run_profiles_json(self):
+        self._tccm_ensure_extension_state()
+        payload = {"version": 1, "format": "tccm-run-profiles", "saved_at": _tccm_timestamp(), "run_profiles": copy.deepcopy(self.run_profiles)}
+        path = filedialog.asksaveasfilename(title="Export Run Profiles JSON", defaultextension=".json", initialfile="run_profiles.json", filetypes=[("JSON", "*.json"), ("All files", "*.*")])
+        path = self._normalize_user_path(path)
+        if not path:
+            return
+        Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.status_label.config(text=f"Exported run profiles: {self._path_display_name(path)}")
+
+    def _tccm_backup_pin_path(path: Path) -> Path:
+        return Path(str(path) + ".pin")
+
+    def _tccm_backup_is_pinned(path: Path) -> bool:
+        return _tccm_backup_pin_path(path).exists()
+
+    def _show_backup_diff_manager(self):
+        try:
+            root_dir = self._planner_backup_root(None)
+        except Exception:
+            root_dir = Path(os.getcwd()) / ".planner_backups" / "plan"
+        win = tk.Toplevel(self.root)
+        win.title("Backup Diff / Pin Manager")
+        win.geometry("1180x760+130+130")
+        outer = Frame(win, padx=8, pady=8)
+        outer.pack(fill="both", expand=True)
+        Label(outer, text=f"Backup folder: {root_dir}", anchor="w", justify="left").pack(fill="x", pady=(0, 6))
+        panes = ttk.PanedWindow(outer, orient="horizontal")
+        panes.pack(fill="both", expand=True)
+        left = Frame(panes)
+        right = Frame(panes)
+        panes.add(left, weight=1)
+        panes.add(right, weight=3)
+        listbox = tk.Listbox(left, exportselection=False, activestyle="none")
+        listbox.pack(fill="both", expand=True)
+        toolbar = Frame(left)
+        toolbar.pack(fill="x", pady=(6, 0))
+        notebook = ttk.Notebook(right)
+        notebook.pack(fill="both", expand=True)
+        detail = Text(notebook, wrap="none", font=("Consolas", 10))
+        diff = Text(notebook, wrap="none", font=("Consolas", 10))
+        notebook.add(detail, text="Detail")
+        notebook.add(diff, text="Diff vs Current")
+        bundles: list[Path] = []
+
+        def bundle_label(path: Path) -> str:
+            pin = "📌 " if _tccm_backup_is_pinned(path) else ""
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                saved_at = str(payload.get("saved_at") or "")
+                reason = str(payload.get("reason") or "")
+                plan = payload.get("plan_data") if isinstance(payload, dict) else {}
+                count = len((plan or {}).get("entries") or []) if isinstance(plan, dict) else 0
+                return f"{pin}{path.name} | {saved_at} | {reason} | {count} line(s)"
+            except Exception:
+                return pin + path.name
+
+        def current_bundle():
+            sel = listbox.curselection()
+            if not sel:
+                return None
+            idx = int(sel[-1])
+            return bundles[idx] if 0 <= idx < len(bundles) else None
+
+        def refresh():
+            nonlocal bundles
+            listbox.delete(0, "end")
+            if root_dir.exists():
+                bundles = sorted(root_dir.glob("*.planbundle.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            else:
+                bundles = []
+            for p in bundles:
+                listbox.insert("end", bundle_label(p))
+            if bundles:
+                listbox.selection_set(0)
+            show_selected()
+
+        def selected_payload(path: Path):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return raw
+
+        def show_selected(_event=None):
+            detail.configure(state="normal"); diff.configure(state="normal")
+            detail.delete("1.0", "end"); diff.delete("1.0", "end")
+            path = current_bundle()
+            if not path:
+                detail.insert("1.0", "No backup selected.")
+                detail.configure(state="disabled"); diff.configure(state="disabled")
+                return
+            try:
+                payload = selected_payload(path)
+                detail.insert("1.0", json.dumps(payload, ensure_ascii=False, indent=2))
+                backup_plan = payload.get("plan_data") if isinstance(payload, dict) else payload
+                current_plan = self._planner_project_json_payload()
+                old = json.dumps(backup_plan, ensure_ascii=False, indent=2).splitlines()
+                new = json.dumps(current_plan, ensure_ascii=False, indent=2).splitlines()
+                d = difflib.unified_diff(old, new, fromfile=path.name, tofile="current project", lineterm="")
+                diff.insert("1.0", "\n".join(d) or "No diff.")
+            except Exception as exc:
+                detail.insert("1.0", f"Failed to read backup: {type(exc).__name__}: {exc}")
+            detail.configure(state="disabled"); diff.configure(state="disabled")
+
+        def toggle_pin():
+            path = current_bundle()
+            if not path:
+                return
+            pin_path = _tccm_backup_pin_path(path)
+            try:
+                if pin_path.exists():
+                    pin_path.unlink()
+                    self.status_label.config(text=f"Unpinned backup: {path.name}")
+                else:
+                    pin_path.write_text(json.dumps({"pinned_at": _tccm_timestamp(), "backup": path.name}, ensure_ascii=False, indent=2), encoding="utf-8")
+                    self.status_label.config(text=f"Pinned backup: {path.name}")
+            except Exception as exc:
+                self._show_detailed_error("Pin Backup Error", exc)
+            refresh()
+
+        def restore_selected():
+            path = current_bundle()
+            if not path:
+                return
+            if not messagebox.askyesno("Restore Backup", f"Restore backup '{path.name}' to the current project?"):
+                return
+            try:
+                payload = selected_payload(path)
+                raw_plan = payload.get("plan_data") if isinstance(payload, dict) else payload
+                if hasattr(self, "_planner_push_history"):
+                    self._planner_push_history()
+                self._planner_restore_project_payload(raw_plan, source_path=str(path))
+                self._refresh_line_selector()
+                self._render_current_line()
+                self._planner_save_project_json(reason="backup-restore")
+                self.status_label.config(text=f"Restored backup: {path.name}")
+                show_selected()
+            except Exception as exc:
+                self._show_detailed_error("Restore Backup Error", exc)
+
+        listbox.bind("<<ListboxSelect>>", show_selected)
+        ttk.Button(toolbar, text="Refresh", command=refresh).pack(side="left")
+        ttk.Button(toolbar, text="Pin / Unpin", command=toggle_pin).pack(side="left", padx=(4, 0))
+        ttk.Button(toolbar, text="Restore", command=restore_selected).pack(side="left", padx=(4, 0))
+        ttk.Button(toolbar, text="Close", command=win.destroy).pack(side="right")
+        refresh()
+
+    def _tccm_project_json_schema(self) -> dict:
+        return {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "https://faildes.example/schemas/tccm-planner-project.schema.json",
+            "title": "TCCM Planner Project",
+            "type": "object",
+            "required": ["version", "format", "entries"],
+            "properties": {
+                "version": {"type": "integer", "minimum": 3},
+                "format": {"const": TCCM_PROJECT_FORMAT},
+                "saved_at": {"type": "string"},
+                "current_index": {"type": "integer", "minimum": 0},
+                "runtime": {"type": "object", "additionalProperties": True},
+                "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}},
+                "variants": {"type": "array", "items": {"$ref": "#/$defs/variant"}},
+                "run_profiles": {"type": "array", "items": {"$ref": "#/$defs/run_profile"}},
+                "final_memo": {"type": "string"},
+                "history": {"type": "array"},
+                "meta": {"type": "object"},
+            },
+            "$defs": {
+                "ratio": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {"enum": ["Single", "Block weight", "Elemental", "Randomize"]},
+                        "value": {"type": "string"},
+                    },
+                    "additionalProperties": True,
+                },
+                "lora_ref": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}, "ratio": {"$ref": "#/$defs/ratio"}},
+                    "additionalProperties": True,
+                },
+                "entry": {
+                    "type": "object",
+                    "required": ["id", "type"],
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": {"type": "string"},
+                        "_disabled": {"type": "boolean"},
+                        "_locked": {"type": "boolean"},
+                        "_row_color": {"type": "string"},
+                        "memo": {"type": "string"},
+                        "output_name": {"type": "string"},
+                        "model_name": {"type": "string"},
+                        "merge_mode": {"type": "string"},
+                        "model0": {"type": "string"},
+                        "model1": {"type": "string"},
+                        "model2": {"type": "string"},
+                        "checkpoint": {"type": "string"},
+                        "loras": {"type": "array", "items": {"$ref": "#/$defs/lora_ref"}},
+                        "alpha": {"$ref": "#/$defs/ratio"},
+                        "beta": {"$ref": "#/$defs/ratio"},
+                    },
+                    "additionalProperties": True,
+                },
+                "variant": {
+                    "type": "object",
+                    "required": ["name", "entries"],
+                    "properties": {"name": {"type": "string"}, "saved_at": {"type": "string"}, "current_index": {"type": "integer"}, "entries": {"type": "array", "items": {"$ref": "#/$defs/entry"}}},
+                    "additionalProperties": True,
+                },
+                "run_profile": {
+                    "type": "object",
+                    "required": ["name", "runtime"],
+                    "properties": {"name": {"type": "string"}, "saved_at": {"type": "string"}, "runtime": {"type": "object", "additionalProperties": True}},
+                    "additionalProperties": True,
+                },
+            },
+            "additionalProperties": True,
+        }
+
+    def _export_project_json_schema(self):
+        path = filedialog.asksaveasfilename(title="Export TCCM JSON Schema", defaultextension=".schema.json", initialfile="tccm-planner-project.schema.json", filetypes=[("JSON Schema", "*.schema.json"), ("JSON", "*.json"), ("All files", "*.*")])
+        path = self._normalize_user_path(path)
+        if not path:
+            return
+        Path(path).write_text(json.dumps(self._tccm_project_json_schema(), ensure_ascii=False, indent=2), encoding="utf-8")
+        self.status_label.config(text=f"Exported JSON schema: {self._path_display_name(path)}")
+
+    def _safe_migration_tool(self):
+        src = filedialog.askopenfilename(title="Select legacy planner text / JSON", filetypes=[("Planner files", "*.txt *.json *.tccm *.tccm.json"), ("All files", "*.*")])
+        src = self._normalize_user_path(src)
+        if not src:
+            return
+        default = Path(src).stem
+        if default.endswith(".tccm"):
+            default = default[:-5]
+        dst = filedialog.asksaveasfilename(title="Save migrated .tccm.json", defaultextension=TCCM_PROJECT_EXTENSION, initialfile=f"{default}{TCCM_PROJECT_EXTENSION}", initialdir=str(Path(src).parent), filetypes=[("TCCM Project", "*.tccm.json"), ("All files", "*.*")])
+        dst = self._normalize_user_path(dst)
+        if not dst:
+            return
+        if not dst.lower().endswith(TCCM_PROJECT_EXTENSION):
+            dst = str(Path(dst).with_suffix("")) + TCCM_PROJECT_EXTENSION
+        old_plan = copy.deepcopy(getattr(self, "plan_data", {}))
+        old_index = int(getattr(self, "current_index", 0) or 0)
+        old_variants = copy.deepcopy(getattr(self, "plan_variants", []))
+        old_profiles = copy.deepcopy(getattr(self, "run_profiles", []))
+        try:
+            payload = _planner_read_json_or_none(src) if "_planner_read_json_or_none" in globals() else None
+            is_project = isinstance(payload, dict) and payload.get("format") == TCCM_PROJECT_FORMAT
+            if is_project:
+                self._planner_restore_project_payload(payload, source_path=src)
+            else:
+                raw = normalize_plan(load_plan_records(src))
+                collapse = getattr(self, "_collapse_internal_plan_entries", None)
+                self.plan_data = collapse(raw) if callable(collapse) else raw
+                sidecar = Path(src + ".planner_meta.json")
+                if sidecar.exists():
+                    try:
+                        self._planner_apply_loaded_meta(json.loads(sidecar.read_text(encoding="utf-8")))
+                    except Exception:
+                        pass
+                if hasattr(self, "_planner_apply_entry_defaults"):
+                    self._planner_apply_entry_defaults()
+                self.current_index = 0
+                self.plan_variants = []
+                self.run_profiles = []
+            out_payload = self._planner_project_json_payload()
+            out_payload["migrated_from"] = src
+            out_payload["migrated_at"] = _tccm_timestamp()
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            Path(dst).write_text(json.dumps(out_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            load_now = messagebox.askyesno("Migration Complete", f"Migrated to:\n{dst}\n\nLoad the migrated project now?")
+            if load_now:
+                self.entries["filepath"].delete(0, tk.END)
+                self.entries["filepath"].insert(0, dst)
+                self._planner_restore_project_payload(out_payload, source_path=dst)
+                self._refresh_line_selector()
+                self._render_current_line()
+                self._planner_save_project_json(dst, reason="migration-load")
+            else:
+                self.plan_data = old_plan
+                self.current_index = old_index
+                self.plan_variants = old_variants
+                self.run_profiles = old_profiles
+                self._refresh_line_selector()
+                self._render_current_line()
+            self.status_label.config(text=f"Migrated project: {self._path_display_name(dst)}")
+        except Exception as exc:
+            self.plan_data = old_plan
+            self.current_index = old_index
+            self.plan_variants = old_variants
+            self.run_profiles = old_profiles
+            self._show_detailed_error("Safe Migration Error", exc)
+
+    _tccm_prev_project_payload = getattr(ModelPlannerApp, "_planner_project_json_payload", None)
+    def _planner_project_json_payload_advanced(self, *, include_runtime: bool = True):
+        self._tccm_ensure_extension_state()
+        if callable(_tccm_prev_project_payload):
+            payload = _tccm_prev_project_payload(self, include_runtime=include_runtime)
+        else:
+            payload = {"version": 3, "format": TCCM_PROJECT_FORMAT, "saved_at": _tccm_timestamp(), "current_index": int(getattr(self, "current_index", 0) or 0), "entries": copy.deepcopy((getattr(self, "plan_data", {}) or {}).get("entries", []) or [])}
+            if include_runtime:
+                payload["runtime"] = self._tccm_current_runtime_payload()
+        payload["schema_version"] = 3
+        payload["variants"] = copy.deepcopy(getattr(self, "plan_variants", []) or [])
+        payload["run_profiles"] = copy.deepcopy(getattr(self, "run_profiles", []) or [])
+        payload["current_variant"] = str(getattr(self, "current_variant_name", "") or "")
+        return payload
+
+    _tccm_prev_restore_project = getattr(ModelPlannerApp, "_planner_restore_project_payload", None)
+    def _planner_restore_project_payload_advanced(self, payload, *, source_path: str = ""):
+        raw = payload
+        if isinstance(raw, dict) and "plan_data" in raw:
+            raw = raw.get("plan_data")
+        if callable(_tccm_prev_restore_project):
+            _tccm_prev_restore_project(self, payload, source_path=source_path)
+        else:
+            self.plan_data = normalize_plan(raw if isinstance(raw, dict) else {"entries": []})
+        self._tccm_ensure_extension_state()
+        if isinstance(raw, dict):
+            self.plan_variants = copy.deepcopy(raw.get("variants") or []) if isinstance(raw.get("variants"), list) else []
+            self.run_profiles = copy.deepcopy(raw.get("run_profiles") or []) if isinstance(raw.get("run_profiles"), list) else []
+            self.current_variant_name = str(raw.get("current_variant") or "")
+            runtime = raw.get("runtime")
+            if isinstance(runtime, dict):
+                self._tccm_apply_runtime_payload(runtime)
+        else:
+            self.plan_variants = []
+            self.run_profiles = []
+            self.current_variant_name = ""
+
+    def _tccm_is_project_path(path: str) -> bool:
+        raw = str(path or "").lower()
+        return raw.endswith(TCCM_PROJECT_EXTENSION) or raw.endswith(".tccm") or (not raw.endswith(".txt"))
+
+    def _tccm_force_project_extension(path: str) -> str:
+        raw = str(path or "").strip()
+        if not raw:
+            return raw
+        low = raw.lower()
+        if low.endswith(TCCM_PROJECT_EXTENSION) or low.endswith(".tccm") or low.endswith(".txt"):
+            return raw
+        if not Path(raw).suffix:
+            return raw + TCCM_PROJECT_EXTENSION
+        return raw
+
+    def _planner_save_project_json_advanced(self, path: str | None = None, *, create_backup: bool = True, reason: str = "autosave") -> str:
+        path = self._normalize_user_path(path or self._ensure_plan_path())
+        path = _tccm_force_project_extension(path)
+        if _tccm_is_project_path(path):
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_text(json.dumps(self._planner_project_json_payload(), ensure_ascii=False, indent=2), encoding="utf-8")
+        else:
+            export_plan_records_txt(path, self._planner_effective_plan_data())
+            save_meta = getattr(self, "_planner_save_meta_to_disk", None)
+            if callable(save_meta):
+                save_meta(path)
+        if create_backup:
+            maybe_backup = getattr(self, "_planner_maybe_create_backup", None)
+            if callable(maybe_backup):
+                maybe_backup(path, reason=reason)
+        try:
+            self._schedule_config_save()
+        except Exception:
+            pass
+        return path
+
+    def _planner_maybe_create_backup_advanced(self, plan_path: str | None = None, *, reason: str = "autosave", force: bool = False):
+        try:
+            source_plan_path = ""
+            try:
+                source_plan_path = str(plan_path or (self.entries.get("filepath").get() if self.entries.get("filepath") else ""))
+            except Exception:
+                source_plan_path = str(plan_path or "")
+            project_payload = self._planner_project_json_payload()
+            payload = {
+                "bundle_version": 3,
+                "version": 3,
+                "saved_at": _tccm_timestamp(),
+                "reason": str(reason or "autosave"),
+                "source_plan_path": source_plan_path,
+                "current_index": int(getattr(self, "current_index", 0) or 0),
+                "config": copy.deepcopy(getattr(self, "config", {}) or {}),
+                "plan_data": project_payload,
+                "effective_line_count": len((self._planner_effective_json_payload().get("entries") or [])) if hasattr(self, "_planner_effective_json_payload") else 0,
+                "health": {k: v for k, v in self._tccm_analyze_plan().items() if k in ("entry_count", "enabled_count", "disabled_count", "errors", "warnings")},
+            }
+            snapshot = json.dumps(payload["plan_data"], ensure_ascii=False, sort_keys=True)
+            now = time.time()
+            if not force:
+                if snapshot == getattr(self, "_last_backup_snapshot", None):
+                    return
+                if now - float(getattr(self, "_last_backup_time", 0.0) or 0.0) < 15.0:
+                    return
+            root = self._planner_backup_root(plan_path)
+            root.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            safe_reason = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(reason or "autosave")).strip("_") or "autosave"
+            out = root / f"{stamp}_{safe_reason}.planbundle.json"
+            out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            bundles = sorted(root.glob("*.planbundle.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+            keep = max(3, int(getattr(self, "backup_keep_generations", 20) or 20))
+            removable = [p for p in bundles if not _tccm_backup_is_pinned(p)]
+            for stale in removable[keep:]:
+                try:
+                    stale.unlink()
+                    pin = _tccm_backup_pin_path(stale)
+                    if pin.exists():
+                        pin.unlink()
+                except Exception:
+                    pass
+            self._last_backup_snapshot = snapshot
+            self._last_backup_time = now
+        except Exception:
+            pass
+
+    _tccm_prev_new_plan = getattr(ModelPlannerApp, "_new_plan", None)
+    def _new_plan_advanced(self):
+        self.plan_variants = []
+        self.run_profiles = []
+        self.current_variant_name = ""
+        if callable(_tccm_prev_new_plan):
+            return _tccm_prev_new_plan(self)
+
+    _tccm_prev_create_menu = getattr(ModelPlannerApp, "_create_menu", None)
+    def _create_menu_advanced_tools(self):
+        if callable(_tccm_prev_create_menu):
+            _tccm_prev_create_menu(self)
+        self._tccm_ensure_extension_state()
+        try:
+            menu_bar = self.root.nametowidget(self.root.cget("menu"))
+        except Exception:
+            menu_bar = tk.Menu(self.root)
+            self.root.config(menu=menu_bar)
+        plan_tools = tk.Menu(menu_bar, tearoff=0)
+        menu_bar.add_cascade(label="Plan Tools", menu=plan_tools)
+        plan_tools.add_command(label="Plan Health Dashboard…", command=self._show_plan_health_dashboard)
+        plan_tools.add_command(label="Dependency Chain Viewer…", command=self._show_dependency_chain_viewer)
+        plan_tools.add_command(label="Output Name Collision Checker…", command=self._show_output_collision_checker)
+        plan_tools.add_command(label="Model Line Provenance…", command=self._show_model_provenance)
+        plan_tools.add_command(label="Export Provenance JSON…", command=self._export_model_provenance_json)
+        plan_tools.add_separator()
+        plan_tools.add_command(label="Backup Diff / Pin Manager…", command=self._show_backup_diff_manager)
+        plan_tools.add_separator()
+        variant_menu = tk.Menu(plan_tools, tearoff=0)
+        plan_tools.add_cascade(label="Variants", menu=variant_menu)
+        variant_menu.add_command(label="Save Current as Variant…", command=self._save_current_as_variant)
+        variant_menu.add_command(label="Load Variant…", command=self._load_variant)
+        variant_menu.add_command(label="Delete Variant…", command=self._delete_variant)
+        variant_menu.add_command(label="Export Variants JSON…", command=self._export_variants_json)
+        profile_menu = tk.Menu(plan_tools, tearoff=0)
+        plan_tools.add_cascade(label="Run Profiles", menu=profile_menu)
+        profile_menu.add_command(label="Save Current as Run Profile…", command=self._save_current_as_run_profile)
+        profile_menu.add_command(label="Apply Run Profile…", command=self._apply_run_profile)
+        profile_menu.add_command(label="Delete Run Profile…", command=self._delete_run_profile)
+        profile_menu.add_command(label="Export Run Profiles JSON…", command=self._export_run_profiles_json)
+        plan_tools.add_separator()
+        plan_tools.add_command(label="Export TCCM JSON Schema…", command=self._export_project_json_schema)
+        plan_tools.add_command(label="Safe Migration to .tccm.json…", command=self._safe_migration_tool)
+
+    ModelPlannerApp._tccm_ensure_extension_state = _tccm_ensure_extension_state
+    ModelPlannerApp._tccm_current_runtime_payload = _tccm_current_runtime_payload
+    ModelPlannerApp._tccm_apply_runtime_payload = _tccm_apply_runtime_payload
+    ModelPlannerApp._tccm_analyze_plan = _tccm_analyze_plan
+    ModelPlannerApp._tccm_make_text_window = _tccm_make_text_window
+    ModelPlannerApp._show_plan_health_dashboard = _show_plan_health_dashboard
+    ModelPlannerApp._show_dependency_chain_viewer = _show_dependency_chain_viewer
+    ModelPlannerApp._show_output_collision_checker = _show_output_collision_checker
+    ModelPlannerApp._tccm_provenance_payload = _tccm_provenance_payload
+    ModelPlannerApp._show_model_provenance = _show_model_provenance
+    ModelPlannerApp._export_model_provenance_json = _export_model_provenance_json
+    ModelPlannerApp._tccm_choose_by_name = _tccm_choose_by_name
+    ModelPlannerApp._save_current_as_variant = _save_current_as_variant
+    ModelPlannerApp._load_variant = _load_variant
+    ModelPlannerApp._delete_variant = _delete_variant
+    ModelPlannerApp._export_variants_json = _export_variants_json
+    ModelPlannerApp._save_current_as_run_profile = _save_current_as_run_profile
+    ModelPlannerApp._apply_run_profile = _apply_run_profile
+    ModelPlannerApp._delete_run_profile = _delete_run_profile
+    ModelPlannerApp._export_run_profiles_json = _export_run_profiles_json
+    ModelPlannerApp._show_backup_diff_manager = _show_backup_diff_manager
+    ModelPlannerApp._tccm_project_json_schema = _tccm_project_json_schema
+    ModelPlannerApp._export_project_json_schema = _export_project_json_schema
+    ModelPlannerApp._safe_migration_tool = _safe_migration_tool
+    ModelPlannerApp._planner_project_json_payload = _planner_project_json_payload_advanced
+    ModelPlannerApp._planner_restore_project_payload = _planner_restore_project_payload_advanced
+    ModelPlannerApp._planner_save_project_json = _planner_save_project_json_advanced
+    ModelPlannerApp._planner_maybe_create_backup = _planner_maybe_create_backup_advanced
+    ModelPlannerApp._new_plan = _new_plan_advanced
+    ModelPlannerApp._create_menu = _create_menu_advanced_tools
+except Exception:
+    pass
+
+
+
+# -----------------------------------------------------------------------------
+# Final macOS/Tk native file dialog safety patch
+# -----------------------------------------------------------------------------
+# Python.org Python 3.13 currently ships Tk 8.6.x on macOS.  In some macOS/Tk
+# combinations, the native NSOpenPanel/NSSavePanel bridge can abort the whole
+# process when a file dialog is opened with custom filetypes that include
+# unknown or multi-part extensions such as "*.tccm.json".  The crash is native
+# (SIGABRT / "object cannot be nil"), so it cannot be handled with try/except.
+#
+# The safest fix is to keep the original planner workflow, but on macOS call the
+# native dialogs without the filetypes option and validate/force extensions in
+# Python after the dialog returns.  Other platforms keep the normal filters.
+try:
+    _TCCM_REAL_ASKOPENFILENAME = filedialog.askopenfilename
+    _TCCM_REAL_ASKOPENFILENAMES = filedialog.askopenfilenames
+    _TCCM_REAL_ASKSAVEASFILENAME = filedialog.asksaveasfilename
+
+    def _tccm_running_on_macos() -> bool:
+        return sys.platform == "darwin"
+
+    def _tccm_safe_dialog_kwargs(kwargs: Dict[str, Any], *, save_dialog: bool = False) -> Dict[str, Any]:
+        safe = dict(kwargs or {})
+        if not _tccm_running_on_macos():
+            return safe
+
+        # This is the important part: do not send custom type filters to Tk on
+        # macOS.  Tk's Cocoa file dialog bridge may translate some extensions to
+        # nil UTTypes and abort before Python can catch anything.
+        safe.pop("filetypes", None)
+        safe.pop("typevariable", None)
+
+        # Keep the dialog close to the first implementation: title/initialdir are
+        # enough for the file picker, and extension handling is done after return.
+        try:
+            initialdir = str(safe.get("initialdir") or "").strip()
+            if initialdir and not Path(initialdir).expanduser().exists():
+                safe.pop("initialdir", None)
+        except Exception:
+            safe.pop("initialdir", None)
+
+        # Multi-dot defaultextension values may also reach the native save-panel
+        # type bridge on some Tk builds.  Use a simple extension in the dialog and
+        # then force .tccm.json in Python where needed.
+        if save_dialog:
+            ext = str(safe.get("defaultextension") or "")
+            if ext.count(".") > 1:
+                safe["defaultextension"] = ".json"
+        return safe
+
+    def _tccm_askopenfilename_safe(*args, **kwargs):
+        return _TCCM_REAL_ASKOPENFILENAME(*args, **_tccm_safe_dialog_kwargs(kwargs, save_dialog=False))
+
+    def _tccm_askopenfilenames_safe(*args, **kwargs):
+        return _TCCM_REAL_ASKOPENFILENAMES(*args, **_tccm_safe_dialog_kwargs(kwargs, save_dialog=False))
+
+    def _tccm_asksaveasfilename_safe(*args, **kwargs):
+        return _TCCM_REAL_ASKSAVEASFILENAME(*args, **_tccm_safe_dialog_kwargs(kwargs, save_dialog=True))
+
+    filedialog.askopenfilename = _tccm_askopenfilename_safe
+    filedialog.askopenfilenames = _tccm_askopenfilenames_safe
+    filedialog.asksaveasfilename = _tccm_asksaveasfilename_safe
+
+    def _tccm_plan_dialog_initialdir(self) -> str:
+        try:
+            raw = self._normalize_user_path(self.entries["filepath"].get().strip())
+        except Exception:
+            raw = ""
+        try:
+            if raw:
+                p = Path(raw).expanduser()
+                if p.is_dir():
+                    return str(p)
+                if p.parent.exists():
+                    return str(p.parent)
+        except Exception:
+            pass
+        return os.getcwd()
+
+    def _tccm_open_plan_dialog_no_native_filter(self) -> str:
+        path = filedialog.askopenfilename(
+            title="Open TCCM Project / Legacy Plan",
+            initialdir=_tccm_plan_dialog_initialdir(self),
+            filetypes=[
+                ("Planner files", "*.tccm.json *.tccm *.json *.txt"),
+                ("All files", "*.*"),
+            ],
+        )
+        return self._normalize_user_path(path)
+
+    def _browse_plan_file_macos_safe(self):
+        path = _tccm_open_plan_dialog_no_native_filter(self)
+        if not path:
+            return
+        self.entries["filepath"].delete(0, tk.END)
+        self.entries["filepath"].insert(0, path)
+        self._schedule_config_save()
+        try:
+            self.status_label.config(text=f"Selected plan path: {self._path_display_name(path)}")
+        except Exception:
+            pass
+
+    _tccm_previous_load_plan_from_path = getattr(ModelPlannerApp, "_load_plan_from_path", None)
+    def _load_plan_from_path_macos_safe(self):
+        path = ""
+        try:
+            path = self._normalize_user_path(self.entries["filepath"].get().strip())
+        except Exception:
+            path = ""
+        if not path:
+            path = _tccm_open_plan_dialog_no_native_filter(self)
+            if not path:
+                return
+            self.entries["filepath"].delete(0, tk.END)
+            self.entries["filepath"].insert(0, path)
+            self._schedule_config_save()
+        if callable(_tccm_previous_load_plan_from_path):
+            return _tccm_previous_load_plan_from_path(self)
+
+    def _open_plan_dialog_project_json_macos_safe(self):
+        path = _tccm_open_plan_dialog_no_native_filter(self)
+        if not path:
+            return
+        self.entries["filepath"].delete(0, tk.END)
+        self.entries["filepath"].insert(0, path)
+        self._schedule_config_save()
+        return self._load_plan_from_path()
+
+    # The project extension must remain .tccm.json.  If a macOS save dialog adds
+    # only .json, convert it back to the requested project extension unless the
+    # user explicitly chose legacy .txt.
+    def _planner_force_project_extension_macos_safe(path: str) -> str:
+        raw = str(path or "").strip()
+        if not raw:
+            return raw
+        low = raw.lower()
+        ext = globals().get("TCCM_PROJECT_EXTENSION", ".tccm.json")
+        if low.endswith(ext) or low.endswith(".tccm") or low.endswith(".txt"):
+            return raw
+        if low.endswith(".json"):
+            return raw[:-5] + ext
+        if not Path(raw).suffix:
+            return raw + ext
+        return raw + ext
+
+    _planner_force_project_extension = _planner_force_project_extension_macos_safe
+    _tccm_force_project_extension = _planner_force_project_extension_macos_safe
+
+    _tccm_prev_create_menu_for_safe_open = getattr(ModelPlannerApp, "_create_menu", None)
+    def _create_menu_macos_safe_open(self):
+        if callable(_tccm_prev_create_menu_for_safe_open):
+            _tccm_prev_create_menu_for_safe_open(self)
+        ModelPlannerApp._browse_plan_file = _browse_plan_file_macos_safe
+        ModelPlannerApp._load_plan_from_path = _load_plan_from_path_macos_safe
+        ModelPlannerApp._open_plan_dialog_project_json = _open_plan_dialog_project_json_macos_safe
+        try:
+            self.root.bind("<Control-o>", lambda _e: (self._open_plan_dialog_project_json(), "break")[1], add="+")
+            self.root.bind("<Command-o>", lambda _e: (self._open_plan_dialog_project_json(), "break")[1], add="+")
+        except Exception:
+            pass
+        # Add an explicit safe Open item without relying on fragile menu indices.
+        try:
+            menu_bar = self.root.nametowidget(self.root.cget("menu"))
+            file_menu_name = menu_bar.entrycget(0, "menu")
+            file_menu = self.root.nametowidget(file_menu_name)
+            file_menu.insert_command(0, label="Open Project / Legacy Plan…", command=self._open_plan_dialog_project_json)
+            file_menu.insert_separator(1)
+        except Exception:
+            pass
+
+    ModelPlannerApp._browse_plan_file = _browse_plan_file_macos_safe
+    ModelPlannerApp._load_plan_from_path = _load_plan_from_path_macos_safe
+    ModelPlannerApp._open_plan_dialog_project_json = _open_plan_dialog_project_json_macos_safe
+    ModelPlannerApp._create_menu = _create_menu_macos_safe_open
+except Exception:
+    pass
+
+
+
+# -----------------------------------------------------------------------------
+# Final universal JSON loader compatibility patch
+# -----------------------------------------------------------------------------
+# Supports both full .tccm.json project files and preset JSON files from both
+# Plan Text Path > Load and Load Preset.  A project load replaces the current
+# project.  A preset load from the preset button inserts the source entries.
+try:
+    TCCM_PROJECT_EXTENSION = globals().get("TCCM_PROJECT_EXTENSION", ".tccm.json")
+    TCCM_PROJECT_FORMAT = globals().get("TCCM_PROJECT_FORMAT", "tccm-planner-project")
+
+    def _tccm_json_loader_read_json(path: str):
+        try:
+            raw = Path(path).read_text(encoding="utf-8")
+            if not raw.lstrip().startswith(("{", "[")):
+                return None
+            return json.loads(raw)
+        except Exception:
+            return None
+
+    def _tccm_json_loader_is_entry_dict(value) -> bool:
+        return isinstance(value, dict) and bool(str(value.get("type") or "").strip())
+
+    def _tccm_json_loader_is_project_dict(value) -> bool:
+        if not isinstance(value, dict):
+            return False
+        if isinstance(value.get("plan_data"), dict):
+            return True
+        fmt = str(value.get("format") or "").strip()
+        if fmt == TCCM_PROJECT_FORMAT:
+            return True
+        if str(value.get("schema_version") or "").strip() and isinstance(value.get("entries"), list):
+            return True
+        # Treat dictionaries with project-only state as project files even if a
+        # hand-edited file forgot the format marker.
+        project_keys = {"runtime", "variants", "run_profiles", "current_variant", "saved_at"}
+        return isinstance(value.get("entries"), list) and any(k in value for k in project_keys)
+
+    def _tccm_json_loader_extract_project_plan(value):
+        if isinstance(value, dict) and isinstance(value.get("plan_data"), dict):
+            return value.get("plan_data") or {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            return {"version": 3, "format": TCCM_PROJECT_FORMAT, "entries": value}
+        return {"version": 3, "format": TCCM_PROJECT_FORMAT, "entries": []}
+
+    def _tccm_json_loader_raw_entries_from_json(value):
+        """Return a plain list of entry dictionaries from project or preset JSON."""
+        if _tccm_json_loader_is_project_dict(value):
+            plan_part = _tccm_json_loader_extract_project_plan(value)
+            entries = plan_part.get("entries") if isinstance(plan_part, dict) else []
+            return [copy.deepcopy(x) for x in (entries or []) if isinstance(x, dict)]
+        if isinstance(value, list):
+            return [copy.deepcopy(x) for x in value if isinstance(x, dict)]
+        if _tccm_json_loader_is_entry_dict(value):
+            return [copy.deepcopy(value)]
+        if isinstance(value, dict) and isinstance(value.get("entries"), list):
+            return [copy.deepcopy(x) for x in (value.get("entries") or []) if isinstance(x, dict)]
+        return []
+
+    def _tccm_json_loader_normalize_entries_for_insert(self, raw_entries, *, regenerate_ids: bool):
+        out = []
+        for raw in raw_entries or []:
+            if not isinstance(raw, dict):
+                continue
+            try:
+                normalizer = getattr(self, "_normalize_entry_preserving_embedded_sources", None)
+                if callable(normalizer):
+                    entry = normalizer(copy.deepcopy(raw))
+                else:
+                    entry = normalize_plan({"entries": [copy.deepcopy(raw)]})["entries"][0]
+            except Exception:
+                entry = copy.deepcopy(raw)
+                entry.setdefault("type", "Checkpoint Merge")
+            if regenerate_ids:
+                entry["id"] = make_entry(entry.get("type", "Checkpoint Merge")).get("id")
+            else:
+                entry.setdefault("id", make_entry(entry.get("type", "Checkpoint Merge")).get("id"))
+            # Preserve editor-only fields when present in presets/projects.
+            for key in ("memo", "_locked", "_disabled", "_row_color"):
+                if key in raw:
+                    entry[key] = copy.deepcopy(raw.get(key))
+            out.append(entry)
+        return out
+
+    def _tccm_json_loader_plan_from_any_file(self, path: str):
+        """Load a path as a project, preset JSON, entries JSON, or legacy text."""
+        source = Path(path)
+        data = _tccm_json_loader_read_json(str(source))
+        if data is not None:
+            if _tccm_json_loader_is_project_dict(data):
+                return {
+                    "kind": "project",
+                    "json": data,
+                    "plan": _tccm_json_loader_extract_project_plan(data),
+                    "entries": _tccm_json_loader_raw_entries_from_json(data),
+                }
+            raw_entries = _tccm_json_loader_raw_entries_from_json(data)
+            if raw_entries:
+                entries = _tccm_json_loader_normalize_entries_for_insert(self, raw_entries, regenerate_ids=False)
+                return {
+                    "kind": "preset-json",
+                    "json": data,
+                    "plan": {"version": 3, "format": "preset-json-as-plan", "entries": entries},
+                    "entries": raw_entries,
+                }
+            # Fall through to load_plan_records for legacy structured JSON if
+            # possible.  This keeps older planner JSON variants usable.
+        raw_plan = normalize_plan(load_plan_records(str(source)))
+        collapse = getattr(self, "_collapse_internal_plan_entries", None)
+        plan = collapse(raw_plan) if callable(collapse) else raw_plan
+        return {
+            "kind": "legacy-text" if source.suffix.lower() == ".txt" else "legacy-json",
+            "json": data,
+            "plan": plan,
+            "entries": copy.deepcopy(plan.get("entries", []) or []),
+        }
+
+    def _tccm_json_loader_set_filepath(self, path: str):
+        if "filepath" in getattr(self, "entries", {}):
+            self.entries["filepath"].delete(0, tk.END)
+            self.entries["filepath"].insert(0, path)
+        try:
+            self._schedule_config_save()
+        except Exception:
+            pass
+
+    def _tccm_json_loader_after_plan_replaced(self, path: str, *, status_kind: str):
+        try:
+            if hasattr(self, "_planner_apply_entry_defaults"):
+                self._planner_apply_entry_defaults()
+        except Exception:
+            pass
+        if hasattr(self, "_history_undo"):
+            self._history_undo.clear()
+        if hasattr(self, "_history_redo"):
+            self._history_redo.clear()
+        try:
+            self._last_history_snapshot = self._planner_plan_snapshot() if hasattr(self, "_planner_plan_snapshot") else None
+        except Exception:
+            self._last_history_snapshot = None
+        self.current_index = max(0, min(int(getattr(self, "current_index", 0) or 0), len(self.plan_data.get("entries", []) or [None]) - 1))
+        self._refresh_line_selector()
+        self._render_current_line()
+        try:
+            self.status_label.config(text=f"Loaded {status_kind}: {self._path_display_name(path)}")
+        except Exception:
+            pass
+        try:
+            offer = getattr(self, "_planner_offer_newer_backup_restore", None)
+            if callable(offer):
+                self.root.after(500, lambda p=path: offer(p))
+        except Exception:
+            pass
+
+    def _load_plan_from_path_universal_json(self):
+        path = ""
+        try:
+            path = self._normalize_user_path(self.entries["filepath"].get().strip())
+        except Exception:
+            path = ""
+        if not path:
+            opener = globals().get("_tccm_open_plan_dialog_no_native_filter")
+            path = opener(self) if callable(opener) else self._normalize_user_path(filedialog.askopenfilename(title="Open TCCM Project / Preset / Legacy Plan"))
+            if not path:
+                return
+            _tccm_json_loader_set_filepath(self, path)
+        try:
+            loaded = _tccm_json_loader_plan_from_any_file(self, path)
+            kind = loaded.get("kind", "")
+            if kind == "project":
+                restore = getattr(self, "_planner_restore_project_payload", None)
+                if callable(restore):
+                    restore(loaded.get("json"), source_path=path)
+                else:
+                    self.plan_data = normalize_plan(loaded.get("plan") or {"entries": []})
+            else:
+                self.plan_data = normalize_plan(loaded.get("plan") or {"entries": []})
+                # Preset JSON loaded through Plan Text Path should behave like a
+                # complete plan file, so project-only state is reset.
+                if kind == "preset-json":
+                    if hasattr(self, "_tccm_ensure_extension_state"):
+                        self._tccm_ensure_extension_state()
+                    self.plan_variants = []
+                    self.run_profiles = []
+                    self.current_variant_name = ""
+                load_meta = getattr(self, "_planner_load_meta_from_disk", None)
+                if callable(load_meta):
+                    try:
+                        load_meta(path)
+                    except Exception:
+                        pass
+                self.current_index = 0
+            _tccm_json_loader_set_filepath(self, path)
+            label = "project" if kind == "project" else ("preset as plan" if kind == "preset-json" else "plan")
+            _tccm_json_loader_after_plan_replaced(self, path, status_kind=label)
+            return loaded
+        except Exception as exc:
+            self._show_detailed_error("Load Error", exc)
+
+    def _load_preset_json_universal_json(self):
+        opener = globals().get("_tccm_open_plan_dialog_no_native_filter")
+        if callable(opener):
+            path = opener(self)
+        else:
+            path = self._normalize_user_path(filedialog.askopenfilename(title="Load preset / project / plan"))
+        if not path:
+            return
+        try:
+            loaded = _tccm_json_loader_plan_from_any_file(self, path)
+            raw_entries = loaded.get("entries", []) or []
+            payload = _tccm_json_loader_normalize_entries_for_insert(self, raw_entries, regenerate_ids=True)
+            if not payload:
+                messagebox.showwarning("Load Preset", "No loadable planner entries were found in this file.")
+                return
+            push = getattr(self, "_planner_push_history", None)
+            if callable(push):
+                push()
+            entries = self.plan_data.setdefault("entries", [])
+            insert_at = max(self._planner_get_selected_indices() or [self.current_index]) + 1 if entries else 0
+            entries[insert_at:insert_at] = payload
+            self.current_index = insert_at + len(payload) - 1
+            try:
+                self._save_plan_to_file()
+            except Exception:
+                save_project = getattr(self, "_planner_save_project_json", None)
+                if callable(save_project):
+                    save_project(create_backup=False, reason="load-preset")
+            self._refresh_line_selector()
+            self._render_current_line()
+            try:
+                self._select_model_indices(list(range(insert_at, insert_at + len(payload))))
+            except Exception:
+                pass
+            kind = loaded.get("kind", "preset")
+            if kind == "project":
+                status_kind = ".tccm.json project entries"
+            elif kind == "preset-json":
+                status_kind = "preset JSON"
+            else:
+                status_kind = "plan entries"
+            self.status_label.config(text=f"Loaded {status_kind}: {Path(path).name}")
+            return payload
+        except Exception as exc:
+            self._show_detailed_error("Load Preset Error", exc)
+
+    def _restore_session_state_universal_json(self):
+        filepath = ""
+        try:
+            filepath = self.entries["filepath"].get().strip()
+        except Exception:
+            filepath = ""
+        filepath = self._normalize_user_path(filepath) if filepath else ""
+        if filepath and os.path.exists(filepath):
+            try:
+                loaded = _tccm_json_loader_plan_from_any_file(self, filepath)
+                if loaded.get("kind") == "project":
+                    restore = getattr(self, "_planner_restore_project_payload", None)
+                    if callable(restore):
+                        restore(loaded.get("json"), source_path=filepath)
+                    else:
+                        self.plan_data = normalize_plan(loaded.get("plan") or {"entries": []})
+                else:
+                    self.plan_data = normalize_plan(loaded.get("plan") or {"entries": []})
+                    self.current_index = 0
+            except Exception:
+                self.plan_data = self._planner_default_visible_plan()
+        else:
+            self.plan_data = self._planner_default_visible_plan()
+        try:
+            if hasattr(self, "_planner_apply_entry_defaults"):
+                self._planner_apply_entry_defaults()
+        except Exception:
+            pass
+
+    def _save_preset_json_universal_json(self):
+        indices = self._planner_get_selected_indices() or [self.current_index]
+        payload = [copy.deepcopy(self.plan_data["entries"][i]) for i in indices if 0 <= i < len(self.plan_data.get("entries", []))]
+        path = filedialog.asksaveasfilename(
+            title="Save preset as JSON",
+            defaultextension=".json",
+            initialfile="preset.json",
+            filetypes=[("JSON", "*.json"), ("TCCM Project", "*.tccm.json"), ("All files", "*.*")]
+        )
+        path = self._normalize_user_path(path)
+        if not path:
+            return
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        self.status_label.config(text=f"Saved preset: {Path(path).name}")
+
+    ModelPlannerApp._load_plan_from_path = _load_plan_from_path_universal_json
+    ModelPlannerApp._load_preset_json = _load_preset_json_universal_json
+    ModelPlannerApp._restore_session_state = _restore_session_state_universal_json
+    ModelPlannerApp._save_preset_json = _save_preset_json_universal_json
+except Exception:
+    pass
+
 
 if __name__ == "__main__":
     root = tk.Tk()
