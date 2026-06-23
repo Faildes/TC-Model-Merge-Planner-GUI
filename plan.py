@@ -1350,31 +1350,68 @@ def make_pref(p, mode):
         "fp": ["fp16", "bf16", "fp8", "fp32"],
         "format": ["PickleTensor", "SafeTensor"],
     }
-    def lsrt(lst, odr):
-        return [lst[i] for i in odr]
+
+    def ordered(values, preferred):
+        preferred = str(preferred or "").strip()
+        out = [preferred] if preferred in values else []
+        out.extend([v for v in values if v not in out])
+        return out
+
+    p = dict(p or {})
     if mode == "lora":
-        return [{"format": "SafeTensor"}, {"format": "PickleTensor"}]
+        return [{"format": fmt} for fmt in ordered(pref_set["format"], p.get("format", "SafeTensor"))]
+
     if mode == "checkpoint":
-        n = [pref_set[v].index(p[v]) for v in pref_set.keys()]
-        srt = {}
-        srt["size"] = lsrt(pref_set["size"], [1, 0]) if n[0] == 1 else pref_set["size"]
-        if n[1] == 0:
-            srt["fp"] = pref_set["fp"]
-        elif n[1] == 1:
-            srt["fp"] = lsrt(pref_set["fp"], [1, 0, 2])
-        else:
-            srt["fp"] = lsrt(pref_set["fp"], [2, 0, 1])
-        srt["format"] = lsrt(pref_set["format"], [1, 0]) if n[2] == 1 else pref_set["format"]
-        r = []
-        for i in range(len(pref_set["format"])):
-            for j in range(len(pref_set["fp"])):
-                for k in range(len(pref_set["size"])):
-                    r.append([k, j, i])
+        size_order = ordered(pref_set["size"], p.get("size", "full"))
+        fp_order = ordered(pref_set["fp"], p.get("fp", "fp16"))
+        format_order = ordered(pref_set["format"], p.get("format", "SafeTensor"))
         res = []
-        for i in r:
-            res.append({"size": srt["size"][i[0]], "fp": srt["fp"][i[1]], "format": srt["format"][i[2]]})
+        for fmt in format_order:
+            for fp in fp_order:
+                for size in size_order:
+                    res.append({"size": size, "fp": fp, "format": fmt})
         return res
     raise ValueError(f"Unknown mode: {mode}")
+
+
+def _metadata_matches_pref(metadata, pref_candidate):
+    """Civitai may add extra keys such as isRequired; compare pref as a subset."""
+    metadata = metadata or {}
+    for key, expected in (pref_candidate or {}).items():
+        if str(metadata.get(key)) != str(expected):
+            return False
+    return True
+
+
+def _is_civitai_payload_file(file_info):
+    """Exclude Required Components such as VAE / Text Encoder from model downloads."""
+    if not isinstance(file_info, dict):
+        return False
+    if file_info.get("type") != "Model":
+        return False
+    return True
+
+
+def _select_civitai_file(files, prefs):
+    files = list(files or [])
+    model_files = [f for f in files if _is_civitai_payload_file(f)]
+
+    # Prefer real model payload files. Only fall back to all files for unusual APIs
+    # where the file type is absent, not for Required Components.
+    candidates = model_files or [f for f in files if not (f.get("metadata") or {}).get("isRequired")] or files
+    if not candidates:
+        return None
+
+    for pref_candidate in prefs:
+        for f in candidates:
+            if _metadata_matches_pref(f.get("metadata", {}), pref_candidate):
+                return f
+
+    for f in candidates:
+        if f.get("primary") is True:
+            return f
+
+    return candidates[0]
 
 
 def get_dl(url, version=None, mode="checkpoint"):
@@ -1403,17 +1440,9 @@ def get_dl(url, version=None, mode="checkpoint"):
                     model = k
                     model_version = k["name"]
                     break
-            meta_list = [a["metadata"] for a in model["files"] if a["type"] == "Model"]
-            file = None
-            for p in prefs:
-                try:
-                    i = meta_list.index(p)
-                    file = model["files"][i]
-                    break
-                except ValueError:
-                    continue
+            file = _select_civitai_file(model.get("files", []), prefs)
             if file is None:
-                file = model["files"][0]
+                return None
             dllink = file["downloadUrl"]
             sha256_value = file.get("hashes", {}).get("SHA256", "").lower() or None
             ext = 1 if file.get("metadata", {}).get("format") == "SafeTensor" else 0
