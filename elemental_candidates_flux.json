@@ -1,0 +1,1219 @@
+{
+  "base_model": "Flux",
+  "version": 4,
+  "applies_to": [
+    "Checkpoint",
+    "LoRA",
+    "LyCORIS"
+  ],
+  "layer_aliases": {
+    "DOUBLE": "D00",
+    "SINGLE": "S00",
+    "TEXT": "CLIP"
+  },
+  "layers": [
+    {
+      "name": "CLIP",
+      "effect": "FLUX CLIP-L text-conditioning branch."
+    },
+    {
+      "name": "T5",
+      "effect": "FLUX T5-XXL text-conditioning branch."
+    },
+    {
+      "name": "IN",
+      "effect": "Shared image/text/timestep/vector input projections."
+    },
+    {
+      "name": "D00",
+      "effect": "FLUX double-stream transformer block 0; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D01",
+      "effect": "FLUX double-stream transformer block 1; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D02",
+      "effect": "FLUX double-stream transformer block 2; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D03",
+      "effect": "FLUX double-stream transformer block 3; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D04",
+      "effect": "FLUX double-stream transformer block 4; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D05",
+      "effect": "FLUX double-stream transformer block 5; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D06",
+      "effect": "FLUX double-stream transformer block 6; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D07",
+      "effect": "FLUX double-stream transformer block 7; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D08",
+      "effect": "FLUX double-stream transformer block 8; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D09",
+      "effect": "FLUX double-stream transformer block 9; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D10",
+      "effect": "FLUX double-stream transformer block 10; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D11",
+      "effect": "FLUX double-stream transformer block 11; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D12",
+      "effect": "FLUX double-stream transformer block 12; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D13",
+      "effect": "FLUX double-stream transformer block 13; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D14",
+      "effect": "FLUX double-stream transformer block 14; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D15",
+      "effect": "FLUX double-stream transformer block 15; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D16",
+      "effect": "FLUX double-stream transformer block 16; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D17",
+      "effect": "FLUX double-stream transformer block 17; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "D18",
+      "effect": "FLUX double-stream transformer block 18; image and text streams retain separate attention/MLP paths before joint attention output."
+    },
+    {
+      "name": "S00",
+      "effect": "FLUX single-stream transformer block 0; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S01",
+      "effect": "FLUX single-stream transformer block 1; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S02",
+      "effect": "FLUX single-stream transformer block 2; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S03",
+      "effect": "FLUX single-stream transformer block 3; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S04",
+      "effect": "FLUX single-stream transformer block 4; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S05",
+      "effect": "FLUX single-stream transformer block 5; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S06",
+      "effect": "FLUX single-stream transformer block 6; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S07",
+      "effect": "FLUX single-stream transformer block 7; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S08",
+      "effect": "FLUX single-stream transformer block 8; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S09",
+      "effect": "FLUX single-stream transformer block 9; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S10",
+      "effect": "FLUX single-stream transformer block 10; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S11",
+      "effect": "FLUX single-stream transformer block 11; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S12",
+      "effect": "FLUX single-stream transformer block 12; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S13",
+      "effect": "FLUX single-stream transformer block 13; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S14",
+      "effect": "FLUX single-stream transformer block 14; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S15",
+      "effect": "FLUX single-stream transformer block 15; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S16",
+      "effect": "FLUX single-stream transformer block 16; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S17",
+      "effect": "FLUX single-stream transformer block 17; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S18",
+      "effect": "FLUX single-stream transformer block 18; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S19",
+      "effect": "FLUX single-stream transformer block 19; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S20",
+      "effect": "FLUX single-stream transformer block 20; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S21",
+      "effect": "FLUX single-stream transformer block 21; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S22",
+      "effect": "FLUX single-stream transformer block 22; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S23",
+      "effect": "FLUX single-stream transformer block 23; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S24",
+      "effect": "FLUX single-stream transformer block 24; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S25",
+      "effect": "FLUX single-stream transformer block 25; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S26",
+      "effect": "FLUX single-stream transformer block 26; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S27",
+      "effect": "FLUX single-stream transformer block 27; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S28",
+      "effect": "FLUX single-stream transformer block 28; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S29",
+      "effect": "FLUX single-stream transformer block 29; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S30",
+      "effect": "FLUX single-stream transformer block 30; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S31",
+      "effect": "FLUX single-stream transformer block 31; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S32",
+      "effect": "FLUX single-stream transformer block 32; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S33",
+      "effect": "FLUX single-stream transformer block 33; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S34",
+      "effect": "FLUX single-stream transformer block 34; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S35",
+      "effect": "FLUX single-stream transformer block 35; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S36",
+      "effect": "FLUX single-stream transformer block 36; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "S37",
+      "effect": "FLUX single-stream transformer block 37; image/text tokens are processed in one combined stream."
+    },
+    {
+      "name": "OUT",
+      "effect": "Final adaptive modulation and latent output projection."
+    }
+  ],
+  "elements": [
+    {
+      "name": "img_in",
+      "effect": "image latent input projection",
+      "aliases": [
+        "image input"
+      ]
+    },
+    {
+      "name": "txt_in",
+      "effect": "text-context input projection",
+      "aliases": [
+        "text input"
+      ]
+    },
+    {
+      "name": "time_in.in_layer",
+      "effect": "timestep embedding input projection",
+      "aliases": [
+        "time input"
+      ]
+    },
+    {
+      "name": "time_in.out_layer",
+      "effect": "timestep embedding output projection",
+      "aliases": [
+        "time output"
+      ]
+    },
+    {
+      "name": "vector_in.in_layer",
+      "effect": "pooled-vector conditioning input projection",
+      "aliases": [
+        "vector input"
+      ]
+    },
+    {
+      "name": "vector_in.out_layer",
+      "effect": "pooled-vector conditioning output projection",
+      "aliases": [
+        "vector output"
+      ]
+    },
+    {
+      "name": "guidance_in.in_layer",
+      "effect": "guidance embedding input projection when guidance-distilled variant provides it",
+      "aliases": [
+        "guidance input"
+      ]
+    },
+    {
+      "name": "guidance_in.out_layer",
+      "effect": "guidance embedding output projection when guidance-distilled variant provides it",
+      "aliases": [
+        "guidance output"
+      ]
+    },
+    {
+      "name": "img_mod.lin",
+      "effect": "image-stream adaptive modulation projection",
+      "aliases": [
+        "image modulation"
+      ]
+    },
+    {
+      "name": "img_attn.qkv",
+      "effect": "image-stream joint QKV projection",
+      "aliases": [
+        "image attention qkv"
+      ]
+    },
+    {
+      "name": "img_attn.norm.query_norm.scale",
+      "effect": "image-stream query RMS normalization scale",
+      "aliases": [
+        "image q norm"
+      ]
+    },
+    {
+      "name": "img_attn.norm.key_norm.scale",
+      "effect": "image-stream key RMS normalization scale",
+      "aliases": [
+        "image k norm"
+      ]
+    },
+    {
+      "name": "img_attn.proj",
+      "effect": "image-stream attention output projection",
+      "aliases": [
+        "image attention out"
+      ]
+    },
+    {
+      "name": "img_mlp.0",
+      "effect": "image-stream MLP expansion/input projection",
+      "aliases": [
+        "image mlp in"
+      ]
+    },
+    {
+      "name": "img_mlp.2",
+      "effect": "image-stream MLP output projection",
+      "aliases": [
+        "image mlp out"
+      ]
+    },
+    {
+      "name": "txt_mod.lin",
+      "effect": "text-stream adaptive modulation projection",
+      "aliases": [
+        "text modulation"
+      ]
+    },
+    {
+      "name": "txt_attn.qkv",
+      "effect": "text-stream joint QKV projection",
+      "aliases": [
+        "text attention qkv"
+      ]
+    },
+    {
+      "name": "txt_attn.norm.query_norm.scale",
+      "effect": "text-stream query RMS normalization scale",
+      "aliases": [
+        "text q norm"
+      ]
+    },
+    {
+      "name": "txt_attn.norm.key_norm.scale",
+      "effect": "text-stream key RMS normalization scale",
+      "aliases": [
+        "text k norm"
+      ]
+    },
+    {
+      "name": "txt_attn.proj",
+      "effect": "text-stream attention output projection",
+      "aliases": [
+        "text attention out"
+      ]
+    },
+    {
+      "name": "txt_mlp.0",
+      "effect": "text-stream MLP expansion/input projection",
+      "aliases": [
+        "text mlp in"
+      ]
+    },
+    {
+      "name": "txt_mlp.2",
+      "effect": "text-stream MLP output projection",
+      "aliases": [
+        "text mlp out"
+      ]
+    },
+    {
+      "name": "modulation.lin",
+      "effect": "single-stream adaptive modulation projection",
+      "aliases": [
+        "single modulation"
+      ]
+    },
+    {
+      "name": "linear1",
+      "effect": "single-stream combined attention/MLP input projection",
+      "aliases": [
+        "single linear1"
+      ]
+    },
+    {
+      "name": "norm.query_norm.scale",
+      "effect": "single-stream attention query RMS normalization scale",
+      "aliases": [
+        "single q norm"
+      ]
+    },
+    {
+      "name": "norm.key_norm.scale",
+      "effect": "single-stream attention key RMS normalization scale",
+      "aliases": [
+        "single k norm"
+      ]
+    },
+    {
+      "name": "linear2",
+      "effect": "single-stream output projection that recombines attention/MLP features",
+      "aliases": [
+        "single linear2"
+      ]
+    },
+    {
+      "name": "final_layer.adaLN_modulation.1",
+      "effect": "final adaptive normalization modulation projection",
+      "aliases": [
+        "final modulation"
+      ]
+    },
+    {
+      "name": "final_layer.linear",
+      "effect": "final latent output projection",
+      "aliases": [
+        "final output"
+      ]
+    },
+    {
+      "name": "token_embedding",
+      "effect": "CLIP token embedding; vocabulary/concept representation",
+      "aliases": [
+        "clip token"
+      ]
+    },
+    {
+      "name": "position_embedding",
+      "effect": "CLIP positional embedding; token order representation",
+      "aliases": [
+        "clip position"
+      ]
+    },
+    {
+      "name": "self_attn.q_proj",
+      "effect": "CLIP self-attention query projection",
+      "aliases": [
+        "clip q"
+      ]
+    },
+    {
+      "name": "self_attn.k_proj",
+      "effect": "CLIP self-attention key projection",
+      "aliases": [
+        "clip k"
+      ]
+    },
+    {
+      "name": "self_attn.v_proj",
+      "effect": "CLIP self-attention value projection",
+      "aliases": [
+        "clip v"
+      ]
+    },
+    {
+      "name": "self_attn.out_proj",
+      "effect": "CLIP self-attention output projection",
+      "aliases": [
+        "clip out"
+      ]
+    },
+    {
+      "name": "mlp.fc1",
+      "effect": "CLIP MLP expansion layer",
+      "aliases": [
+        "clip mlp in"
+      ]
+    },
+    {
+      "name": "mlp.fc2",
+      "effect": "CLIP MLP output layer",
+      "aliases": [
+        "clip mlp out"
+      ]
+    },
+    {
+      "name": "layer_norm1",
+      "effect": "CLIP attention-side normalization",
+      "aliases": [
+        "clip norm1"
+      ]
+    },
+    {
+      "name": "layer_norm2",
+      "effect": "CLIP MLP-side normalization",
+      "aliases": [
+        "clip norm2"
+      ]
+    },
+    {
+      "name": "final_layer_norm",
+      "effect": "CLIP final text normalization",
+      "aliases": [
+        "clip final norm"
+      ]
+    },
+    {
+      "name": "shared",
+      "effect": "T5 shared token embedding",
+      "aliases": [
+        "t5 token"
+      ]
+    },
+    {
+      "name": "SelfAttention.q",
+      "effect": "T5 attention query projection",
+      "aliases": [
+        "t5 q"
+      ]
+    },
+    {
+      "name": "SelfAttention.k",
+      "effect": "T5 attention key projection",
+      "aliases": [
+        "t5 k"
+      ]
+    },
+    {
+      "name": "SelfAttention.v",
+      "effect": "T5 attention value projection",
+      "aliases": [
+        "t5 v"
+      ]
+    },
+    {
+      "name": "SelfAttention.o",
+      "effect": "T5 attention output projection",
+      "aliases": [
+        "t5 out"
+      ]
+    },
+    {
+      "name": "DenseReluDense.wi_0",
+      "effect": "T5 gated feed-forward first input projection",
+      "aliases": [
+        "t5 wi0"
+      ]
+    },
+    {
+      "name": "DenseReluDense.wi_1",
+      "effect": "T5 gated feed-forward second input projection",
+      "aliases": [
+        "t5 wi1"
+      ]
+    },
+    {
+      "name": "DenseReluDense.wo",
+      "effect": "T5 feed-forward output projection",
+      "aliases": [
+        "t5 wo"
+      ]
+    },
+    {
+      "name": "layer_norm",
+      "effect": "T5 normalization scale",
+      "aliases": [
+        "t5 norm"
+      ]
+    }
+  ],
+  "layer_elements": {
+    "CLIP": [
+      "token_embedding",
+      "position_embedding",
+      "self_attn.q_proj",
+      "self_attn.k_proj",
+      "self_attn.v_proj",
+      "self_attn.out_proj",
+      "mlp.fc1",
+      "mlp.fc2",
+      "layer_norm1",
+      "layer_norm2",
+      "final_layer_norm"
+    ],
+    "T5": [
+      "shared",
+      "SelfAttention.q",
+      "SelfAttention.k",
+      "SelfAttention.v",
+      "SelfAttention.o",
+      "DenseReluDense.wi_0",
+      "DenseReluDense.wi_1",
+      "DenseReluDense.wo",
+      "layer_norm"
+    ],
+    "IN": [
+      "img_in",
+      "txt_in",
+      "time_in.in_layer",
+      "time_in.out_layer",
+      "vector_in.in_layer",
+      "vector_in.out_layer",
+      "guidance_in.in_layer",
+      "guidance_in.out_layer"
+    ],
+    "OUT": [
+      "final_layer.adaLN_modulation.1",
+      "final_layer.linear"
+    ],
+    "D00": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D01": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D02": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D03": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D04": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D05": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D06": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D07": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D08": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D09": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D10": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D11": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D12": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D13": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D14": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D15": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D16": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D17": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "D18": [
+      "img_mod.lin",
+      "img_attn.qkv",
+      "img_attn.norm.query_norm.scale",
+      "img_attn.norm.key_norm.scale",
+      "img_attn.proj",
+      "img_mlp.0",
+      "img_mlp.2",
+      "txt_mod.lin",
+      "txt_attn.qkv",
+      "txt_attn.norm.query_norm.scale",
+      "txt_attn.norm.key_norm.scale",
+      "txt_attn.proj",
+      "txt_mlp.0",
+      "txt_mlp.2"
+    ],
+    "S00": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S01": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S02": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S03": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S04": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S05": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S06": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S07": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S08": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S09": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S10": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S11": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S12": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S13": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S14": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S15": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S16": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S17": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S18": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S19": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S20": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S21": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S22": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S23": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S24": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S25": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S26": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S27": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S28": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S29": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S30": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S31": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S32": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S33": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S34": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S35": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S36": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ],
+    "S37": [
+      "modulation.lin",
+      "linear1",
+      "norm.query_norm.scale",
+      "norm.key_norm.scale",
+      "linear2"
+    ]
+  },
+  "mode_notes": {
+    "architecture": "FLUX.1 DoubleStreamBlock/SingleStreamBlock naming; element names are literal substrings used by the official implementation.",
+    "block_counts": "19 double-stream blocks and 38 single-stream blocks match the merger BLOCKIDFLUX layout."
+  }
+}

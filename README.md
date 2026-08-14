@@ -11,6 +11,7 @@ It is designed to sit on top of **Chattiori-Model-Merger** and gives you a visua
 - **Structured plan editing** with support for:
   - Checkpoint Merge
   - LoRA Bake
+  - LoRA Merge
 
   The below functions is integrated to the system automatically
   - Download Model
@@ -21,7 +22,8 @@ It is designed to sit on top of **Chattiori-Model-Merger** and gives you a visua
   - Stable Diffusion XL
   - Flux
   - Z-Image
-  - Anima
+  - Anima (Anima 2.9B as well)
+  - Krea2
 - **Ratio modes**:
   - Single
   - Block weight
@@ -231,6 +233,15 @@ Fields include:
 - Output Name
 - Additional Signatures
 
+#### 3. LoRA Merge
+Merge two or more LoRAs / LyCORIS models into a LoRA / LyCORIS.
+
+Fields include:
+- two or more LoRA blocks
+- per-LoRA ratio
+- Output Name
+- Additional Signatures
+
 ---
 
 ## Ratio Guide
@@ -257,9 +268,10 @@ The planner also includes popup assistance for elemental editing and resolves ca
 
 - `elemental_candidates_sdxl.json`
 - `elemental_candidates_anima.json`
-- *(future implementation)* `elemental_candidates_zimage.json`
-- *(future implementation)* `elemental_candidates_sd15.json`
-- *(future implementation)* `elemental_candidates_flux.json`
+- `elemental_candidates_zimage.json`
+- `elemental_candidates_sd15.json`
+- `elemental_candidates_flux.json`
+- `elemental_candidates_krea2.json`
 
 Example style:
 
@@ -461,8 +473,9 @@ You do not need all elemental candidate JSON files immediately, but the planner 
 ## Credits
 
 ### Core merge backend
-- **Malkis** for the idea about GUI planner
-- **Crody** for implementing auto model recognition
+This planner is designed to work with:
+
+- **Faildes / Chattiori-Model-Merger**
 
 ### Libraries / ecosystem
 This project also relies on or integrates with:

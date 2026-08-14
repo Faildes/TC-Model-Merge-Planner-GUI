@@ -1,0 +1,889 @@
+{
+  "base_model": "ZImage",
+  "version": 4,
+  "applies_to": [
+    "Checkpoint",
+    "LoRA",
+    "LyCORIS"
+  ],
+  "layer_aliases": {
+    "CONTEXT": "CONT",
+    "CONTEXT_REFINER": "CONT",
+    "NOISE_REFINER": "NOISE",
+    "OUTPUT": "L29",
+    "OUT": "L29"
+  },
+  "layers": [
+    {
+      "name": "BASE",
+      "effect": "Text/caption conditioning bridge, including cap_embedder and packed Qwen text tensors when present."
+    },
+    {
+      "name": "CONT",
+      "effect": "Two context-refiner transformer blocks; refines text/context tokens without timestep modulation."
+    },
+    {
+      "name": "NOISE",
+      "effect": "Two noise-refiner transformer blocks; refines image/noise tokens with adaptive timestep modulation."
+    },
+    {
+      "name": "L00",
+      "effect": "Z-Image main single-stream transformer layer 0 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L01",
+      "effect": "Z-Image main single-stream transformer layer 1 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L02",
+      "effect": "Z-Image main single-stream transformer layer 2 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L03",
+      "effect": "Z-Image main single-stream transformer layer 3 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L04",
+      "effect": "Z-Image main single-stream transformer layer 4 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L05",
+      "effect": "Z-Image main single-stream transformer layer 5 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L06",
+      "effect": "Z-Image main single-stream transformer layer 6 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L07",
+      "effect": "Z-Image main single-stream transformer layer 7 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L08",
+      "effect": "Z-Image main single-stream transformer layer 8 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L09",
+      "effect": "Z-Image main single-stream transformer layer 9 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L10",
+      "effect": "Z-Image main single-stream transformer layer 10 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L11",
+      "effect": "Z-Image main single-stream transformer layer 11 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L12",
+      "effect": "Z-Image main single-stream transformer layer 12 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L13",
+      "effect": "Z-Image main single-stream transformer layer 13 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L14",
+      "effect": "Z-Image main single-stream transformer layer 14 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L15",
+      "effect": "Z-Image main single-stream transformer layer 15 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L16",
+      "effect": "Z-Image main single-stream transformer layer 16 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L17",
+      "effect": "Z-Image main single-stream transformer layer 17 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L18",
+      "effect": "Z-Image main single-stream transformer layer 18 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L19",
+      "effect": "Z-Image main single-stream transformer layer 19 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L20",
+      "effect": "Z-Image main single-stream transformer layer 20 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L21",
+      "effect": "Z-Image main single-stream transformer layer 21 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L22",
+      "effect": "Z-Image main single-stream transformer layer 22 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L23",
+      "effect": "Z-Image main single-stream transformer layer 23 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L24",
+      "effect": "Z-Image main single-stream transformer layer 24 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L25",
+      "effect": "Z-Image main single-stream transformer layer 25 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L26",
+      "effect": "Z-Image main single-stream transformer layer 26 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L27",
+      "effect": "Z-Image main single-stream transformer layer 27 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L28",
+      "effect": "Z-Image main single-stream transformer layer 28 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "L29",
+      "effect": "Z-Image main single-stream transformer layer 29 of 29; all 30 layers use attention, gated feed-forward, RMSNorm, and adaptive modulation."
+    },
+    {
+      "name": "VAE",
+      "effect": "VAE encoder/decoder tensors when packed with the model."
+    }
+  ],
+  "elements": [
+    {
+      "name": "cap_embedder",
+      "effect": "caption/context projection into transformer hidden size",
+      "aliases": [
+        "caption embedder"
+      ]
+    },
+    {
+      "name": "qwen3_4b",
+      "effect": "Qwen text-encoder tensors when packed into the checkpoint",
+      "aliases": [
+        "qwen",
+        "text encoder"
+      ]
+    },
+    {
+      "name": "attention.to_q",
+      "effect": "attention query projection",
+      "aliases": [
+        "q projection"
+      ]
+    },
+    {
+      "name": "attention.to_k",
+      "effect": "attention key projection",
+      "aliases": [
+        "k projection"
+      ]
+    },
+    {
+      "name": "attention.to_v",
+      "effect": "attention value projection",
+      "aliases": [
+        "v projection"
+      ]
+    },
+    {
+      "name": "attention.to_out.0",
+      "effect": "attention output projection",
+      "aliases": [
+        "attention out"
+      ]
+    },
+    {
+      "name": "attention.norm_q.weight",
+      "effect": "query RMSNorm scale",
+      "aliases": [
+        "q norm"
+      ]
+    },
+    {
+      "name": "attention.norm_k.weight",
+      "effect": "key RMSNorm scale",
+      "aliases": [
+        "k norm"
+      ]
+    },
+    {
+      "name": "feed_forward.w1",
+      "effect": "SwiGLU-style feed-forward gate/input projection",
+      "aliases": [
+        "ff w1"
+      ]
+    },
+    {
+      "name": "feed_forward.w3",
+      "effect": "feed-forward parallel input projection",
+      "aliases": [
+        "ff w3"
+      ]
+    },
+    {
+      "name": "feed_forward.w2",
+      "effect": "feed-forward output projection",
+      "aliases": [
+        "ff w2"
+      ]
+    },
+    {
+      "name": "attention_norm1.weight",
+      "effect": "pre-attention RMSNorm scale",
+      "aliases": [
+        "attention norm1"
+      ]
+    },
+    {
+      "name": "attention_norm2.weight",
+      "effect": "post-attention RMSNorm scale",
+      "aliases": [
+        "attention norm2"
+      ]
+    },
+    {
+      "name": "ffn_norm1.weight",
+      "effect": "pre-FFN RMSNorm scale",
+      "aliases": [
+        "ffn norm1"
+      ]
+    },
+    {
+      "name": "ffn_norm2.weight",
+      "effect": "post-FFN RMSNorm scale",
+      "aliases": [
+        "ffn norm2"
+      ]
+    },
+    {
+      "name": "adaLN_modulation.0",
+      "effect": "adaptive LayerNorm modulation for attention/MLP gates and scales",
+      "aliases": [
+        "adaln",
+        "modulation"
+      ]
+    },
+    {
+      "name": "all_final_layer",
+      "effect": "per-output-stream final layer family",
+      "aliases": [
+        "final layer"
+      ]
+    },
+    {
+      "name": "encoder.conv_in",
+      "effect": "VAE encoder input projection; affects how image pixels enter latent encoding",
+      "aliases": [
+        "vae encoder input"
+      ]
+    },
+    {
+      "name": "encoder.down",
+      "effect": "VAE encoder downsampling/residual path; affects encoded spatial/detail representation",
+      "aliases": [
+        "vae down"
+      ]
+    },
+    {
+      "name": "encoder.mid",
+      "effect": "VAE encoder bottleneck; affects latent representation balance",
+      "aliases": [
+        "vae mid"
+      ]
+    },
+    {
+      "name": "encoder.conv_out",
+      "effect": "VAE encoder output projection into latent statistics",
+      "aliases": [
+        "vae encoder output"
+      ]
+    },
+    {
+      "name": "quant_conv",
+      "effect": "VAE latent distribution projection before sampling",
+      "aliases": [
+        "vae quant"
+      ]
+    },
+    {
+      "name": "post_quant_conv",
+      "effect": "VAE latent projection before decoding",
+      "aliases": [
+        "vae post quant"
+      ]
+    },
+    {
+      "name": "decoder.conv_in",
+      "effect": "VAE decoder latent input projection",
+      "aliases": [
+        "vae decoder input"
+      ]
+    },
+    {
+      "name": "decoder.mid",
+      "effect": "VAE decoder bottleneck; affects reconstructed global/local feature balance",
+      "aliases": [
+        "vae decoder mid"
+      ]
+    },
+    {
+      "name": "decoder.up",
+      "effect": "VAE decoder upsampling/residual path; affects reconstruction detail and edges",
+      "aliases": [
+        "vae up"
+      ]
+    },
+    {
+      "name": "decoder.conv_out",
+      "effect": "VAE final image reconstruction projection; strongly affects decoded color/detail finish",
+      "aliases": [
+        "vae decoder output"
+      ]
+    },
+    {
+      "name": "adaLN_modulation.1",
+      "effect": "final-layer adaptive normalization projection; official all_final_layer entries use this sequential index",
+      "aliases": [
+        "final modulation"
+      ]
+    }
+  ],
+  "layer_elements": {
+    "BASE": [
+      "cap_embedder",
+      "qwen3_4b"
+    ],
+    "CONT": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight"
+    ],
+    "NOISE": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "VAE": [
+      "encoder.conv_in",
+      "encoder.down",
+      "encoder.mid",
+      "encoder.conv_out",
+      "quant_conv",
+      "post_quant_conv",
+      "decoder.conv_in",
+      "decoder.mid",
+      "decoder.up",
+      "decoder.conv_out"
+    ],
+    "L00": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L01": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L02": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L03": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L04": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L05": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L06": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L07": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L08": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L09": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L10": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L11": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L12": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L13": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L14": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L15": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L16": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L17": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L18": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L19": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L20": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L21": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L22": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L23": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L24": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L25": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L26": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L27": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L28": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0"
+    ],
+    "L29": [
+      "attention.to_q",
+      "attention.to_k",
+      "attention.to_v",
+      "attention.to_out.0",
+      "attention.norm_q.weight",
+      "attention.norm_k.weight",
+      "feed_forward.w1",
+      "feed_forward.w3",
+      "feed_forward.w2",
+      "attention_norm1.weight",
+      "attention_norm2.weight",
+      "ffn_norm1.weight",
+      "ffn_norm2.weight",
+      "adaLN_modulation.0",
+      "all_final_layer",
+      "adaLN_modulation.1"
+    ]
+  },
+  "mode_notes": {
+    "architecture": "Official Z-Image uses 30 main layers, 2 context-refiner blocks, 2 noise-refiner blocks, ZImageAttention and gated FeedForward.",
+    "final_layer": "Official all_final_layer.* tensors are treated as L29 by the accompanying merger compatibility change."
+  }
+}

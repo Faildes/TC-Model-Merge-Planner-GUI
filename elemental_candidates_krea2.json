@@ -1,0 +1,777 @@
+{
+  "base_model": "Krea2",
+  "version": 4,
+  "applies_to": [
+    "Checkpoint",
+    "LoRA",
+    "LyCORIS"
+  ],
+  "layer_aliases": {
+    "INPUT": "L00",
+    "IN": "L00",
+    "FIRST": "L00",
+    "OUTPUT": "L27",
+    "OUT": "L27",
+    "LAST": "L27",
+    "TEXT": "BASE"
+  },
+  "layers": [
+    {
+      "name": "BASE",
+      "effect": "Shared timestep and text-fusion conditioning: tmlp/tproj, txtmlp and the four-block TextFusionTransformer around its learned layer projector."
+    },
+    {
+      "name": "L00",
+      "effect": "Krea2 SingleStreamDiT block 0 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L01",
+      "effect": "Krea2 SingleStreamDiT block 1 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L02",
+      "effect": "Krea2 SingleStreamDiT block 2 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L03",
+      "effect": "Krea2 SingleStreamDiT block 3 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L04",
+      "effect": "Krea2 SingleStreamDiT block 4 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L05",
+      "effect": "Krea2 SingleStreamDiT block 5 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L06",
+      "effect": "Krea2 SingleStreamDiT block 6 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L07",
+      "effect": "Krea2 SingleStreamDiT block 7 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L08",
+      "effect": "Krea2 SingleStreamDiT block 8 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L09",
+      "effect": "Krea2 SingleStreamDiT block 9 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L10",
+      "effect": "Krea2 SingleStreamDiT block 10 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L11",
+      "effect": "Krea2 SingleStreamDiT block 11 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L12",
+      "effect": "Krea2 SingleStreamDiT block 12 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L13",
+      "effect": "Krea2 SingleStreamDiT block 13 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L14",
+      "effect": "Krea2 SingleStreamDiT block 14 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L15",
+      "effect": "Krea2 SingleStreamDiT block 15 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L16",
+      "effect": "Krea2 SingleStreamDiT block 16 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L17",
+      "effect": "Krea2 SingleStreamDiT block 17 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L18",
+      "effect": "Krea2 SingleStreamDiT block 18 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L19",
+      "effect": "Krea2 SingleStreamDiT block 19 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L20",
+      "effect": "Krea2 SingleStreamDiT block 20 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L21",
+      "effect": "Krea2 SingleStreamDiT block 21 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L22",
+      "effect": "Krea2 SingleStreamDiT block 22 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L23",
+      "effect": "Krea2 SingleStreamDiT block 23 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L24",
+      "effect": "Krea2 SingleStreamDiT block 24 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L25",
+      "effect": "Krea2 SingleStreamDiT block 25 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L26",
+      "effect": "Krea2 SingleStreamDiT block 26 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    },
+    {
+      "name": "L27",
+      "effect": "Krea2 SingleStreamDiT block 27 of 27; attention, SwiGLU and adaptive modulation operate on the combined text/image token stream."
+    }
+  ],
+  "elements": [
+    {
+      "name": "tmlp.0",
+      "effect": "timestep embedding input projection",
+      "aliases": [
+        "time mlp in"
+      ]
+    },
+    {
+      "name": "tmlp.2",
+      "effect": "timestep embedding output projection",
+      "aliases": [
+        "time mlp out"
+      ]
+    },
+    {
+      "name": "tproj.1",
+      "effect": "timestep-to-block modulation projection",
+      "aliases": [
+        "time projection"
+      ]
+    },
+    {
+      "name": "txtmlp.0.scale",
+      "effect": "text feature RMSNorm learned scale",
+      "aliases": [
+        "text norm"
+      ]
+    },
+    {
+      "name": "txtmlp.1",
+      "effect": "text feature projection into DiT width",
+      "aliases": [
+        "text projection in"
+      ]
+    },
+    {
+      "name": "txtmlp.3",
+      "effect": "text feature output projection",
+      "aliases": [
+        "text projection out"
+      ]
+    },
+    {
+      "name": "txtfusion.projector",
+      "effect": "learned projection across selected text-encoder hidden-state layers",
+      "aliases": [
+        "text fusion projector"
+      ]
+    },
+    {
+      "name": "txtfusion.layerwise_blocks.0",
+      "effect": "first layerwise text-fusion transformer block",
+      "aliases": [
+        "text fusion layerwise 0"
+      ]
+    },
+    {
+      "name": "txtfusion.layerwise_blocks.1",
+      "effect": "second layerwise text-fusion transformer block",
+      "aliases": [
+        "text fusion layerwise 1"
+      ]
+    },
+    {
+      "name": "txtfusion.refiner_blocks.0",
+      "effect": "first text-fusion refiner block after layerwise projection",
+      "aliases": [
+        "text refiner 0"
+      ]
+    },
+    {
+      "name": "txtfusion.refiner_blocks.1",
+      "effect": "second text-fusion refiner block",
+      "aliases": [
+        "text refiner 1"
+      ]
+    },
+    {
+      "name": "mod.lin",
+      "effect": "six-way shared adaptive modulation projection for attention and MLP scale/shift/gates",
+      "aliases": [
+        "modulation"
+      ]
+    },
+    {
+      "name": "prenorm.scale",
+      "effect": "pre-attention RMSNorm learned scale",
+      "aliases": [
+        "pre norm"
+      ]
+    },
+    {
+      "name": "postnorm.scale",
+      "effect": "pre-MLP RMSNorm learned scale",
+      "aliases": [
+        "post norm"
+      ]
+    },
+    {
+      "name": "attn.wq",
+      "effect": "attention query projection",
+      "aliases": [
+        "q projection"
+      ]
+    },
+    {
+      "name": "attn.wk",
+      "effect": "attention key projection",
+      "aliases": [
+        "k projection"
+      ]
+    },
+    {
+      "name": "attn.wv",
+      "effect": "attention value projection",
+      "aliases": [
+        "v projection"
+      ]
+    },
+    {
+      "name": "attn.gate",
+      "effect": "sigmoid attention gate projection",
+      "aliases": [
+        "attention gate"
+      ]
+    },
+    {
+      "name": "attn.qknorm.qnorm.scale",
+      "effect": "attention query RMSNorm learned scale",
+      "aliases": [
+        "q norm"
+      ]
+    },
+    {
+      "name": "attn.qknorm.knorm.scale",
+      "effect": "attention key RMSNorm learned scale",
+      "aliases": [
+        "k norm"
+      ]
+    },
+    {
+      "name": "attn.wo",
+      "effect": "attention output projection",
+      "aliases": [
+        "attention out"
+      ]
+    },
+    {
+      "name": "mlp.gate",
+      "effect": "SwiGLU gate projection",
+      "aliases": [
+        "mlp gate"
+      ]
+    },
+    {
+      "name": "mlp.up",
+      "effect": "SwiGLU parallel up projection",
+      "aliases": [
+        "mlp up"
+      ]
+    },
+    {
+      "name": "mlp.down",
+      "effect": "SwiGLU output/down projection",
+      "aliases": [
+        "mlp down"
+      ]
+    },
+    {
+      "name": "first",
+      "effect": "input patch/token linear projection; belongs to L00",
+      "aliases": [
+        "input projection"
+      ]
+    },
+    {
+      "name": "last.norm.scale",
+      "effect": "final RMSNorm learned scale; belongs to L27",
+      "aliases": [
+        "final norm"
+      ]
+    },
+    {
+      "name": "last.modulation.lin",
+      "effect": "final timestep modulation projection; belongs to L27",
+      "aliases": [
+        "final modulation"
+      ]
+    },
+    {
+      "name": "last.linear",
+      "effect": "final patch/image output projection; belongs to L27",
+      "aliases": [
+        "final output"
+      ]
+    }
+  ],
+  "layer_elements": {
+    "BASE": [
+      "tmlp.0",
+      "tmlp.2",
+      "tproj.1",
+      "txtmlp.0.scale",
+      "txtmlp.1",
+      "txtmlp.3",
+      "txtfusion.projector",
+      "txtfusion.layerwise_blocks.0",
+      "txtfusion.layerwise_blocks.1",
+      "txtfusion.refiner_blocks.0",
+      "txtfusion.refiner_blocks.1"
+    ],
+    "L00": [
+      "first",
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L01": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L02": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L03": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L04": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L05": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L06": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L07": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L08": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L09": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L10": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L11": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L12": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L13": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L14": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L15": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L16": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L17": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L18": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L19": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L20": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L21": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L22": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L23": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L24": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L25": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L26": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down"
+    ],
+    "L27": [
+      "mod.lin",
+      "prenorm.scale",
+      "postnorm.scale",
+      "attn.wq",
+      "attn.wk",
+      "attn.wv",
+      "attn.gate",
+      "attn.qknorm.qnorm.scale",
+      "attn.qknorm.knorm.scale",
+      "attn.wo",
+      "mlp.gate",
+      "mlp.up",
+      "mlp.down",
+      "last.norm.scale",
+      "last.modulation.lin",
+      "last.linear"
+    ]
+  },
+  "mode_notes": {
+    "architecture": "Official Krea2 SingleStreamDiT naming: first, 28 blocks, tmlp/tproj, txtfusion/txtmlp, last.",
+    "matching": "Candidates avoid wildcard characters because elemental rules use substring matching."
+  }
+}

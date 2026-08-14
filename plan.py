@@ -374,7 +374,7 @@ def parse_legacy_text_plan(text: str) -> Dict[str, Any]:
             tail_opts = []
             precision = "half"
             if at["precision"] is not None:
-                precision = "bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else "half")
+                precision = ("bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else ("int8" if at["precision"].lower() in ("int8","i8") else ("fp32" if at["precision"].lower() in ("fp32","float32","full") else "half"))))
             for d in at["extras"]:
                 if d.startswith("--"):
                     tail_opts.append(d)
@@ -409,7 +409,7 @@ def parse_legacy_text_plan(text: str) -> Dict[str, Any]:
             if at["fine"]: tail_opts.append(f'--fine={"\""+at["fine"]+"\"" if _needs_quote(at["fine"]) else at["fine"]}')
             if at["seed"] is not None: tail_opts.append(f"--seed {at['seed']}")
             if at["precision"] is not None:
-                precision = "bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else "half")
+                precision = ("bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else ("int8" if at["precision"].lower() in ("int8","i8") else ("fp32" if at["precision"].lower() in ("fp32","float32","full") else "half"))))
             for d in at["extras"]:
                 if d.startswith("--"): tail_opts.append(d)
             tail_str = "" if not tail_opts else " ".join(tail_opts)
@@ -492,7 +492,7 @@ def parse_legacy_text_plan(text: str) -> Dict[str, Any]:
             tail_opts = []
             precision = "half"
             if at["precision"] is not None:
-                precision = "bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else "half")
+                precision = ("bhalf" if at["precision"].lower() in ("bhalf","bf16","bfloat16") else ("quarter" if at["precision"].lower() in ("quarter","fp8","float8") else ("int8" if at["precision"].lower() in ("int8","i8") else ("fp32" if at["precision"].lower() in ("fp32","float32","full") else "half"))))
             for d in at["extras"]:
                 if d.startswith("--"): tail_opts.append(d)
             tail_str = "" if not tail_opts else " ".join(tail_opts)
@@ -822,9 +822,12 @@ MODEL_REGISTRY_HISTORY = []
 MODEL_INSTALL_COUNTER = 0
 REMOVED_MODELS = set()
 SOURCE_MODEL_CACHE = {}
+DOWNLOAD_INFO_CACHE = {}
+_DOWNLOAD_USER_AGENT = None
 PLANNER_REGISTRY_DIR = os.path.join(models_dir, "_planner_registry")
 PLANNER_CACHE_TTL_HOURS = float(os.environ.get("PLANNER_CACHE_TTL_HOURS", "72") or 72)
 PLANNER_LOW_DISK_GB = float(os.environ.get("PLANNER_LOW_DISK_GB", "8") or 8)
+PLANNER_PURGE_PIP_CACHE = str(os.environ.get("PLANNER_PURGE_PIP_CACHE", "0")).strip().lower() in {"1", "true", "yes", "on"}
 _PIP_CACHE_PURGED = False
 
 
@@ -1003,7 +1006,7 @@ def flush(light=True):
     free_gb, total_gb = _disk_free_gb()
     if not light:
         _prune_orphan_registry_dirs(aggressive=free_gb < PLANNER_LOW_DISK_GB)
-    if (not light or free_gb < PLANNER_LOW_DISK_GB) and not _PIP_CACHE_PURGED:
+    if PLANNER_PURGE_PIP_CACHE and free_gb < PLANNER_LOW_DISK_GB and not _PIP_CACHE_PURGED:
         subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
         _PIP_CACHE_PURGED = True
     if free_gb < PLANNER_LOW_DISK_GB:
@@ -1148,7 +1151,19 @@ def run_cmd(cmd, cwd=None, check_path: bool=False, path: str="", ignore_meta: bo
                         cmd_ipython[i] = f'"{value}"'
 
             try:
-                !{" ".join(cmd_ipython)}
+                ip = get_ipython()
+                shell_line = " ".join(cmd_ipython)
+                rc = ip.system(shell_line)
+                # Real IPython returns None and stores the status in _exit_code;
+                # the Task Center proxy returns the code directly.  Handle both
+                # so a failed command can never be mistaken for success.
+                if rc is None:
+                    try:
+                        rc = int(getattr(ip, "user_ns", {}).get("_exit_code", 0) or 0)
+                    except Exception:
+                        rc = 0
+                if int(rc or 0) != 0:
+                    raise RuntimeError(f"Notebook shell command failed with exit code {rc}: {shell_line}")
                 if check_path and not os.path.exists(path):
                     raise FileNotFoundError(path)
                 return
@@ -1414,6 +1429,23 @@ def _select_civitai_file(files, prefs):
     return candidates[0]
 
 
+def _metadata_get(url, **kwargs):
+    last_error = None
+    for attempt in range(2):
+        try:
+            response = requests.get(url, timeout=(10, 30), **kwargs)
+            if response.status_code not in (429, 500, 502, 503, 504):
+                return response
+            last_error = RuntimeError(f"HTTP {response.status_code} for {url}")
+            response.close()
+        except requests.RequestException as e:
+            last_error = e
+        if attempt == 0:
+            print(f"[planner-download] metadata HTTP retry | {url} | {last_error}")
+            time.sleep(0.5)
+    raise RuntimeError(f"Metadata request failed for {url}: {last_error}") from last_error
+
+
 def get_dl(url, version=None, mode="checkpoint"):
     prefs = make_pref(pref, mode)
     if "civitai" in url:
@@ -1428,7 +1460,7 @@ def get_dl(url, version=None, mode="checkpoint"):
             if "modelVersionId=" in url and version is None:
                 version = re.sub(r"\D", "", re.search(r"modelVersionId=[0-9]+", url).group())
             api = f"https://civitai.red/api/v1/models/{cid}" if "civitai.red" in url else f"https://civitai.com/api/v1/models/{cid}" 
-            response = requests.get(api)
+            response = _metadata_get(api)
             if response.status_code != 200:
                 return None
             d = response.json()
@@ -1471,7 +1503,7 @@ def get_dl(url, version=None, mode="checkpoint"):
             else:
                 api += f"{s}/"
                 dllink += f"{s}/"
-        res = requests.get(api)
+        res = _metadata_get(api)
         if res.status_code != 200:
             return None
         match = re.search(r"sha256:[0-9a-f]+", res.text)
@@ -1519,44 +1551,141 @@ def model(name, format=1, mode="checkpoint"):
     return register_model(name, path, mode, source_kind="existing")
 
 
-def _aria_headers(token):
-    return ["--header", f"Authorization: Bearer {token}"] if token else []
+def _download_user_agent():
+    global _DOWNLOAD_USER_AGENT
+    if _DOWNLOAD_USER_AGENT:
+        return _DOWNLOAD_USER_AGENT
+    try:
+        _DOWNLOAD_USER_AGENT = UserAgent().chrome
+    except Exception:
+        _DOWNLOAD_USER_AGENT = "Mozilla/5.0"
+    return _DOWNLOAD_USER_AGENT
+
+
+def _aria_headers(token="", *, include_auth=True):
+    args = ["--header", f"User-Agent: {_download_user_agent()}"]
+    if include_auth and token:
+        args += ["--header", f"Authorization: Bearer {token}"]
+    return args
+
+
+def _download_file_is_ready(path):
+    # O(1) only: do not hash/scan multi-GB model files on the hot path.
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0 and not os.path.exists(path + ".aria2")
+    except OSError:
+        return False
+
+
+def _download_info_cached(raw_url, version, mode):
+    key = (str(mode or "checkpoint"), str(raw_url or ""), str(version or ""))
+    cached = DOWNLOAD_INFO_CACHE.get(key)
+    if cached is not None:
+        print(f"[planner-download] metadata cache hit | {raw_url}")
+        return dict(cached)
+    last_error = None
+    for attempt in range(2):
+        try:
+            info = get_dl(raw_url, version=version, mode=mode)
+            if info:
+                DOWNLOAD_INFO_CACHE[key] = dict(info)
+                return dict(info)
+            last_error = RuntimeError(f"Could not resolve download info for {raw_url}")
+        except Exception as e:
+            last_error = e
+        if attempt == 0:
+            print(f"[planner-download] metadata retry | {raw_url} | {last_error}")
+            time.sleep(0.5)
+    raise RuntimeError(f"Could not resolve download info for {raw_url}: {last_error}") from last_error
+
+
+def _resolve_download_endpoint(url, token=""):
+    # Resolve redirects without downloading the response body.  Civitai/CDN endpoints
+    # occasionally return 200 directly instead of 30x; stream=True prevents Python
+    # from silently downloading a multi-GB model before aria2 starts.
+    headers = {"User-Agent": _download_user_agent()}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    last_error = None
+    for attempt in range(2):
+        try:
+            with requests.get(
+                url, headers=headers, allow_redirects=False, stream=True, timeout=(10, 30)
+            ) as response:
+                status = int(response.status_code)
+                location = response.headers.get("Location")
+                if 300 <= status < 400 and location:
+                    return location, False
+                if status in (200, 206):
+                    return url, True
+                if status in (429, 500, 502, 503, 504):
+                    last_error = RuntimeError(f"HTTP {status} while resolving {url}")
+                else:
+                    raise RuntimeError(f"HTTP {status} while resolving {url}")
+        except requests.RequestException as e:
+            last_error = e
+        if attempt == 0:
+            print(f"[planner-download] endpoint retry | {url} | {last_error}")
+            time.sleep(0.5)
+    raise RuntimeError(f"Could not resolve download endpoint {url}: {last_error}") from last_error
+
+
+def _run_aria2_download(url, out_dir, out_name, *, token="", include_auth=False, fallback=False):
+    connections = "8" if fallback else "16"
+    print(f"[planner-download] aria2 start | connections={connections} | {out_name}")
+    run_cmd([
+        "aria2c", "--console-log-level=error", "-c", "-x", connections, "-s", connections, "-k", "1M",
+        *_aria_headers(token, include_auth=include_auth),
+        url, "-d", out_dir, "-o", out_name,
+    ], check_path=True, path=os.path.join(out_dir, out_name))
 
 
 def custom_model(url, checkpoint_name=None, mode="checkpoint"):
-    user_token = HFToken if "huggingface" in str(url) else CVToken
-    parse = {"url": url, "version": None, "mode": mode} if not isinstance(url, list) else {"url": url[0], "version": url[1], "mode": mode}
-    g = get_dl(**parse)
-    if not g:
-        raise RuntimeError(f"Could not resolve download info for {url}")
-    url = g["url"]
+    raw_url = url[0] if isinstance(url, list) else url
+    version = url[1] if isinstance(url, list) and len(url) > 1 else None
+    user_token = HFToken if "huggingface" in str(raw_url) else CVToken
+    g = _download_info_cached(raw_url, version, mode)
+    resolved_url = g["url"]
     checkpoint_name = g["name"] if checkpoint_name is None else checkpoint_name
     sha256_value = g["sha256"]
     ext = "ckpt" if g["format"] == 0 else "safetensors"
-    source_identity = sha256_value or url
+    source_identity = sha256_value or resolved_url
     filename = g.get("filename") or f"{_safe_model_stem(checkpoint_name)}.{ext}"
     cache_key = (mode, checkpoint_name, source_identity)
     dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl", filename=filename)
     SOURCE_MODEL_CACHE[cache_key] = dst
-    if os.path.exists(dst):
+    if _download_file_is_ready(dst):
         if sha256_value is not None:
             sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-        return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
+        return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=resolved_url)
     out_name = os.path.basename(dst)
     out_dir = os.path.dirname(dst)
-    if "huggingface" in url:
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), url, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if "huggingface" in str(resolved_url):
+        try:
+            _run_aria2_download(resolved_url, out_dir, out_name, token=user_token, include_auth=True)
+        except Exception as first_error:
+            print(f"[planner-download] aria2 retry | {out_name} | {first_error}")
+            time.sleep(0.5)
+            _run_aria2_download(resolved_url, out_dir, out_name, token=user_token, include_auth=True, fallback=True)
     else:
-        headers = {
-            "User-Agent": UserAgent().chrome,
-            "Authorization": f"Bearer {user_token}",
-        }
-        response = requests.get(url, headers=headers, allow_redirects=False)
-        download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
+        try:
+            download_link, needs_auth = _resolve_download_endpoint(resolved_url, user_token)
+            _run_aria2_download(download_link, out_dir, out_name, token=user_token, include_auth=needs_auth)
+        except Exception as first_error:
+            print(f"[planner-download] aria2/endpoint retry | {out_name} | {first_error}")
+            time.sleep(0.5)
+            # Re-resolve a fresh signed CDN URL only after failure.  Successful
+            # downloads keep the original 16-way fast path with no extra delay.
+            download_link, needs_auth = _resolve_download_endpoint(resolved_url, user_token)
+            _run_aria2_download(download_link, out_dir, out_name, token=user_token, include_auth=needs_auth, fallback=True)
+
+    if not _download_file_is_ready(dst):
+        raise RuntimeError(f"Download did not complete: {dst}")
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
-    return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
+    return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=resolved_url)
 
 
 def custom_vae(url, vae_name="VAE"):
@@ -1568,10 +1697,8 @@ def custom_vae(url, vae_name="VAE"):
     if "civitai" in url:
         if "/api/" in url:
             ext = "safetensors" if "SafeTensor" in url else "ckpt"
-            headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {user_token}"}
-            response = requests.get(url, headers=headers, allow_redirects=False)
-            download_link = response.headers.get("Location") or url
-            run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", vae_dir, "-o", f"{vae_name}.{ext}"], check_path=True, path=os.path.join(vae_dir, f"{vae_name}.{ext}"))
+            download_link, needs_auth = _resolve_download_endpoint(url, user_token)
+            _run_aria2_download(download_link, vae_dir, f"{vae_name}.{ext}", token=user_token, include_auth=needs_auth)
             # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M "{download_link}" -d "{vae_dir}" -o {vae_name}.{ext}
             return os.path.join(vae_dir, f"{vae_name}.{ext}")
         pref_order = ["SafeTensor", "PickleTensor"]
@@ -1582,7 +1709,7 @@ def custom_vae(url, vae_name="VAE"):
         version_match = re.search(r"modelVersionId=[0-9]+", url)
         version = re.sub(r"\D", "", version_match.group()) if version_match else None
         api = f"https://civitai.red/api/v1/models/{cid}" if "civitai.red" in url else f"https://civitai.com/api/v1/models/{cid}" 
-        response = requests.get(api)
+        response = _metadata_get(api)
         if response.status_code != 200:
             raise RuntimeError("ERROR: VAE Not Found")
         d = response.json()
@@ -1602,10 +1729,8 @@ def custom_vae(url, vae_name="VAE"):
         if file is None:
             file = model["files"][0]
         ext = "safetensors" if file.get("metadata", {}).get("format") == "SafeTensor" else "ckpt"
-        headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {user_token}"}
-        response = requests.get(file["downloadUrl"], headers=headers, allow_redirects=False)
-        download_link = response.headers.get("Location") or file["downloadUrl"]
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", vae_dir, "-o", f"{model_name}.{ext}"], check_path=True, path=os.path.join(vae_dir, f"{model_name}.{ext}"))
+        download_link, needs_auth = _resolve_download_endpoint(file["downloadUrl"], user_token)
+        _run_aria2_download(download_link, vae_dir, f"{model_name}.{ext}", token=user_token, include_auth=needs_auth)
         # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M "{download_link}" -d "{vae_dir}" -o {model_name}.{ext}
         return os.path.join(vae_dir, f"{model_name}.{ext}")
     if "huggingface" in url:
@@ -1613,7 +1738,7 @@ def custom_vae(url, vae_name="VAE"):
         ext = filename.split(".")[-1] if "." in filename else "safetensors"
         resolved = url.replace("/blob/main/", "/resolve/main/") if "/blob/main/" in url else url
         user_header = f"\"Authorization: Bearer {user_token}\""
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(user_token), resolved, "-d", vae_dir, "-o", f"{vae_name}.{ext}"], check_path=True, path=os.path.join(vae_dir, f"{vae_name}.{ext}"))
+        _run_aria2_download(resolved, vae_dir, f"{vae_name}.{ext}", token=user_token, include_auth=True)
         # !aria2c --console-log-level=error -c -x 16 -s 16 -k 1M --header={user_header} "{resolved}" -d "{vae_dir}" -o {vae_name}.{ext}
         return os.path.join(vae_dir, f"{vae_name}.{ext}")
     return None
@@ -1627,19 +1752,17 @@ def old_custom_model(url, checkpoint_name=None, format=1, sha256_value=None, mod
     cache_key = (mode, checkpoint_name, source_identity)
     dst = SOURCE_MODEL_CACHE.get(cache_key) or _source_backed_destination(checkpoint_name, ext, mode, source_identity, kind="dl", filename=filename)
     SOURCE_MODEL_CACHE[cache_key] = dst
-    if os.path.exists(dst):
+    if _download_file_is_ready(dst):
         if sha256_value is not None:
             sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
         return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
     out_name = os.path.basename(dst)
     out_dir = os.path.dirname(dst)
     if "huggingface" in str(url):
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", *_aria_headers(HFToken), url, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
+        _run_aria2_download(url, out_dir, out_name, token=HFToken, include_auth=True)
     else:
-        headers = {"User-Agent": UserAgent().chrome, "Authorization": f"Bearer {CVToken}"}
-        response = requests.get(url, headers=headers, allow_redirects=False)
-        download_link = response.headers.get("Location") or url
-        run_cmd(["aria2c", "--console-log-level=error", "-c", "-x", "16", "-s", "16", "-k", "1M", download_link, "-d", out_dir, "-o", out_name], check_path=True, path=dst)
+        download_link, needs_auth = _resolve_download_endpoint(url, CVToken)
+        _run_aria2_download(download_link, out_dir, out_name, token=CVToken, include_auth=needs_auth)
     if sha256_value is not None:
         sha256_set(dst, f"{mode}/{checkpoint_name}", sha256_value)
     return register_model(checkpoint_name, dst, mode, source_kind="download", source_identity=source_identity, original_path=url)
@@ -1745,7 +1868,12 @@ def run_notebook_bang(source, cwd=None):
         ip = None
     if ip is not None:
         rc = ip.system(shell_cmd)
-        if rc not in (None, 0):
+        if rc is None:
+            try:
+                rc = int(getattr(ip, "user_ns", {}).get("_exit_code", 0) or 0)
+            except Exception:
+                rc = 0
+        if int(rc or 0) != 0:
             raise RuntimeError(f"Notebook shell command failed with exit code {rc}: {shell_cmd}")
         return
     proc = subprocess.Popen(shell_cmd, cwd=cwd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=os.environ.copy())
@@ -1764,7 +1892,12 @@ if BAKE_VAE and VAE_URL:
 
 vae_path = get_vae_path(warn=True) if BAKE_VAE else None
 flush(light=False)
-%cd {merge_repo_dir}
+if not os.path.isdir(merge_repo_dir):
+    raise FileNotFoundError(f"Merge repository not found: {merge_repo_dir}")
+if not os.path.isfile(MERGE_PY):
+    raise FileNotFoundError(f"merge.py not found in merge repository: {MERGE_PY}")
+os.chdir(merge_repo_dir)
+print(os.getcwd())
 ''')
 
 UPLOAD_TPL = Template(r'''# Optional upload helper
@@ -1781,7 +1914,8 @@ if UPLOAD_AFTER_MERGE:
     if repo_id and final_model and HFToken and os.path.exists(final_path):
         create_repo(repo_id=repo_id, token=HFToken, exist_ok=True)
         upload_file(path_or_fileobj=final_path, path_in_repo=os.path.basename(final_path), repo_id=repo_id, token=HFToken)
-        subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
+        if str(os.environ.get("PLANNER_PURGE_PIP_CACHE", "0")).strip().lower() in {"1", "true", "yes", "on"}:
+            subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
         print(f"Uploaded {final_path} -> {repo_id}")
     else:
         print("Upload helper idle. Set repo/token or produce a final model first.")
@@ -1985,11 +2119,13 @@ def _normalize_precision_name(value: Any) -> str:
         return ""
     if p in ("bhalf", "bf16", "bfloat16"):
         return "bhalf"
-    if p in ("quarter", "fp8", "float8"):
+    if p in ("quarter", "fp8", "float8", "f8", "8f"):
         return "quarter"
-    if p in ("fp32", "float32", "full"):
+    if p in ("int8", "i8", "s8"):
+        return "int8"
+    if p in ("fp32", "float32", "full", "single", "32"):
         return "fp32"
-    if p in ("half", "fp16", "float16"):
+    if p in ("half", "fp16", "float16", "f16", "16"):
         return "half"
     return p
 
@@ -2028,7 +2164,19 @@ def _command_signatures(entry: Dict[str, Any]) -> str:
 def _precision_from_signatures(text: str) -> str:
     tokens = shlex.split((text or "").replace("\n", " "))
     tail = _parse_tail_at(tokens)
-    return _normalize_precision_name(tail.get("precision"))
+    precision = _normalize_precision_name(tail.get("precision"))
+    if precision:
+        return precision
+    for i, token in enumerate(tokens):
+        low = str(token).lower()
+        if low.startswith("--save_precision=") or low.startswith("--save-precision="):
+            return _normalize_precision_name(str(token).split("=", 1)[1])
+        if low in ("--save_precision", "--save-precision") and i + 1 < len(tokens):
+            return _normalize_precision_name(tokens[i + 1])
+        legacy = {"--save_half": "half", "--save_bhalf": "bhalf", "--save_quarter": "quarter", "--save_int8": "int8", "--save_full": "fp32"}
+        if low in legacy:
+            return legacy[low]
+    return ""
 
 
 def _entry_precision(entry: Dict[str, Any], command_signatures: str = "") -> str:
@@ -2045,16 +2193,13 @@ def _entry_precision(entry: Dict[str, Any], command_signatures: str = "") -> str
     return precision or "half"
 
 
+def _canonical_save_precision(value: Any) -> str:
+    p = _normalize_precision_name(value)
+    return {"half": "fp16", "bhalf": "bf16", "quarter": "fp8", "int8": "int8", "fp32": "fp32"}.get(p, "fp16")
+
 def _precision_args(entry: Dict[str, Any], command_signatures: str = "") -> str:
-    p = _entry_precision(entry, command_signatures=command_signatures)
-    save_flag = "--save_half"
-    if p in ("bhalf", "bf16", "bfloat16"):
-        save_flag = "--save_bhalf"
-    elif p in ("quarter", "fp8", "float8"):
-        save_flag = "--save_quarter"
-    elif p in ("fp32", "float32", "full"):
-        save_flag = "--save_full"
-    return _json_literal([save_flag, "--prune", "--save_safetensors"])
+    precision = _canonical_save_precision(_entry_precision(entry, command_signatures=command_signatures))
+    return _json_literal(["--save_precision", precision, "--prune", "--save_safetensors"])
 
 
 def _legacy_signature_text(entry: Dict[str, Any]) -> str:
@@ -2409,10 +2554,10 @@ def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
             "m0_name": "", "m1_name": "", "m2_name": "",
             "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
             "rand_alpha": "", "rand_beta": "",
-            "cosine0": False, "cosine1": False, "cosine2": False,
+            "cosine0": False, "cosine1": False, "cosine2": False, "clipxor": False,
             "keep_ema": False, "delete_source": False, "no_metadata": False,
             "force": False, "turbo": False, "deturbo": False,
-            "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "seed": "", "rebasin": "", "memo": "", "save_component": "", "fine": "", "fine_sat": "",
             "cfg_sens": "", "cfg_sens_targets": "",
             "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
             "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "",
@@ -2525,9 +2670,11 @@ _CLI_OPTION_SPECS = {
         ("flag", "use_dif_10", "--use_dif_10", False), ("flag", "use_dif_20", "--use_dif_20", False), ("flag", "use_dif_21", "--use_dif_21", False),
         ("value", "rand_alpha", "--rand_alpha", ""), ("value", "rand_beta", "--rand_beta", ""),
         ("flag", "cosine0", "--cosine0", False), ("flag", "cosine1", "--cosine1", False), ("flag", "cosine2", "--cosine2", False),
+        ("flag", "clipxor", "--clipxor", False),
         ("flag", "keep_ema", "--keep_ema", False), ("flag", "delete_source", "--delete_source", False), ("flag", "no_metadata", "--no_metadata", False),
         ("flag", "force", "--force", False), ("flag", "turbo", "--turbo", False), ("flag", "deturbo", "--deturbo", False),
-        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
+        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""),
+        ("value", "save_component", "--save-component", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
         ("value", "cfg_sens", "--cfg_sens", ""), ("value", "cfg_sens_targets", "--cfg_sens_targets", ""),
         ("value", "sat_boost", "--sat_boost", ""), ("choice", "sat_boost_side", "--sat_boost_side", "alpha"), ("value", "sat_boost_tags", "--sat_boost_tags", ""),
         ("choice", "sat_profile", "--sat_profile", "legacy"), ("value", "sat_delta_cap_pct", "--sat_delta_cap_pct", ""), ("value", "sat_boost_mix", "--sat_boost_mix", ""),
@@ -2745,7 +2892,7 @@ try:
 except Exception:
     pass
 
-_PRECISION_CHOICES = {"half", "bhalf", "bf16", "bfloat16", "quarter", "fp8", "float8", "fp32", "float32", "full"}
+_PRECISION_CHOICES = {"half", "fp16", "float16", "f16", "bhalf", "bf16", "bfloat16", "quarter", "fp8", "float8", "f8", "int8", "i8", "s8", "fp32", "float32", "full", "single"}
 _ARCH_CHOICES = {"auto", "sd", "sd15", "sd1.5", "sdxl", "xl", "flux", "zimage", "zi", "anima", "am"}
 
 def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
@@ -2753,10 +2900,10 @@ def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
         return {
             "m0_name": "", "m1_name": "", "m2_name": "",
             "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
-            "cosine0": False, "cosine1": False, "cosine2": False,
+            "cosine0": False, "cosine1": False, "cosine2": False, "clipxor": False,
             "keep_ema": False, "delete_source": False, "no_metadata": False,
             "force": False, "turbo": False, "deturbo": False,
-            "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "seed": "", "rebasin": "", "memo": "", "save_component": "", "fine": "", "fine_sat": "",
             "cfg_sens": "", "cfg_sens_targets": "",
             "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
             "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "",
@@ -2899,9 +3046,28 @@ def _sigless_apply_legacy_signatures(entry: Dict[str, Any]) -> None:
             i = ni
             continue
         if tok.startswith("--"):
-            key = tok[2:].replace("-", "_").lower()
-            value, ni = _sigless_read_value(tokens, i)
-            if key in ("rand_alpha", "ra") and value is not None and etype == "Checkpoint Merge":
+            option_text = tok[2:]
+            inline_value = None
+            if "=" in option_text:
+                option_text, inline_value = option_text.split("=", 1)
+            key = option_text.replace("-", "_").lower()
+            if inline_value is None:
+                value, ni = _sigless_read_value(tokens, i)
+            else:
+                value, ni = inline_value, i + 1
+            if key in ("save_precision", "saveprecision") and value is not None:
+                entry["precision"] = _normalize_precision_name(value) or value
+            elif key in ("save_half",):
+                entry["precision"] = "half"
+            elif key in ("save_bhalf",):
+                entry["precision"] = "bhalf"
+            elif key in ("save_quarter",):
+                entry["precision"] = "quarter"
+            elif key in ("save_int8",):
+                entry["precision"] = "int8"
+            elif key in ("save_full",):
+                entry["precision"] = "fp32"
+            elif key in ("rand_alpha", "ra") and value is not None and etype == "Checkpoint Merge":
                 entry["alpha"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
             elif key in ("rand_beta", "rb") and value is not None and etype == "Checkpoint Merge":
                 entry["beta"] = {"mode": "Randomize", "value": str(value).strip("\"'")}
@@ -2955,9 +3121,11 @@ _CLI_OPTION_SPECS = {
         ("value", "m0_name", "--m0_name", ""), ("value", "m1_name", "--m1_name", ""), ("value", "m2_name", "--m2_name", ""),
         ("flag", "use_dif_10", "--use_dif_10", False), ("flag", "use_dif_20", "--use_dif_20", False), ("flag", "use_dif_21", "--use_dif_21", False),
         ("flag", "cosine0", "--cosine0", False), ("flag", "cosine1", "--cosine1", False), ("flag", "cosine2", "--cosine2", False),
+        ("flag", "clipxor", "--clipxor", False),
         ("flag", "keep_ema", "--keep_ema", False), ("flag", "delete_source", "--delete_source", False), ("flag", "no_metadata", "--no_metadata", False),
         ("flag", "force", "--force", False), ("flag", "turbo", "--turbo", False), ("flag", "deturbo", "--deturbo", False),
-        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
+        ("value", "seed", "--seed", ""), ("value", "rebasin", "--rebasin", ""), ("value", "memo", "--memo", ""),
+        ("value", "save_component", "--save-component", ""), ("value", "fine", "--fine", ""), ("value", "fine_sat", "--fine_sat", ""),
         ("value", "cfg_sens", "--cfg_sens", ""), ("value", "cfg_sens_targets", "--cfg_sens_targets", ""),
         ("value", "sat_boost", "--sat_boost", ""), ("choice", "sat_boost_side", "--sat_boost_side", "alpha"), ("value", "sat_boost_tags", "--sat_boost_tags", ""),
         ("choice", "sat_profile", "--sat_profile", "legacy"), ("value", "sat_delta_cap_pct", "--sat_delta_cap_pct", ""), ("value", "sat_boost_mix", "--sat_boost_mix", ""),
@@ -3077,12 +3245,13 @@ def _legacy_signature_text(entry: Dict[str, Any]) -> str:
 # while command/legacy output must use backend-compatible tokens.
 # -----------------------------------------------------------------------------
 _PRECISION_RUNTIME_ALIASES = {
-    "": "", "half": "half", "fp16": "half", "float16": "half", "16": "half",
+    "": "", "half": "half", "fp16": "half", "float16": "half", "f16": "half", "16": "half",
     "bhalf": "bhalf", "bf16": "bhalf", "bfloat16": "bhalf",
-    "quarter": "quarter", "fp8": "quarter", "float8": "quarter", "8": "quarter",
-    "fp32": "fp32", "float32": "fp32", "full": "fp32", "32": "fp32",
+    "quarter": "quarter", "fp8": "quarter", "float8": "quarter", "f8": "quarter", "8": "quarter",
+    "int8": "int8", "i8": "int8", "s8": "int8",
+    "fp32": "fp32", "float32": "fp32", "full": "fp32", "single": "fp32", "32": "fp32",
 }
-_PRECISION_DISPLAY_ALIASES = {"": "", "half": "FP16", "bhalf": "BF16", "quarter": "FP8", "fp32": "FP32"}
+_PRECISION_DISPLAY_ALIASES = {"": "", "half": "FP16", "bhalf": "BF16", "quarter": "FP8", "int8": "INT8", "fp32": "FP32"}
 _ARCH_RUNTIME_ALIASES = {
     "": "", "auto": "auto",
     "sd": "sd", "sd15": "sd", "sd1.5": "sd", "sd-1.5": "sd", "sd_1.5": "sd",
@@ -3090,8 +3259,9 @@ _ARCH_RUNTIME_ALIASES = {
     "flux": "flux",
     "zi": "zi", "zimage": "zi", "z-image": "zi", "z_image": "zi",
     "am": "am", "anima": "am",
+    "k2": "krea2", "krea2": "krea2", "krea-2": "krea2",
 }
-_ARCH_DISPLAY_ALIASES = {"": "", "auto": "Auto", "sd": "SD1.5", "sdxl": "SDXL", "flux": "Flux", "zi": "ZImage", "am": "Anima"}
+_ARCH_DISPLAY_ALIASES = {"": "", "auto": "Auto", "sd": "SD1.5", "sdxl": "SDXL", "flux": "Flux", "zi": "ZImage", "am": "Anima", "krea2": "Krea2"}
 
 def _normalize_precision_name(value: Any) -> str:
     key = str(value or "").strip().lower().replace(" ", "")
@@ -3220,18 +3390,10 @@ def _legacy_signature_text(entry: Dict[str, Any]) -> str:
     return " ".join(parts).strip()
 
 
-# FP32 is the default full precision path in merge.py/lora_bake.py; there is no
-# --save_full CLI flag, so emit no save_* precision flag for FP32.
+# All checkpoint/LoRA output precision is emitted through one backend option.
 def _precision_args(entry: Dict[str, Any], command_signatures: str = "") -> str:
-    p = _entry_precision(entry, command_signatures=command_signatures)
-    args = ["--prune", "--save_safetensors"]
-    if p in ("bhalf", "bf16", "bfloat16"):
-        args.insert(0, "--save_bhalf")
-    elif p in ("quarter", "fp8", "float8"):
-        args.insert(0, "--save_quarter")
-    elif p in ("half", "fp16", "float16"):
-        args.insert(0, "--save_half")
-    return _json_literal(args)
+    precision = _canonical_save_precision(_entry_precision(entry, command_signatures=command_signatures))
+    return _json_literal(["--save_precision", precision, "--prune", "--save_safetensors"])
 
 
 # -----------------------------------------------------------------------------
@@ -3262,3 +3424,44 @@ try:
         return plan
 except Exception:
     pass
+
+
+# -----------------------------------------------------------------------------
+# CLIPXOR option / int8 / component-only compatibility layer
+# -----------------------------------------------------------------------------
+_TCCM_OPTIONIZED_PREV_DEFAULT_CLI_OPTIONS = _planner_default_cli_options
+def _planner_default_cli_options(entry_type: str) -> Dict[str, Any]:
+    opts = _TCCM_OPTIONIZED_PREV_DEFAULT_CLI_OPTIONS(entry_type)
+    if entry_type == "Checkpoint Merge":
+        opts.setdefault("clipxor", False)
+        opts.setdefault("save_component", "")
+    return opts
+
+# Keep the runtime option table authoritative even when loading plans produced by
+# an older GUI build whose table did not contain these fields.
+_checkpoint_specs = _CLI_OPTION_SPECS.setdefault("Checkpoint Merge", [])
+if not any(item[1] == "clipxor" for item in _checkpoint_specs):
+    _checkpoint_specs.append(("flag", "clipxor", "--clipxor", False))
+if not any(item[1] == "save_component" for item in _checkpoint_specs):
+    _checkpoint_specs.append(("value", "save_component", "--save-component", ""))
+
+_PRECISION_CHOICES.update({"int8", "i8", "s8", "fp16", "float16", "f16", "bfloat16", "float8", "f8", "float32", "single"})
+_PRECISION_RUNTIME_ALIASES.update({"int8": "int8", "i8": "int8", "s8": "int8", "f16": "half", "f8": "quarter", "single": "fp32"})
+_PRECISION_DISPLAY_ALIASES["int8"] = "INT8"
+
+_TCCM_OPTIONIZED_PREV_NORMALIZE_PLAN = normalize_plan
+def normalize_plan(data: Dict[str, Any]) -> Dict[str, Any]:
+    plan = _TCCM_OPTIONIZED_PREV_NORMALIZE_PLAN(data)
+    for entry in plan.get("entries", []) if isinstance(plan, dict) else []:
+        if not isinstance(entry, dict) or entry.get("type") != "Checkpoint Merge":
+            continue
+        opts = _planner_clean_cli_options("Checkpoint Merge", entry.get("cli_options"))
+        mode = str(entry.get("merge_mode") or "WS").strip().upper()
+        if mode == "CLIPXOR":
+            entry["merge_mode"] = "NoIn"
+            opts["clipxor"] = True
+        elif mode == "XDARE":
+            entry["merge_mode"] = "DARE"
+            opts["clipxor"] = True
+        entry["cli_options"] = opts
+    return plan

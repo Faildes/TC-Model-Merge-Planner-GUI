@@ -3,7 +3,7 @@
   "description": "Tooltip catalog for Model Planner. UI panel help, option help, choice help, and merge-mode help are stored here instead of main.py.",
   "options": {
     "architecture": "Stores the intended model family for import/export compatibility and LoRA merge routing. UI names are normalized, then converted back to backend names only when compiling.",
-    "precision": "Selects the save dtype. FP16, BF16 and FP8 compile to the backend's save flags; FP32 keeps full precision and emits no reduced-precision save flag.",
+    "precision": "Selects the output dtype. Every precision is compiled through --save_precision: fp32, fp16, bf16, fp8, or int8. Common aliases such as full/float32, half/float16, bhalf/bfloat16, quarter/float8, and i8 are accepted by the merger. INT8 uses stored per-tensor scales so the merger can dequantize it when reopened.",
     "m0_name": "Custom name of model 0 written into metadata. This does not change the planner alias or selected file; it changes the saved parent/model display name.",
     "m1_name": "Custom name of model 1 written into metadata. Useful when the same file appears through different aliases or source rows.",
     "m2_name": "Custom name of model 2 written into metadata. Used by three-model, Add Difference, turbo and deturbo workflows.",
@@ -17,9 +17,6 @@
     "cosine0": "Favors model 0's structure while taking compatible detail from the other model(s). Supported only for WS, ST and TRS style merges.",
     "cosine1": "Favors model 1's structure while taking compatible detail from the other model(s). Supported only for WS, ST and TRS style merges.",
     "cosine2": "Favors model 2's structure while taking compatible detail from the other model(s). Requires a three-model ST/TRS style merge.",
-    "save_half": "Save as float16. This is the backend flag used for UI Precision = FP16.",
-    "save_bhalf": "Save as bfloat16. This is the backend flag used for UI Precision = BF16.",
-    "save_quarter": "Save as float8. This is the backend flag used for UI Precision = FP8 and may reduce fidelity.",
     "save_safetensors": "Save output as .safetensors. The planner normally emits this for checkpoint and LoRA outputs.",
     "keep_ema": "Keep EMA weights if present. This can preserve EMA data but usually increases output size.",
     "delete_source": "Delete the source checkpoint file after processing. Use only for temporary/intermediate files; it is dangerous for user-owned originals.",
@@ -70,7 +67,10 @@
     "bake_guard_skip": "Skip a module if estimated ||ΔW||_F / ||W||_F exceeds this threshold. 0 disables; suggested values are 0.15–0.50.",
     "bake_budget_report": "Print a budget scaling report showing the targets that required the most shrink/capping.",
     "unmapped_signatures": "tokens that could not be mapped to structured Options. They are preserved here so legacy import/export does not silently lose settings.",
-    "Reset Options": "Reset this line's structured Options to their defaults. Unmapped legacy signatures are preserved so compatibility information is not silently lost."
+    "Reset Options": "Reset this line's structured Options to their defaults. Unmapped legacy signatures are preserved so compatibility information is not silently lost.",
+    "clipxor": "Runs the CLIPXOR text-encoder pass before the selected checkpoint merge mode. It can be combined with WS, DARE, NoIn, and other normal modes.",
+    "save_component": "Saves only the listed checkpoint components. Use comma-separated values such as unet,clip, vae, transformer,text, clip-l, or clip-g.",
+    "save_precision": "Unified backend output-precision option. Use --save_precision fp16, bf16, fp8, int8, or fp32; accepted aliases are normalized to the canonical value before saving."
   },
   "choices": {
     "Ratio Mode": {
@@ -80,10 +80,11 @@
       "Randomize": "Range text compiled to --rand_alpha or --rand_beta for stochastic ratio sampling."
     },
     "Precision": {
-      "FP16": "Save as float16 using --save_half. Small and common for inference.",
-      "BF16": "Save as bfloat16 using --save_bhalf. Wider exponent range; useful on BF16-friendly hardware.",
-      "FP8": "Save as float8 using --save_quarter. Smallest and most experimental; can lose fidelity.",
-      "FP32": "Full precision output. No reduced-precision save flag is emitted."
+      "FP16": "Save as float16 through --save_precision fp16. Aliases include half, float16, and f16.",
+      "BF16": "Save as bfloat16 through --save_precision bf16. Aliases include bhalf and bfloat16.",
+      "FP8": "Save as float8 through --save_precision fp8. Aliases include quarter and float8; this remains experimental.",
+      "INT8": "Save using symmetric per-tensor int8 through --save_precision int8. Alias i8 is accepted.",
+      "FP32": "Save full precision through --save_precision fp32. Aliases include float32, full, and single."
     },
     "Architecture": {
       "Auto": "Let the backend infer architecture from model or LoRA keys.",
@@ -256,13 +257,6 @@
       "needs_m2": false,
       "uses_beta": true
     },
-    "XDARE": {
-      "label": "CLIP XOR DARE",
-      "short": "CLIP XOR DARE",
-      "detail": "DARE-style stochastic merge used together with the CLIPXOR/XDARE route. Alpha controls update strength and beta controls stochastic delta selection.\n\nInputs: uses Beta.",
-      "needs_m2": false,
-      "uses_beta": true
-    },
     "ORTHO": {
       "label": "Orthogonalized Delta",
       "short": "Orthogonalized Delta",
@@ -309,13 +303,6 @@
       "label": "Save Components (model0 only)",
       "short": "Save Components (model0 only)",
       "detail": "Saves selected components from model0 only. This is a component extraction/export utility rather than a normal interpolation mode.",
-      "needs_m2": false,
-      "uses_beta": false
-    },
-    "CLIPXOR": {
-      "label": "CLIP XOR (union-minus-intersection)",
-      "short": "CLIP XOR (union-minus-intersection)",
-      "detail": "CLIP/text-encoder XOR style merge: keeps union-minus-intersection style text features for prompt/style behavior. Useful for text encoder experiments rather than broad UNet blending.",
       "needs_m2": false,
       "uses_beta": false
     },
@@ -409,10 +396,6 @@
     "Run T2I": {
       "short": "Run image generation after the merge step.",
       "detail": "Enable this if your notebook template includes a text-to-image validation or preview stage after merging. It is useful for quick result checks inside the same run."
-    },
-    "Use Online": {
-      "short": "Use exported notebook on external platforms.",
-      "detail": "Use the notebook runtime's WORKING_DIR/tools/chattiori_model_merger path and clone/update Chattiori Model Merger there. Enable this for Kaggle, Colab, or other external notebook sites."
     },
     "▶ Run Merge Notebook": {
       "short": "Generate and execute the notebook from the current plan.",
@@ -594,7 +577,7 @@
     },
     "Additional Signatures": {
       "short": "Extra CLI-like tokens appended to the merge or bake command.",
-      "detail": "This field is split with shlex-style tokenization and appended as raw command pieces. Recognized @-style meta tokens include @c/@cosine, @f/@fine, @s/@seed, @m/@mode, @p/@precision, @rank, and @arch. Precision values such as half, bhalf/bf16, quarter/fp8, and fp32/full are converted into save flags by the plan compiler. Unknown @name value forms are converted into --name value, and plain --flags are also passed through. Use the popup suggestions and Tab completion for common forms."
+      "detail": "This field is split with shlex-style tokenization and appended as raw command pieces. Recognized @-style meta tokens include @c/@cosine, @f/@fine, @s/@seed, @m/@mode, @p/@precision, @rank, and @arch. Precision values such as half, bhalf/bf16, quarter/fp8, and fp32/full are converted into --save_precision by the plan compiler. Unknown @name value forms are converted into --name value, and plain --flags are also passed through. Use the popup suggestions and Tab completion for common forms."
     },
     "LoRA Merge": {
       "short": "Merge multiple LoRAs or LyCORIS files into a single LoRA output.",
@@ -622,7 +605,7 @@
     },
     "Precision": {
       "short": "Save precision imported from @p/@precision.",
-      "detail": "This controls save precision and is written to legacy txt as @p when it is not the default. Display names such as FP16, BF16, FP8, and FP32 are converted to backend flags as needed."
+      "detail": "This controls save precision and is written to legacy txt as @p when it is not the default. Display names such as FP16, BF16, FP8, and FP32 are converted to canonical --save_precision values as needed."
     }
   },
   "metadata": {

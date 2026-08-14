@@ -23,7 +23,7 @@ from typing import Any, Dict, List
 
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import colorchooser, filedialog, messagebox, simpledialog, ttk
 from tkinter import Canvas, Entry, Frame, Label, LabelFrame, Scrollbar, Text
 import nbformat
 
@@ -49,11 +49,15 @@ CONFIG_FILE = os.path.join(os.getcwd(), "config.tccm")
 CHECK_INTERVAL_MS = 2500
 CONSOLE_POLL_MS = 150
 CONSOLE_BURST_POLL_MS = 35
+CONSOLE_IDLE_POLL_MS = 750
+CONSOLE_NOTEBOOK_REFRESH_MS = 2000
+CONSOLE_QUEUE_MAX = 2048
 CONSOLE_MAX_BATCH_ITEMS = 500
 CONSOLE_MAX_BATCH_LINES = 120
 CONSOLE_MAX_BATCH_CHARS = 65536
 CONSOLE_MAX_OUTPUT_LINES = 4000
 CONSOLE_MAX_IDLE_LINES = 1800
+CONSOLE_MAX_PROCESS_ROWS = 160
 PLAN_UI_REFRESH_MS = 120
 PLAN_AUTOSAVE_MS = 900
 LINE_TYPES = ["Checkpoint Merge", "LoRA Bake", "LoRA Merge"]
@@ -61,13 +65,14 @@ INTERNAL_LINE_TYPES = ["Download Model", "Local Model", "Remove Model"]
 RATIO_MODES = ["Single", "Block weight", "Elemental", "Randomize"]
 DOWNLOAD_TYPES = ["Checkpoint", "LoRA", "LyCORIS"]
 LOCAL_TYPES = ["Checkpoint", "LoRA", "LyCORIS"]
-BASE_MODEL_OPTIONS = ["SD1.5", "SDXL", "Flux", "ZImage", "Anima"]
+BASE_MODEL_OPTIONS = ["SD1.5", "SDXL", "Flux", "ZImage", "Anima", "Krea2"]
 BASE_MODEL_BLOCK_ATTRS = {
     "SD1.5": "BLOCKID",
     "SDXL": "BLOCKIDXLL",
     "Flux": "BLOCKIDFLUX",
     "ZImage": "BLOCKIDZI",
     "Anima": "BLOCKIDAM",
+    "Krea2": "BLOCKIDK2",
 }
 _DISCOVER_BLOCKS_INSTALL_ATTEMPTED = False
 
@@ -109,6 +114,7 @@ def _load_module_from_candidates(module_name: str, candidates: List[Path]):
 def discover_block_sets() -> Dict[str, List[str]]:
     global _DISCOVER_BLOCKS_INSTALL_ATTEMPTED
     fallback = {name: list(SDXL_BLOCKS) for name in BASE_MODEL_OPTIONS}
+    fallback["Anima"] = ["BASE"] + [f"L{i:02d}" for i in range(40)] + ["VAE"]
     candidates = [
         Path("tools/chattiori_model_merger/Utils.py"),
         Path(__file__).resolve().parent / "tools/chattiori_model_merger/Utils.py",
@@ -136,17 +142,18 @@ def discover_block_sets() -> Dict[str, List[str]]:
         names = _coerce_block_names(getattr(utils_mod, attr_name, None))
         if names:
             fallback[base_model] = names
+    fallback["Anima"] = ["BASE"] + [f"L{i:02d}" for i in range(40)] + ["VAE"]
     return fallback
 
 
 FALLBACK_MERGE_MODES = [
     {"key": "WS", "label": "Weighted Sum", "needs_m2": False, "needs_beta": False},
+    {"key": "NoIn", "label": "No Merge (Model 0)", "needs_m2": False, "needs_beta": False},
     {"key": "ST", "label": "Smooth Add", "needs_m2": True, "needs_beta": True},
     {"key": "TRS", "label": "Triple Sum", "needs_m2": True, "needs_beta": True},
     {"key": "DARE", "label": "DARE", "needs_m2": False, "needs_beta": True},
     {"key": "AD", "label": "Add Difference", "needs_m2": True, "needs_beta": False},
     {"key": "SWAP", "label": "Swap", "needs_m2": False, "needs_beta": False},
-    {"key": "CLIPXOR", "label": "CLIPXOR", "needs_m2": False, "needs_beta": False},
     {"key": "TF", "label": "Trim and Fill", "needs_m2": False, "needs_beta": False},
     {"key": "FWM", "label": "FWM", "needs_m2": False, "needs_beta": False},
 ]
@@ -219,6 +226,7 @@ ELEMENTAL_CANDIDATE_JSON_FILES = {
     "Flux": "elemental_candidates_flux.json",
     "ZImage": "elemental_candidates_zimage.json",
     "Anima": "elemental_candidates_anima.json",
+    "Krea2": "elemental_candidates_krea2.json",
 }
 
 DEFAULT_ELEMENTAL_ELEMENTS = {
@@ -399,11 +407,33 @@ class Tooltip:
             self.tipwindow = None
 
 
+def _planner_safe_cpu_threads() -> int:
+    for env_name in ("PLANNER_CPU_THREADS", "CHATTIORI_CPU_THREADS"):
+        raw = os.environ.get(env_name, "").strip()
+        if raw:
+            try:
+                return max(1, int(raw))
+            except ValueError:
+                pass
+    cpus = os.cpu_count() or 4
+    return max(1, min(8, max(1, cpus // 2)))
+
+
+def _apply_resource_limits_to_env(env: Dict[str, str]) -> Dict[str, str]:
+    threads = _planner_safe_cpu_threads()
+    env.setdefault("CHATTIORI_CPU_THREADS", str(threads))
+    env.setdefault("CHATTIORI_INT8_COMPUTE_DTYPE", "fp16")
+    env.setdefault("CHATTIORI_SIM_SCRATCH_CACHE", "4")
+    for name in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        env.setdefault(name, str(threads))
+    return env
+
+
 class RunnerConsoleWindow:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.win: tk.Toplevel | None = None
-        self.queue: queue.Queue = queue.Queue()
+        self.queue: queue.Queue = queue.Queue(maxsize=CONSOLE_QUEUE_MAX)
         self.output_text: Text | None = None
         self.idle_text: Text | None = None
         self.output_canvas: Canvas | None = None
@@ -412,15 +442,262 @@ class RunnerConsoleWindow:
         self.current_step_var = tk.StringVar(value="Waiting")
         self.progress_var = tk.StringVar(value="")
         self.progress_pct_var = tk.DoubleVar(value=0.0)
+        self.operation_var = tk.StringVar(value="Idle")
+        self.active_process_var = tk.StringVar(value="No active process")
         self._polling = False
+        self._poll_after_id = None
+        self._queue_lock = threading.Lock()
+        self._pending_progress: str | None = None
+        self._pending_progress_fraction: tuple[float | None, str] | None = None
+        self._dropped_console_items = 0
+        self._last_notebook_refresh = 0.0
+        self._final_notebook_render_pending = False
+        self._live_notebook_render = str(os.environ.get("PLANNER_LIVE_NOTEBOOK_RENDER", "0")).strip().lower() in {"1", "true", "yes", "on"}
         self._last_progress_text = ""
         self._last_progress_line = ""
         self._executed_notebook_path = ""
         self._proc: subprocess.Popen | None = None
         self._stop_requested = False
         self._stop_btn: ttk.Button | None = None
+        self._progressbar: ttk.Progressbar | None = None
+        self.process_tree: ttk.Treeview | None = None
+        self._process_row_seq = 0
+        self._process_rows_by_pid: Dict[str, str] = {}
         self._notebook_render_sig = None
         self._image_refs: List[Any] = []
+        self._task_cards: List[Any] = []
+        self._task_accent_labels: List[tuple[Any, str]] = []
+        self._task_title_label: Any | None = None
+        self._task_progress_label: Any | None = None
+        self._task_notebook: Any | None = None
+        self._applied_task_theme_mode: str | None = None
+
+    def _task_palette(self) -> Dict[str, Any]:
+        base = getattr(self.root, "_planner_theme_colors", None)
+        if not isinstance(base, dict):
+            mode = str(getattr(self.root, "_planner_theme_mode", "dark") or "dark").lower()
+            if mode == "light":
+                base = {
+                    "bg": "#edf1fb", "panel": "#f6f8fe", "surface": "#eef2fb",
+                    "subtle": "#e3e9f8", "text": "#1c2340", "muted": "#66739a",
+                    "accent": "#5f63d9", "entry_bg": "#ffffff", "entry_fg": "#17203a",
+                    "canvas": "#f2f5fd", "border": "#c9d3ee",
+                    "select_bg": "#5b67dd", "select_fg": "#ffffff",
+                    "scrollbar_bg": "#bcc9ea", "scrollbar_trough": "#e7ecfb",
+                    "scrollbar_active": "#98a9db",
+                }
+            else:
+                base = {
+                    "bg": "#070b14", "panel": "#0d1222", "surface": "#131a30",
+                    "subtle": "#19213b", "text": "#edf2ff", "muted": "#97a6d2",
+                    "accent": "#6c73ff", "entry_bg": "#0a1020", "entry_fg": "#f3f6ff",
+                    "canvas": "#080d18", "border": "#263050",
+                    "select_bg": "#4250d8", "select_fg": "#ffffff",
+                    "scrollbar_bg": "#2a355d", "scrollbar_trough": "#0a1020",
+                    "scrollbar_active": "#3a4a82",
+                }
+        mode = str(getattr(self.root, "_planner_theme_mode", "dark") or "dark").lower()
+        light = mode == "light"
+        semantic = {
+            "state": "#0369a1" if light else "#7dd3fc",
+            "operation": "#6d28d9" if light else "#c4b5fd",
+            "step": "#be185d" if light else "#f9a8d4",
+            "process": "#15803d" if light else "#86efac",
+            "error": "#b91c1c" if light else "#ff6b7a",
+            "warning": "#b45309" if light else "#ffb454",
+            "info": "#0369a1" if light else "#8ecaff",
+            "success": "#15803d" if light else "#76e6a1",
+            "merge": "#a21caf" if light else "#e879f9",
+            "download": "#0284c7" if light else "#38bdf8",
+            "save": "#a16207" if light else "#facc15",
+            "upload": "#15803d" if light else "#4ade80",
+            "cell": "#7c3aed" if light else "#c4b5fd",
+            "live_progress": "#1f2937" if light else "#f8fafc",
+            "notebook_header": "#1d4ed8" if light else "#9ad1ff",
+            "image_error": "#b91c1c" if light else "#ff8a8a",
+        }
+        out = dict(base)
+        out.update(semantic)
+        out["is_light"] = light
+        out["notebook_bg"] = base.get("entry_bg", "#ffffff" if light else "#111111")
+        out["notebook_block"] = base.get("surface", "#f6f8fe" if light else "#131a30")
+        return out
+
+    def apply_theme(self):
+        if self.win is None:
+            return
+        try:
+            if not self.win.winfo_exists():
+                return
+        except Exception:
+            return
+        colors = self._task_palette()
+        mode = "light" if colors.get("is_light") else "dark"
+        theme_changed = self._applied_task_theme_mode not in (None, mode)
+        self._applied_task_theme_mode = mode
+        try:
+            self.win.configure(bg=colors["bg"])
+        except Exception:
+            pass
+
+        # Task Center gets its own ttk styles so changing its palette never
+        # compromises the main planner widgets.
+        try:
+            style = ttk.Style()
+            style.configure(
+                "Task.Treeview",
+                background=colors["entry_bg"], fieldbackground=colors["entry_bg"],
+                foreground=colors["entry_fg"], bordercolor=colors["border"], rowheight=24,
+            )
+            style.map(
+                "Task.Treeview",
+                background=[("selected", colors["select_bg"])],
+                foreground=[("selected", colors["select_fg"])],
+            )
+            style.configure(
+                "Task.Treeview.Heading",
+                background=colors["surface"], foreground=colors["text"],
+                bordercolor=colors["border"], relief="flat",
+            )
+            style.map("Task.Treeview.Heading", background=[("active", colors["subtle"])])
+            style.configure("Task.TNotebook", background=colors["bg"], borderwidth=0)
+            style.configure(
+                "Task.TNotebook.Tab", background=colors["surface"], foreground=colors["muted"],
+                padding=(12, 7), borderwidth=0,
+            )
+            style.map(
+                "Task.TNotebook.Tab",
+                background=[("selected", colors["panel"]), ("active", colors["subtle"])],
+                foreground=[("selected", colors["accent"]), ("active", colors["text"])],
+            )
+            style.configure(
+                "Task.Horizontal.TProgressbar",
+                troughcolor=colors["subtle"], background=colors["accent"],
+                bordercolor=colors["border"], lightcolor=colors["accent"], darkcolor=colors["accent"],
+            )
+        except Exception:
+            pass
+
+        def parent_bg(widget):
+            try:
+                parent = widget.master
+                value = parent.cget("bg")
+                return value or colors["panel"]
+            except Exception:
+                return colors["panel"]
+
+        def walk(widget):
+            try:
+                cls = widget.winfo_class()
+            except Exception:
+                cls = ""
+            try:
+                if cls == "Toplevel":
+                    widget.configure(bg=colors["bg"])
+                elif cls in {"Frame", "Labelframe", "LabelFrame"}:
+                    widget.configure(bg=colors["panel"], highlightbackground=colors["border"])
+                    if cls in {"Labelframe", "LabelFrame"}:
+                        widget.configure(fg=colors["text"])
+                elif cls == "Label":
+                    widget.configure(bg=parent_bg(widget), fg=colors["text"])
+                elif cls == "Text":
+                    widget.configure(
+                        bg=colors["entry_bg"], fg=colors["entry_fg"],
+                        insertbackground=colors["entry_fg"],
+                        selectbackground=colors["select_bg"], selectforeground=colors["select_fg"],
+                        highlightbackground=colors["border"], highlightcolor=colors["accent"],
+                    )
+                elif cls == "Canvas":
+                    widget.configure(bg=colors["notebook_bg"], highlightbackground=colors["border"])
+                elif cls == "Scrollbar":
+                    widget.configure(
+                        background=colors.get("scrollbar_bg", colors["border"]),
+                        troughcolor=colors.get("scrollbar_trough", colors["bg"]),
+                        activebackground=colors.get("scrollbar_active", colors["accent"]),
+                        highlightbackground=colors["border"], highlightcolor=colors["border"],
+                        bd=0, relief="flat", activerelief="flat", elementborderwidth=0, width=12,
+                    )
+            except Exception:
+                pass
+            try:
+                children = widget.winfo_children()
+            except Exception:
+                children = []
+            for child in children:
+                walk(child)
+
+        walk(self.win)
+
+        # Restore the card hierarchy and semantic/Jupyter-like accents after the
+        # generic pass.  This keeps the window colorful without hard-coding a
+        # dark-only surface.
+        for card in list(self._task_cards):
+            try:
+                if card.winfo_exists():
+                    card.configure(bg=colors["surface"], highlightbackground=colors["border"])
+                    for child in card.winfo_children():
+                        if child.winfo_class() == "Label":
+                            child.configure(bg=colors["surface"])
+            except Exception:
+                pass
+        try:
+            if self._task_title_label is not None and self._task_title_label.winfo_exists():
+                self._task_title_label.configure(fg=colors["text"])
+            if self._task_progress_label is not None and self._task_progress_label.winfo_exists():
+                self._task_progress_label.configure(fg=colors["muted"])
+        except Exception:
+            pass
+        role_colors = {
+            "state": colors["state"], "operation": colors["operation"],
+            "step": colors["step"], "process": colors["process"],
+        }
+        for label, role in list(self._task_accent_labels):
+            try:
+                if label.winfo_exists():
+                    label.configure(fg=role_colors.get(role, colors["accent"]))
+            except Exception:
+                pass
+
+        if self.process_tree is not None:
+            try:
+                self.process_tree.configure(style="Task.Treeview")
+                self.process_tree.tag_configure("running", foreground=colors["info"])
+                self.process_tree.tag_configure("done", foreground=colors["success"])
+                self.process_tree.tag_configure("failed", foreground=colors["error"])
+                self.process_tree.tag_configure("cell", foreground=colors["cell"])
+            except Exception:
+                pass
+        if self._task_notebook is not None:
+            try:
+                self._task_notebook.configure(style="Task.TNotebook")
+            except Exception:
+                pass
+        if self._progressbar is not None:
+            try:
+                self._progressbar.configure(style="Task.Horizontal.TProgressbar")
+            except Exception:
+                pass
+
+        tag_colors = {k: colors[k] for k in (
+            "error", "warning", "info", "success", "process", "merge",
+            "download", "save", "upload", "cell", "live_progress"
+        )}
+        for widget in (self.idle_text, self.output_text):
+            if widget is None:
+                continue
+            for tag, color in tag_colors.items():
+                try:
+                    widget.tag_configure(tag, foreground=color)
+                except Exception:
+                    pass
+
+        # Rebuild already-rendered notebook output only when the user actually
+        # switches light/dark mode.  Theme changes are rare, so this preserves
+        # the low steady-state CPU policy while keeping cell/output surfaces
+        # visually consistent with the rest of the Task Center.
+        if theme_changed and self._executed_notebook_path and self._notebook_render_sig is not None:
+            self._notebook_render_sig = None
+            self._refresh_notebook_view(force=True)
 
     def _make_scrolled_text(self, parent, *, wrap: str, bg: str, fg: str):
         holder = Frame(parent)
@@ -438,47 +715,119 @@ class RunnerConsoleWindow:
 
     def show(self):
         if self.win is None or not self.win.winfo_exists():
+            colors = self._task_palette()
             self.win = tk.Toplevel(self.root)
-            self.win.title("Planner Runner")
-            self.win.geometry("1180x760+120+120")
+            self.win.title("Planner Task Center")
+            self.win.geometry("1240x820+100+90")
+            self.win.configure(bg="#0b1020")
 
-            header = Frame(self.win, padx=8, pady=8)
+            header = Frame(self.win, padx=10, pady=10, bg="#0b1020")
             header.pack(fill="x")
-            top = Frame(header)
+            top = Frame(header, bg="#0b1020")
             top.pack(fill="x")
-            Label(top, text="Execution Console", font=("MS Gothic", 14, "bold")).pack(side="left", anchor="w")
+            self._task_title_label = Label(
+                top,
+                text="Execution / Transfer Monitor",
+                font=("MS Gothic", 15, "bold"),
+                bg="#0b1020",
+                fg="#f3f6ff",
+            )
+            self._task_title_label.pack(side="left", anchor="w")
             self._stop_btn = ttk.Button(top, text="■ Stop", command=self.request_stop, state="disabled")
             self._stop_btn.pack(side="right")
 
-            Label(header, textvariable=self.state_var, fg="#225588", font=("Consolas", 10, "bold")).pack(anchor="w")
-            Label(header, textvariable=self.current_step_var, fg="#333333").pack(anchor="w")
-            Label(header, textvariable=self.progress_var, fg="#666666").pack(anchor="w")
-            pb_holder = Frame(header)
+            cards = Frame(header, bg="#0b1020")
+            cards.pack(fill="x", pady=(9, 7))
+
+            def add_card(title: str, variable: tk.StringVar, accent: str):
+                card = Frame(
+                    cards,
+                    bg="#121a31",
+                    highlightthickness=1,
+                    highlightbackground="#263457",
+                    padx=10,
+                    pady=7,
+                )
+                card.pack(side="left", fill="x", expand=True, padx=(0, 7))
+                self._task_cards.append(card)
+                Label(card, text=title, bg="#121a31", fg="#7f8fb5", font=("Consolas", 8, "bold")).pack(anchor="w")
+                value_label = Label(card, textvariable=variable, bg="#121a31", fg=accent, font=("Consolas", 10, "bold"), anchor="w")
+                value_label.pack(fill="x", anchor="w")
+                self._task_accent_labels.append((value_label, title.lower().replace("current ", "").replace(" ", "_")))
+
+            add_card("STATE", self.state_var, "#7dd3fc")
+            add_card("OPERATION", self.operation_var, "#c4b5fd")
+            add_card("CURRENT STEP", self.current_step_var, "#f9a8d4")
+            add_card("PROCESS", self.active_process_var, "#86efac")
+
+            # Normalize the generated role names to the palette keys.
+            self._task_accent_labels = [
+                (label, "step" if role == "step" else role)
+                for label, role in self._task_accent_labels
+            ]
+            self._task_progress_label = Label(header, textvariable=self.progress_var, fg="#b8c4e3", bg="#0b1020", anchor="w")
+            self._task_progress_label.pack(fill="x", anchor="w")
+            pb_holder = Frame(header, bg="#0b1020")
             pb_holder.pack(fill="x", pady=(4, 0))
-            ttk.Progressbar(pb_holder, variable=self.progress_pct_var, maximum=100.0, mode="determinate").pack(fill="x", expand=True)
+            self._progressbar = ttk.Progressbar(pb_holder, variable=self.progress_pct_var, maximum=100.0, mode="determinate", style="Task.Horizontal.TProgressbar")
+            self._progressbar.pack(fill="x", expand=True)
 
-            notebook = ttk.Notebook(self.win)
-            notebook.pack(fill="both", expand=True, padx=8, pady=8)
+            notebook = ttk.Notebook(self.win, style="Task.TNotebook")
+            self._task_notebook = notebook
+            notebook.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-            idle_frame = Frame(notebook)
+            activity_frame = Frame(notebook, bg="#0d1428")
             output_frame = Frame(notebook, bg="#111111")
-            notebook.add(idle_frame, text="IDLE")
-            notebook.add(output_frame, text="Jupyter Output")
+            raw_frame = Frame(notebook, bg="#0a0d14")
+            notebook.add(activity_frame, text="Activity")
+            notebook.add(output_frame, text="Notebook")
+            notebook.add(raw_frame, text="Raw Console")
 
-            self.idle_text = Text(idle_frame, wrap="word", font=("Consolas", 10), bg="#101820", fg="#d6f5ff")
-            self.idle_text.pack(fill="both", expand=True)
+            proc_holder = LabelFrame(
+                activity_frame,
+                text=" Processes / Cells ",
+                bg="#0d1428",
+                fg="#dbeafe",
+                padx=6,
+                pady=6,
+            )
+            proc_holder.pack(fill="x", padx=8, pady=(8, 4))
+            columns = ("status", "kind", "pid", "detail")
+            self.process_tree = ttk.Treeview(proc_holder, columns=columns, show="headings", height=7, style="Task.Treeview")
+            self.process_tree.heading("status", text="Status")
+            self.process_tree.heading("kind", text="Kind")
+            self.process_tree.heading("pid", text="PID/Cell")
+            self.process_tree.heading("detail", text="Process / command")
+            self.process_tree.column("status", width=90, stretch=False)
+            self.process_tree.column("kind", width=110, stretch=False)
+            self.process_tree.column("pid", width=90, stretch=False)
+            self.process_tree.column("detail", width=760, stretch=True)
+            proc_scroll = Scrollbar(proc_holder, orient="vertical", command=self.process_tree.yview)
+            self.process_tree.configure(yscrollcommand=proc_scroll.set)
+            self.process_tree.pack(side="left", fill="x", expand=True)
+            proc_scroll.pack(side="right", fill="y")
+            try:
+                self.process_tree.tag_configure("running", foreground="#0ea5e9")
+                self.process_tree.tag_configure("done", foreground="#22c55e")
+                self.process_tree.tag_configure("failed", foreground="#ef4444")
+                self.process_tree.tag_configure("cell", foreground="#a78bfa")
+            except Exception:
+                pass
 
-            output_pane = ttk.PanedWindow(output_frame, orient="vertical")
-            output_pane.pack(fill="both", expand=True)
+            activity_log = LabelFrame(
+                activity_frame,
+                text=" Activity timeline ",
+                bg="#0d1428",
+                fg="#dbeafe",
+                padx=5,
+                pady=5,
+            )
+            activity_log.pack(fill="both", expand=True, padx=8, pady=(4, 8))
+            self.idle_text = self._make_scrolled_text(activity_log, wrap="word", bg="#0d1428", fg="#dbeafe")
 
-            render_frame = Frame(output_pane, bg="#111111")
-            raw_frame = Frame(output_pane)
-            output_pane.add(render_frame, weight=4)
-            output_pane.add(raw_frame, weight=1)
-
-            self.output_canvas = Canvas(render_frame, bg="#111111", highlightthickness=0)
-            y_scroll = Scrollbar(render_frame, orient="vertical", command=self.output_canvas.yview)
-            x_scroll = Scrollbar(render_frame, orient="horizontal", command=self.output_canvas.xview)
+            self.output_canvas = Canvas(output_frame, bg="#111111", highlightthickness=0)
+            y_scroll = Scrollbar(output_frame, orient="vertical", command=self.output_canvas.yview)
+            x_scroll = Scrollbar(output_frame, orient="horizontal", command=self.output_canvas.xview)
             self.output_canvas.configure(yscrollcommand=y_scroll.set, xscrollcommand=x_scroll.set)
             self.output_canvas.pack(side="left", fill="both", expand=True)
             y_scroll.pack(side="right", fill="y")
@@ -491,33 +840,76 @@ class RunnerConsoleWindow:
 
             placeholder = Label(
                 self.output_inner,
-                text="Notebook render will appear here while the notebook executes.",
+                text="Notebook render appears here after execution. Live full-notebook rendering stays disabled by default to keep CPU/UI load low.",
                 anchor="w",
                 justify="left",
                 font=("Consolas", 10),
-                bg="#111111",
-                fg="#d0d0d0",
+                bg=colors["notebook_bg"],
+                fg=colors["muted"],
                 padx=10,
                 pady=10,
             )
             placeholder.pack(fill="x", anchor="w")
 
-            self.output_text = Text(raw_frame, wrap="word", font=("Consolas", 10), bg="#0f0f0f", fg="#f3f3f3", height=8)
-            self.output_text.pack(fill="both", expand=True)
-            self.output_text.tag_configure("error", foreground="#ff8a8a")
-            self.output_text.tag_configure("info", foreground="#9ad1ff")
-            self.output_text.tag_configure("success", foreground="#8dff8d")
-            self.idle_text.insert("end", "Planner console initialized.\n")
-            self.output_text.insert("end", "Jupyter output stream will appear here.\n")
+            self.output_text = self._make_scrolled_text(raw_frame, wrap="word", bg="#070b12", fg="#f3f3f3")
+
+            tag_colors = {
+                "error": "#ff6b7a",
+                "warning": "#ffb454",
+                "info": "#8ecaff",
+                "success": "#76e6a1",
+                "process": "#67e8f9",
+                "merge": "#e879f9",
+                "download": "#38bdf8",
+                "save": "#facc15",
+                "upload": "#4ade80",
+                "cell": "#c4b5fd",
+                "live_progress": "#f8fafc",
+            }
+            for widget in (self.idle_text, self.output_text):
+                if widget is None:
+                    continue
+                for tag, color in tag_colors.items():
+                    widget.tag_configure(tag, foreground=color)
+
+            self.idle_text.insert("end", "Task monitor initialized.\n", "success")
+            self.output_text.insert("end", "Raw process output will appear here.\n", "info")
             self.idle_text.see("end")
             self.output_text.see("end")
             self.win.protocol("WM_DELETE_WINDOW", self._on_window_close)
         else:
             self.win.deiconify()
             self.win.lift()
-        if not self._polling:
-            self._polling = True
-            self.root.after(CONSOLE_POLL_MS, self._poll_queue)
+        self.apply_theme()
+        self._schedule_poll(CONSOLE_POLL_MS)
+
+    def _schedule_poll(self, delay: int = CONSOLE_POLL_MS):
+        if self.win is None or not self.win.winfo_exists():
+            return
+        if self._poll_after_id is not None:
+            return
+        self._polling = True
+        self._poll_after_id = self.root.after(max(1, int(delay)), self._poll_queue)
+
+    def _enqueue(self, item, *, critical: bool = False):
+        try:
+            self.queue.put_nowait(item)
+            return True
+        except queue.Full:
+            if not critical:
+                self._dropped_console_items += 1
+                return False
+            # Critical state/proc events must win over old log noise.
+            try:
+                self.queue.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self.queue.put_nowait(item)
+                return True
+            except queue.Full:
+                self._dropped_console_items += 1
+                return False
 
     def _on_window_close(self):
         try:
@@ -526,12 +918,28 @@ class RunnerConsoleWindow:
         except tk.TclError:
             pass
         finally:
+            if self._poll_after_id is not None:
+                try:
+                    self.root.after_cancel(self._poll_after_id)
+                except Exception:
+                    pass
+            self._poll_after_id = None
+            self._polling = False
             self.win = None
             self.output_text = None
             self.idle_text = None
             self.output_canvas = None
             self.output_inner = None
             self._stop_btn = None
+            self._progressbar = None
+            self.process_tree = None
+            self._task_cards.clear()
+            self._task_accent_labels.clear()
+            self._task_title_label = None
+            self._task_progress_label = None
+            self._task_notebook = None
+            self._applied_task_theme_mode = None
+            self._process_rows_by_pid.clear()
             self._proc = None
 
     def _safe_configure_stop_button(self, *, state: str | None = None) -> bool:
@@ -561,39 +969,55 @@ class RunnerConsoleWindow:
     def bind_notebook(self, notebook_path: str):
         self._executed_notebook_path = notebook_path or ""
         self._notebook_render_sig = None
-        self.queue.put(("reset_notebook_view",))
+        self._last_notebook_refresh = 0.0
+        self._final_notebook_render_pending = True
+        self._enqueue(("reset_notebook_view",), critical=True)
 
     def set_state(self, text: str):
-        self.queue.put(("state", text))
+        self._enqueue(("state", text), critical=True)
 
     def set_step(self, text: str):
-        self.queue.put(("step", text))
+        self._enqueue(("step", text), critical=True)
+
+    def set_operation(self, text: str):
+        self._enqueue(("operation", text), critical=True)
+
+    def set_progress_mode(self, mode: str):
+        mode = "indeterminate" if str(mode).lower().startswith("ind") else "determinate"
+        self._enqueue(("progress_mode", mode), critical=True)
+
+    def process_event(self, status: str, kind: str, ident: str, detail: str = ""):
+        self._enqueue(("process_event", str(status), str(kind), str(ident), str(detail)), critical=True)
 
     def set_progress(self, text: str):
-        self.queue.put(("progress", text))
+        # Progress is a latest-value signal, not a log.  Coalescing prevents
+        # tqdm updates from flooding Tk's event loop during long plans.
+        with self._queue_lock:
+            self._pending_progress = str(text)
 
     def set_progress_fraction(self, fraction: float | None, text: str = ""):
-        self.queue.put(("progress_fraction", fraction, text))
+        with self._queue_lock:
+            self._pending_progress_fraction = (fraction, str(text or ""))
 
-    def attach_process(self, proc: subprocess.Popen | None):
-        self.queue.put(("proc", proc))
+    def attach_process(self, proc: subprocess.Popen | None, label: str = "Notebook runner"):
+        self._enqueue(("proc", proc, str(label)), critical=True)
 
     def log(self, text: str, kind: str = "info"):
         if text:
-            self.queue.put(("log", text, kind))
+            self._enqueue(("log", text, kind), critical=False)
 
     def idle(self, text: str):
         if text:
-            self.queue.put(("idle", text))
+            self._enqueue(("idle", text), critical=False)
 
     def clear_output(self):
-        self.queue.put(("clear",))
+        self._enqueue(("clear",), critical=True)
 
     def request_stop(self):
         self._stop_requested = True
         self._safe_configure_stop_button(state="disabled")
-        self.queue.put(("state", "STOPPING"))
-        self.queue.put(("step", "Stopping notebook process"))
+        self._enqueue(("state", "STOPPING"), critical=True)
+        self._enqueue(("step", "Stopping notebook process"), critical=True)
         proc = self._proc
         if proc is None or proc.poll() is not None:
             return
@@ -606,7 +1030,7 @@ class RunnerConsoleWindow:
                 except Exception:
                     proc.terminate()
         except Exception as e:
-            self.queue.put(("log", f"Stop request failed: {e}", "error"))
+            self._enqueue(("log", f"Stop request failed: {e}", "error"), critical=True)
 
     @staticmethod
     def _text_at_bottom(widget: Text | None) -> bool:
@@ -738,8 +1162,9 @@ class RunnerConsoleWindow:
         return ""
 
     def _render_output_block(self, parent: Frame, output: Dict[str, Any]):
-        bg = "#111111"
-        block = Frame(parent, bg=bg, bd=0, highlightthickness=1, highlightbackground="#2b2b2b", padx=8, pady=6)
+        colors = self._task_palette()
+        bg = colors["notebook_block"]
+        block = Frame(parent, bg=bg, bd=0, highlightthickness=1, highlightbackground=colors["border"], padx=8, pady=6)
         block.pack(fill="x", expand=True, anchor="w", padx=6, pady=4)
 
         text = self._extract_text_output(output)
@@ -766,7 +1191,7 @@ class RunnerConsoleWindow:
                     anchor="w",
                     font=("Consolas", 10),
                     bg=bg,
-                    fg="#ff8a8a",
+                    fg=colors["image_error"],
                 )
                 err.pack(fill="x", anchor="w")
         if text:
@@ -780,7 +1205,7 @@ class RunnerConsoleWindow:
                     anchor="w",
                     font=("Consolas", 10),
                     bg=bg,
-                    fg="#f3f3f3" if output.get("output_type") != "error" else "#ff9a9a",
+                    fg=colors["entry_fg"] if output.get("output_type") != "error" else colors["error"],
                     wraplength=max(300, (self.output_canvas.winfo_width() - 40) if self.output_canvas else 900),
                 )
                 lbl.pack(fill="x", anchor="w")
@@ -788,6 +1213,13 @@ class RunnerConsoleWindow:
     def _render_notebook_outputs(self, nb: Dict[str, Any]):
         if self.output_inner is None:
             return
+        colors = self._task_palette()
+        try:
+            self.output_inner.configure(bg=colors["notebook_bg"])
+            if self.output_canvas is not None:
+                self.output_canvas.configure(bg=colors["notebook_bg"])
+        except Exception:
+            pass
         for child in list(self.output_inner.winfo_children()):
             child.destroy()
         self._image_refs.clear()
@@ -799,7 +1231,7 @@ class RunnerConsoleWindow:
             if not outputs:
                 continue
             visible += 1
-            cell_frame = Frame(self.output_inner, bg="#111111", padx=6, pady=6)
+            cell_frame = Frame(self.output_inner, bg=colors["notebook_bg"], padx=6, pady=6)
             cell_frame.pack(fill="x", expand=True, anchor="w")
             source = "".join(cell.get("source") or [])
             header_text = f"Cell {idx}"
@@ -812,8 +1244,8 @@ class RunnerConsoleWindow:
                 anchor="w",
                 justify="left",
                 font=("Consolas", 10, "bold"),
-                bg="#111111",
-                fg="#9ad1ff",
+                bg=colors["notebook_bg"],
+                fg=colors["notebook_header"],
             )
             header.pack(fill="x", anchor="w", padx=6, pady=(0, 2))
             for output in outputs:
@@ -837,10 +1269,14 @@ class RunnerConsoleWindow:
         if self.output_canvas is not None:
             self.output_canvas.yview_moveto(1.0)
 
-    def _refresh_notebook_view(self):
+    def _refresh_notebook_view(self, *, force: bool = False):
         path = self._executed_notebook_path
         if not path:
             return
+        now = time.monotonic()
+        if (not force) and (now - self._last_notebook_refresh) < (CONSOLE_NOTEBOOK_REFRESH_MS / 1000.0):
+            return
+        self._last_notebook_refresh = now
         p = Path(path)
         if not p.exists():
             return
@@ -858,17 +1294,24 @@ class RunnerConsoleWindow:
 
     def _reset_notebook_widgets(self):
         if self.output_inner is not None:
+            colors = self._task_palette()
             for child in list(self.output_inner.winfo_children()):
                 child.destroy()
             self._image_refs.clear()
+            try:
+                self.output_inner.configure(bg=colors["notebook_bg"])
+                if self.output_canvas is not None:
+                    self.output_canvas.configure(bg=colors["notebook_bg"])
+            except Exception:
+                pass
             placeholder = Label(
                 self.output_inner,
-                text="Notebook render will appear here while the notebook executes.",
+                text="Notebook render will appear here after execution (live render is disabled by default for performance).",
                 anchor="w",
                 justify="left",
                 font=("Consolas", 10),
-                bg="#111111",
-                fg="#d0d0d0",
+                bg=colors["notebook_bg"],
+                fg=colors["muted"],
                 padx=10,
                 pady=10,
             )
@@ -934,46 +1377,121 @@ class RunnerConsoleWindow:
         if at_bottom:
             widget.see("end")
 
+    def _update_process_tree(self, status: str, kind: str, ident: str, detail: str):
+        tree = self.process_tree
+        if tree is None:
+            return
+        try:
+            key = str(ident or "-")
+            status_u = str(status or "").upper()
+            existing = self._process_rows_by_pid.get(key)
+            tag = "failed" if status_u in {"FAILED", "ERROR"} else ("done" if status_u in {"DONE", "END", "EXITED"} else ("cell" if str(kind).lower() == "cell" else "running"))
+            values = (status_u or "RUNNING", kind or "process", key, detail[:500])
+            if existing and tree.exists(existing):
+                tree.item(existing, values=values, tags=(tag,))
+                row_id = existing
+            else:
+                self._process_row_seq += 1
+                row_id = tree.insert("", "end", values=values, tags=(tag,))
+                self._process_rows_by_pid[key] = row_id
+            if status_u in {"RUNNING", "START", "BUILDING", "UPLOADING"}:
+                self.active_process_var.set(f"{kind}: {detail[:80]}" if detail else f"{kind}: {key}")
+            elif status_u in {"FAILED", "ERROR"}:
+                self.active_process_var.set(f"Failed: {detail[:80]}" if detail else f"Failed: {key}")
+            children = tree.get_children("")
+            if len(children) > CONSOLE_MAX_PROCESS_ROWS:
+                for old in children[: len(children) - CONSOLE_MAX_PROCESS_ROWS]:
+                    vals = tree.item(old, "values")
+                    if len(vals) >= 3:
+                        old_key = str(vals[2])
+                        if self._process_rows_by_pid.get(old_key) == old:
+                            self._process_rows_by_pid.pop(old_key, None)
+                    tree.delete(old)
+            tree.see(row_id)
+        except tk.TclError:
+            return
+
     def _poll_queue(self):
+        self._poll_after_id = None
         self._polling = False
+        if self.win is None or not self.win.winfo_exists():
+            return
+
         idle_payloads: list[tuple[str, str]] = []
         output_payloads: list[tuple[str, str]] = []
         processed = 0
+        processed_lines = 0
+        processed_chars = 0
+
+        with self._queue_lock:
+            pending_progress = self._pending_progress
+            pending_fraction = self._pending_progress_fraction
+            self._pending_progress = None
+            self._pending_progress_fraction = None
+
+        if pending_progress is not None:
+            text = str(pending_progress).strip()
+            self.progress_var.set(text)
+            self._last_progress_text = text
+            fraction = self._extract_progress_fraction(text)
+            if fraction is not None:
+                self.progress_pct_var.set(max(0.0, min(100.0, float(fraction) * 100.0)))
+
+        if pending_fraction is not None:
+            fraction, text = pending_fraction
+            if fraction is None:
+                self.progress_pct_var.set(0.0)
+            else:
+                self.progress_pct_var.set(max(0.0, min(100.0, float(fraction) * 100.0)))
+            text = str(text).strip()
+            if text:
+                self.progress_var.set(text)
+                self._last_progress_text = text
+
         try:
-            while processed < CONSOLE_MAX_BATCH_LINES:
+            while processed < CONSOLE_MAX_BATCH_ITEMS:
                 item = self.queue.get_nowait()
                 processed += 1
-                self.show()
                 op = item[0]
+
                 if op == "state":
                     self.state_var.set(str(item[1]))
                 elif op == "step":
                     self.current_step_var.set(str(item[1]))
-                elif op == "progress":
-                    text = str(item[1]).strip()
-                    self.progress_var.set(text)
-                    self._last_progress_text = text
-                    fraction = self._extract_progress_fraction(text)
-                    if fraction is not None:
-                        self.progress_pct_var.set(max(0.0, min(100.0, float(fraction) * 100.0)))
-                elif op == "progress_fraction":
-                    fraction = item[1]
-                    text = str(item[2]).strip() if len(item) > 2 else ""
-                    if fraction is None:
-                        self.progress_pct_var.set(0.0)
-                    else:
-                        self.progress_pct_var.set(max(0.0, min(100.0, float(fraction) * 100.0)))
-                    if text:
-                        self.progress_var.set(text)
-                        self._last_progress_text = text
+                elif op == "operation":
+                    self.operation_var.set(str(item[1]))
+                elif op == "progress_mode":
+                    mode = str(item[1])
+                    if self._progressbar is not None:
+                        try:
+                            if mode == "indeterminate":
+                                self._progressbar.configure(mode="indeterminate")
+                                self._progressbar.start(12)
+                            else:
+                                self._progressbar.stop()
+                                self._progressbar.configure(mode="determinate")
+                        except tk.TclError:
+                            pass
+                elif op == "process_event":
+                    self._update_process_tree(str(item[1]), str(item[2]), str(item[3]), str(item[4]))
                 elif op == "proc":
                     self._proc = item[1]
+                    label = str(item[2]) if len(item) > 2 else "Process"
                     state = "normal" if (self._proc is not None and self._proc.poll() is None) else "disabled"
                     self._safe_configure_stop_button(state=state)
+                    if self._proc is not None:
+                        pstatus = "RUNNING" if self._proc.poll() is None else "DONE"
+                        self._update_process_tree(pstatus, "runner", str(getattr(self._proc, "pid", "-")), label)
                 elif op == "idle":
-                    idle_payloads.append((str(item[1]), "info"))
+                    text = str(item[1])
+                    idle_payloads.append((text, "info"))
+                    processed_chars += len(text)
+                    processed_lines += max(1, text.count("\n") + 1)
                 elif op == "log":
-                    output_payloads.append((str(item[1]), str(item[2])))
+                    text = str(item[1])
+                    output_payloads.append((text, str(item[2])))
+                    processed_chars += len(text)
+                    processed_lines += max(1, text.count("\n") + 1)
                 elif op == "reset_notebook_view":
                     self._reset_notebook_widgets()
                 elif op == "clear":
@@ -981,37 +1499,85 @@ class RunnerConsoleWindow:
                         self.output_text.delete("1.0", "end")
                     if self.idle_text is not None:
                         self.idle_text.delete("1.0", "end")
-                    self.progress_var.set("")
-                    self.progress_pct_var.set(0.0)
-                    self._last_progress_text = ""
+                    if self.process_tree is not None:
+                        try:
+                            for row in self.process_tree.get_children(""):
+                                self.process_tree.delete(row)
+                        except tk.TclError:
+                            pass
+                    self._process_rows_by_pid.clear()
+                    self.active_process_var.set("No active process")
+                    # Progress is coalesced outside the queue.  Do not erase a
+                    # newer progress update that arrived immediately after the
+                    # queued clear operation.
+                    if pending_progress is None and pending_fraction is None:
+                        self.progress_var.set("")
+                        self.progress_pct_var.set(0.0)
+                        self._last_progress_text = ""
+                    if self._progressbar is not None:
+                        try:
+                            self._progressbar.stop()
+                            self._progressbar.configure(mode="determinate")
+                        except tk.TclError:
+                            pass
+
+                if processed_lines >= CONSOLE_MAX_BATCH_LINES or processed_chars >= CONSOLE_MAX_BATCH_CHARS:
+                    break
         except queue.Empty:
             pass
         except Exception as e:
             output_payloads.append((f"[console error] {type(e).__name__}: {e}", "error"))
         finally:
+            if self._dropped_console_items:
+                output_payloads.append((
+                    f"[console] dropped {self._dropped_console_items} old log update(s) to keep the UI responsive.",
+                    "info",
+                ))
+                self._dropped_console_items = 0
             if idle_payloads:
                 self._append_text(self.idle_text, idle_payloads, CONSOLE_MAX_IDLE_LINES)
             if output_payloads:
                 self._append_text(self.output_text, output_payloads, CONSOLE_MAX_OUTPUT_LINES)
             self._sync_live_progress(self.idle_text, self._last_progress_text, CONSOLE_MAX_IDLE_LINES)
             self._sync_live_progress(self.output_text, self._last_progress_text, CONSOLE_MAX_OUTPUT_LINES)
-            self._refresh_notebook_view()
-            if self._proc is None or self._proc.poll() is not None:
+
+            running = self._proc is not None and self._proc.poll() is None
+            if running:
+                if self._live_notebook_render:
+                    self._refresh_notebook_view(force=False)
+            elif self._final_notebook_render_pending and self.state_var.get() in {"DONE", "FAILED", "STOPPED"}:
+                # Render the executed notebook once after the process has
+                # finished.  Rebuilding every widget during execution was one
+                # of the largest sources of planner UI load.
+                self._refresh_notebook_view(force=True)
+                self._final_notebook_render_pending = False
+
+            if not running:
                 self._safe_configure_stop_button(state="disabled")
-            if self.win is not None and self.win.winfo_exists():
-                self._polling = True
-                delay = CONSOLE_BURST_POLL_MS if not self.queue.empty() else CONSOLE_POLL_MS
-                self.root.after(delay, self._poll_queue)
+
+            with self._queue_lock:
+                has_pending_progress = self._pending_progress is not None or self._pending_progress_fraction is not None
+            if not self.queue.empty() or has_pending_progress:
+                delay = CONSOLE_BURST_POLL_MS
+            elif running:
+                delay = CONSOLE_POLL_MS
+            else:
+                delay = CONSOLE_IDLE_POLL_MS
+            self._schedule_poll(delay)
+
 
 
 def discover_merge_modes() -> List[Dict[str, Any]]:
-    from tools.chattiori_model_merger.merge_modes import theta_funcs, modes_need_m2, modes_need_beta
     try:
+        # Keep startup usable even when the merger tool has not been installed
+        # yet (or is temporarily unavailable/offline).  The previous import
+        # happened outside this try block and could abort the whole Planner.
+        from tools.chattiori_model_merger.merge_modes import theta_funcs, modes_need_m2, modes_need_beta
         modes: List[Dict[str, Any]] = []
         for key, value in theta_funcs.items():
-            if key == "NoIn":
+            if key in {"CLIPXOR", "XDARE"}:
                 continue
-            label = key
+            label = "No Merge (Model 0)" if key == "NoIn" else key
             if isinstance(value, (list, tuple)) and len(value) >= 3:
                 label = str(value[2])
             elif isinstance(value, dict):
@@ -1163,7 +1729,12 @@ class ModelPlannerApp:
             else:
                 continue
             if name:
-                items.append({"name": name, "effect": effect})
+                entry = {"name": name, "effect": effect}
+                if isinstance(item, dict):
+                    aliases = item.get("aliases")
+                    if isinstance(aliases, list) and aliases:
+                        entry["aliases"] = [str(x).strip() for x in aliases if str(x).strip()]
+                items.append(entry)
         return items
 
     @staticmethod
@@ -1589,7 +2160,10 @@ class ModelPlannerApp:
             "@p half",
             "@p bhalf",
             "@p quarter",
+            "@p int8",
             "@p fp32",
+            "@clipxor",
+            "@save_component unet,clip",
             "@c 0",
             "@c 1",
             "@c 2",
@@ -1599,10 +2173,14 @@ class ModelPlannerApp:
             "@arch sdxl",
             "@arch flux",
             "--bake_fp32",
-            "--save_half",
-            "--save_bhalf",
-            "--save_quarter",
-            "--save_full",
+            "--save_precision fp16",
+            "--save_precision half",
+            "--save_precision bf16",
+            "--save_precision fp8",
+            "--save_precision int8",
+            "--save_precision fp32",
+            "--clipxor",
+            "--save-component unet,clip,vae",
             "--prune",
             "--save_safetensors",
         ]
@@ -2024,12 +2602,13 @@ class ModelPlannerApp:
         valid_signatures = {
             "@c", "@cosine", "@f", "@fine", "@s", "@seed",
             "@m", "@mode", "@p", "@precision", "@rank", "@arch",
+            "@clipxor", "@save_component", "@save-component",
         }
         valid_values = {
             "@m": {m["key"].lower() for m in self.merge_modes},
             "@mode": {m["key"].lower() for m in self.merge_modes},
-            "@p": {"half", "bhalf", "bf16", "quarter", "fp8", "fp32", "full"},
-            "@precision": {"half", "bhalf", "bf16", "quarter", "fp8", "fp32", "full"},
+            "@p": {"half", "fp16", "float16", "f16", "bhalf", "bf16", "bfloat16", "quarter", "fp8", "float8", "int8", "i8", "fp32", "float32", "full", "single"},
+            "@precision": {"half", "fp16", "float16", "f16", "bhalf", "bf16", "bfloat16", "quarter", "fp8", "float8", "int8", "i8", "fp32", "float32", "full", "single"},
             "@arch": {"sd15", "sd1.5", "sdxl", "flux", "zimage", "anima"},
         }
         expecting = None
@@ -3193,6 +3772,10 @@ class ModelPlannerApp:
             tip = getattr(self, "_plan_hover_tip", None)
             if tip is not None and tip.winfo_exists():
                 self._hide_plan_item_hover()
+        except Exception:
+            pass
+        try:
+            self.console.apply_theme()
         except Exception:
             pass
 
@@ -4371,11 +4954,12 @@ class ModelPlannerApp:
         var.trace_add("write", sync_mode)
 
         self._build_combo_row(frame, "Model 0", entry, "model0", ckpts or [""])
-        self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
         mode_info = self.merge_mode_map.get(entry.get("merge_mode"), self.merge_modes[0])
+        if entry.get("merge_mode") not in ["NoIn", "CLIPXOR", "COMP"]:
+            self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
         if mode_info.get("needs_m2"):
             self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
-        if mode_info.get("key") != "CLIPXOR":
+        if entry.get("merge_mode") not in ["NoIn", "CLIPXOR"]:
             self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
@@ -4699,45 +5283,130 @@ class ModelPlannerApp:
             """
 import os
 import subprocess
+import sys
+import builtins
+
+_runner_builtin_print = builtins.print
+_runner_event_path = os.environ.get("PLANNER_EVENT_FILE", "").strip()
+_runner_event_fp = None
+if _runner_event_path:
+    try:
+        _runner_event_fp = open(_runner_event_path, "a", encoding="utf-8", buffering=1)
+    except Exception:
+        _runner_event_fp = None
+
+def _runner_event_write(text):
+    if _runner_event_fp is None:
+        return
+    try:
+        value = str(text).replace("\\r", "\\n")
+        _runner_event_fp.write(value)
+        if value and not value.endswith("\\n"):
+            _runner_event_fp.write("\\n")
+        _runner_event_fp.flush()
+    except Exception:
+        pass
+
+def print(*args, sep=" ", end="\\n", file=None, flush=False):
+    _runner_builtin_print(*args, sep=sep, end=end, file=file, flush=flush)
+    if file is None:
+        try:
+            rendered = sep.join(str(x) for x in args) + end
+            if "[planner-progress]" in rendered:
+                _runner_event_write(rendered)
+        except Exception:
+            pass
 
 try:
     from IPython import get_ipython as _real_get_ipython
 except Exception:
     _real_get_ipython = None
 
+def _runner_compact(value):
+    return str(value).replace("\\t", " ").replace("\\r", " ").replace("\\n", " ")[:900]
+
+def _runner_call(command, kind="shell"):
+    kwargs = {
+        "shell": True,
+        "cwd": os.getcwd(),
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+        "bufsize": 1,
+        "errors": "replace",
+    }
+    if os.name != "nt":
+        kwargs["executable"] = os.environ.get("SHELL", "/bin/bash")
+    proc = subprocess.Popen(command, **kwargs)
+    detail = _runner_compact(command)
+    start_marker = f"[planner-process]\\tSTART\\t{proc.pid}\\t{kind}\\t{detail}"
+    _runner_event_write(start_marker)
+    print(start_marker, flush=True)
+    if proc.stdout is not None:
+        for raw in proc.stdout:
+            _runner_event_write(raw)
+            print(raw, end="" if raw.endswith("\\n") else "\\n", flush=True)
+    rc = proc.wait()
+    state = "END" if rc == 0 else "FAILED"
+    end_marker = f"[planner-process]\\t{state}\\t{proc.pid}\\t{kind}\\t{rc}\\t{detail}"
+    _runner_event_write(end_marker)
+    print(end_marker, flush=True)
+    return rc
+
 class _RunnerIPythonShim:
+    def __init__(self, real_ip=None):
+        self._real_ip = real_ip
+
     def system(self, cmd):
-        return subprocess.call(
-            cmd,
-            shell=True,
-            executable=os.environ.get("SHELL", "/bin/bash"),
-            cwd=os.getcwd(),
-        )
+        expanded = str(cmd)
+        if self._real_ip is not None:
+            try:
+                # InteractiveShell.system() normally performs var_expand.  The
+                # Task Center proxy must preserve that behaviour for constructs
+                # such as !{" ".join(cmd_ipython)} in exported notebooks.
+                expanded = self._real_ip.var_expand(expanded, depth=1)
+            except Exception:
+                pass
+        return _runner_call(expanded, "shell")
 
     def run_line_magic(self, magic, arg):
+        expanded = str(arg)
+        if self._real_ip is not None:
+            try:
+                # Preserve normal IPython magic interpolation, e.g.
+                # %cd {merge_repo_dir} and %cd $merge_repo_dir.
+                expanded = self._real_ip.var_expand(expanded, depth=1)
+            except Exception:
+                pass
         if magic == "cd":
-            os.chdir(os.path.expanduser(arg))
+            expanded = os.path.expandvars(os.path.expanduser(expanded))
+            if not os.path.isdir(expanded):
+                raise FileNotFoundError(f"Directory for %cd does not exist: {expanded}")
+            os.chdir(expanded)
             print(os.getcwd())
             return None
+        if self._real_ip is not None:
+            return self._real_ip.run_line_magic(magic, expanded)
         raise RuntimeError(f"Unsupported line magic: %{magic}")
 
     def run_cell_magic(self, magic, line, cell):
         if magic == "bash":
             script = cell if not line else f"{line}\\n{cell}"
-            return subprocess.call(
-                script,
-                shell=True,
-                executable=os.environ.get("SHELL", "/bin/bash"),
-                cwd=os.getcwd(),
-            )
+            return _runner_call(script, "bash")
+        if self._real_ip is not None:
+            return self._real_ip.run_cell_magic(magic, line, cell)
         raise RuntimeError(f"Unsupported cell magic: %%{magic}")
 
+try:
+    _runner_real_ip = _real_get_ipython() if _real_get_ipython else None
+except Exception:
+    _runner_real_ip = None
+_runner_ip = _RunnerIPythonShim(_runner_real_ip)
+
 def get_ipython():
-    try:
-        ip = _real_get_ipython() if _real_get_ipython else None
-    except Exception:
-        ip = None
-    return ip or _RunnerIPythonShim()
+    # Always return the proxy so shell/bash commands are visible to the
+    # desktop task monitor; unsupported magics still delegate to real IPython.
+    return _runner_ip
         """.strip()
         )
 
@@ -4805,45 +5474,6 @@ def get_ipython():
         ]
 
 
-    def _update_status_from_line(self, line: str):
-        stripped = line.strip()
-        if not stripped:
-            return
-        lower = stripped.lower()
-        msg = stripped[:140]
-
-        if stripped.startswith("[planner-progress]"):
-            progress_msg = stripped[len("[planner-progress]"):].strip() or msg
-            self.root.after(0, lambda: self.status_label.config(text=f"Progress: {progress_msg[:100]}"))
-            self.console.set_progress(progress_msg)
-            return
-
-        if "%|" in stripped or "it/s" in lower or "s/it" in lower:
-            self.root.after(0, lambda: self.status_label.config(text=f"Progress: {msg}"))
-            self.console.set_progress(msg)
-            return
-
-        if stripped.startswith("$"):
-            if "merge.py" in lower or "lora_bake.py" in lower:
-                self.root.after(0, lambda: self.status_label.config(text=f"Merging: {msg}"))
-                self.console.set_progress(msg)
-                return
-            if any(k in lower for k in ["aria2", "wget", "curl"]):
-                self.root.after(0, lambda: self.status_label.config(text=f"Downloading: {msg}"))
-                self.console.set_progress(msg)
-                return
-
-        if any(k in lower for k in ["download", "aria2", "custom_model"]):
-            self.root.after(0, lambda: self.status_label.config(text=f"Downloading: {msg}"))
-            self.console.set_progress(msg)
-        elif any(k in lower for k in ["merge.py", "merging", "lora_bake.py"]):
-            self.root.after(0, lambda: self.status_label.config(text=f"Merging: {msg}"))
-            self.console.set_progress(msg)
-        elif any(k in lower for k in ["saving", "output", "register"]):
-            self.root.after(0, lambda: self.status_label.config(text=f"Saving: {msg}"))
-            self.console.set_progress(msg)
-
-
     # ---------------- runner ----------------
     def _run_target_notebook(self):
         temp_plan_path = None
@@ -4859,8 +5489,12 @@ def get_ipython():
             self.console.bind_notebook(executed_path)
             self.console.clear_output()
             self.console._stop_requested = False
+            self._last_console_plan_step = None
+            self.console.set_operation("Run Merge Notebook")
+            self.console.set_progress_mode("determinate")
             self.console.set_state("BUILDING")
             self.console.set_step("Generating notebook from Plan Creator")
+            self.console.process_event("BUILDING", "planner", "notebook-build", "Generating execution notebook")
             self.console.idle(f"Temporary plan path: {temp_plan_path}")
             self.console.idle(f"Notebook path: {notebook_path}")
             self.progress_indicator.start(3, "Running merge")
@@ -4885,6 +5519,7 @@ def get_ipython():
                 t2i_settings=self._planner_get_t2i_settings() if hasattr(self, "_planner_get_t2i_settings") else None
             )
             self.progress_indicator.update(1, "Notebook generated")
+            self.console.process_event("DONE", "planner", "notebook-build", "Notebook generated")
             self.console.idle("Notebook generation completed.")
 
             runner_notebook_path = self._build_runner_notebook(notebook_path)
@@ -4893,41 +5528,154 @@ def get_ipython():
 
             def worker():
                 proc = None
+                event_path = None
+                event_stop = threading.Event()
+                event_thread = None
+                recent_lines: Dict[str, float] = {}
+                recent_lock = threading.Lock()
+
+                def is_recent_duplicate(text: str) -> bool:
+                    key = str(text or "").strip()
+                    if not key:
+                        return False
+                    now = time.monotonic()
+                    with recent_lock:
+                        previous = recent_lines.get(key)
+                        recent_lines[key] = now
+                        if len(recent_lines) > 512:
+                            cutoff = now - 2.0
+                            for old_key, old_time in list(recent_lines.items()):
+                                if old_time < cutoff:
+                                    recent_lines.pop(old_key, None)
+                        return previous is not None and (now - previous) < 0.70
+
+                def consume_line(raw_line: str, pending: list[str]) -> str:
+                    line = str(raw_line or "").rstrip("\r\n")
+                    if not line or is_recent_duplicate(line):
+                        return "skip"
+                    kind = self._update_status_from_line(raw_line)
+                    if self.console._looks_like_progress_line(line):
+                        return "progress"
+                    if kind != "info":
+                        if pending:
+                            self.console.log("\n".join(pending), "info")
+                            pending.clear()
+                        self.console.log(line, kind)
+                        return "colored"
+                    pending.append(line)
+                    return "info"
+
                 try:
                     self.console.set_state("RUNNING")
                     self.console.set_step("Executing notebook")
                     cmd = self._build_notebook_run_command(runner_notebook_path or notebook_path, executed_path)
                     self.console.idle("Command: " + " ".join(cmd))
-                    env = os.environ.copy()
+                    env = _apply_resource_limits_to_env(os.environ.copy())
                     env.setdefault("PYTHONUNBUFFERED", "1")
-                    popen_kwargs = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, env=env)
+                    self.console.idle(
+                        "Resource limits: CPU threads=" + env.get("CHATTIORI_CPU_THREADS", "?")
+                        + ", int8 compute=" + env.get("CHATTIORI_INT8_COMPUTE_DTYPE", "fp16")
+                        + ", SIM scratch cache=" + env.get("CHATTIORI_SIM_SCRATCH_CACHE", "4")
+                    )
+
+                    # Notebook executors do not all forward cell stdout live
+                    # (nbconvert is a common example).  The runner shim writes a
+                    # compact event stream so child merge/download processes stay
+                    # visible regardless of the execution backend.
+                    event_tmp = tempfile.NamedTemporaryFile(
+                        mode="w",
+                        delete=False,
+                        suffix=".events.log",
+                        prefix="planner_runner_",
+                        dir=str(Path(executed_path).parent),
+                        encoding="utf-8",
+                    )
+                    event_path = event_tmp.name
+                    event_tmp.close()
+                    env["PLANNER_EVENT_FILE"] = event_path
+
+                    event_pending: list[str] = []
+
+                    def event_reader():
+                        last_flush = time.monotonic()
+                        try:
+                            with open(event_path, "r", encoding="utf-8", errors="replace") as stream:
+                                while True:
+                                    raw = stream.readline()
+                                    if raw:
+                                        result = consume_line(raw, event_pending)
+                                        now = time.monotonic()
+                                        if event_pending and (len(event_pending) >= 20 or (now - last_flush) >= 0.12):
+                                            self.console.log("\n".join(event_pending), "info")
+                                            event_pending.clear()
+                                            last_flush = now
+                                        continue
+                                    if event_stop.is_set():
+                                        # One final read after the producer exits.
+                                        raw = stream.readline()
+                                        if not raw:
+                                            break
+                                        consume_line(raw, event_pending)
+                                        continue
+                                    time.sleep(0.06)
+                        except Exception as event_error:
+                            self.console.log(f"Event stream warning: {event_error}", "warning")
+                        finally:
+                            if event_pending:
+                                self.console.log("\n".join(event_pending), "info")
+                                event_pending.clear()
+
+                    event_thread = threading.Thread(target=event_reader, daemon=True)
+                    event_thread.start()
+
+                    popen_kwargs = dict(
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                        env=env,
+                        errors="replace",
+                    )
                     if os.name != "nt":
                         popen_kwargs["start_new_session"] = True
                     proc = subprocess.Popen(cmd, **popen_kwargs)
-                    self.root.after(0, lambda p=proc: self.console.attach_process(p))
+                    self.console.attach_process(proc, "Jupyter / Papermill runner")
                     self.root.after(0, lambda: self.progress_indicator.update(2, "Notebook started"))
 
                     pending: list[str] = []
                     last_flush = time.monotonic()
-                    for raw_line in proc.stdout:
-                        line = raw_line.rstrip("\n")
-                        self._update_status_from_line(raw_line)
-                        if self.console._looks_like_progress_line(line):
-                            continue
-                        pending.append(line)
-                        now = time.monotonic()
-                        if len(pending) >= 20 or (now - last_flush) >= 0.12:
-                            self.console.log("\n".join(pending), "info")
-                            pending.clear()
-                            last_flush = now
+                    if proc.stdout is not None:
+                        for raw_line in proc.stdout:
+                            consume_line(raw_line, pending)
+                            now = time.monotonic()
+                            if pending and (len(pending) >= 20 or (now - last_flush) >= 0.12):
+                                self.console.log("\n".join(pending), "info")
+                                pending.clear()
+                                last_flush = now
                     if pending:
                         self.console.log("\n".join(pending), "info")
+                        pending.clear()
 
                     return_code = proc.wait()
+                    event_stop.set()
+                    if event_thread is not None:
+                        event_thread.join(timeout=1.0)
+
+                    runner_status = "STOPPED" if self.console._stop_requested else ("DONE" if return_code == 0 else "FAILED")
+                    self.console.process_event(
+                        runner_status,
+                        "runner",
+                        str(getattr(proc, "pid", "-")),
+                        f"Jupyter / Papermill runner rc={return_code}",
+                    )
+                    last_step = getattr(self, "_last_console_plan_step", None)
+                    if last_step:
+                        self.console.process_event(runner_status, "plan", last_step[0], last_step[1])
+
                     if self.console._stop_requested:
                         self.console.set_state("STOPPED")
                         self.console.set_step("Execution stopped by user")
-                        self.console.log("Execution stopped by user.", "error")
+                        self.console.log("Execution stopped by user.", "warning")
                         self.console.set_progress_fraction(None, "Stopped")
                         self.root.after(0, lambda: self.progress_indicator.finish(False))
                         self.root.after(0, lambda: self.status_label.config(text="⏹ Merge stopped"))
@@ -4938,19 +5686,34 @@ def get_ipython():
                     self.root.after(0, lambda: self.progress_indicator.update(3, "Notebook finished"))
                     self.console.set_state("DONE")
                     self.console.set_step("Execution completed")
+                    self.console.set_progress_mode("determinate")
+                    self.console.set_progress_fraction(1.0, "Completed")
                     self.console.log("Execution completed successfully.", "success")
                     self.root.after(0, lambda: self.progress_indicator.finish(True))
                     self.root.after(0, lambda: self.status_label.config(text="✅ Merge completed"))
                     self._play_notification_sound()
                 except Exception as e:
+                    event_stop.set()
+                    if event_thread is not None and event_thread.is_alive():
+                        event_thread.join(timeout=1.0)
                     detail = self._format_exception_text("Execution Error", e)
+                    self.console.set_progress_mode("determinate")
                     self.console.set_state("FAILED")
                     self.console.set_step("Execution failed")
                     self.console.log(detail, "error")
+                    if proc is not None:
+                        self.console.process_event("FAILED", "runner", str(getattr(proc, "pid", "-")), str(e))
                     self.root.after(0, lambda: self.progress_indicator.finish(False))
                     self.root.after(0, lambda: self.status_label.config(text="❌ Merge failed"))
                     self.root.after(0, lambda: self._show_scrollable_text_dialog("Execution Error", detail))
                 finally:
+                    event_stop.set()
+                    self.console.attach_process(None)
+                    if event_path and os.path.exists(event_path):
+                        try:
+                            os.remove(event_path)
+                        except Exception:
+                            pass
                     if runner_notebook_path and runner_notebook_path != notebook_path and os.path.exists(runner_notebook_path):
                         try:
                             os.remove(runner_notebook_path)
@@ -4966,12 +5729,12 @@ def get_ipython():
                 os.remove(temp_plan_path)
             self._show_detailed_error("Run Error", e, context="Operation: run_target_notebook")
 
-    def _update_status_from_line(self, line: str):
-        stripped = line.strip()
+    def _update_status_from_line(self, line: str) -> str:
+        stripped = re.sub(r"\x1b\[[0-9;?]*[ -/]*[@-~]", "", str(line or "")).strip()
         if not stripped:
-            return
+            return "info"
         lower = stripped.lower()
-        msg = stripped[:140]
+        msg = stripped[:180]
 
         def push_progress(text: str, status_prefix: str = "Progress"):
             text = str(text or "").strip()
@@ -4983,33 +5746,82 @@ def get_ipython():
             if fraction is not None:
                 self.console.set_progress_fraction(fraction, text)
 
-        if stripped.startswith("[planner-progress]"):
-            progress_msg = stripped[len("[planner-progress]"):].strip() or msg
+        proc_marker = "[planner-process]"
+        marker_pos = stripped.find(proc_marker)
+        if marker_pos >= 0:
+            payload = stripped[marker_pos + len(proc_marker):].lstrip(" \t:")
+            parts = payload.split("\t")
+            if len(parts) >= 4:
+                status = parts[0].strip().upper()
+                ident = parts[1].strip() or "-"
+                kind = parts[2].strip() or "process"
+                if status in {"END", "FAILED"} and len(parts) >= 5:
+                    rc = parts[3].strip()
+                    detail = "\t".join(parts[4:]).strip()
+                    if rc:
+                        detail = f"rc={rc} | {detail}" if detail else f"rc={rc}"
+                else:
+                    detail = "\t".join(parts[3:]).strip()
+                self.console.process_event(status, kind, ident, detail)
+                self.console.set_step(detail[:120] or f"{kind} {status.lower()}")
+                return "error" if status == "FAILED" else "process"
+
+        progress_marker = "[planner-progress]"
+        progress_pos = stripped.find(progress_marker)
+        if progress_pos >= 0:
+            progress_msg = stripped[progress_pos + len(progress_marker):].strip() or msg
             push_progress(progress_msg, "Progress")
-            return
+            m = re.match(r"(\d+)\s*/\s*(\d+)\s*\|\s*([^|]+?)\s*\|\s*(.*)", progress_msg)
+            if m:
+                idx, total, step_kind, label = m.groups()
+                ident = f"step {idx}/{total}"
+                previous = getattr(self, "_last_console_plan_step", None)
+                if previous and previous[0] != ident:
+                    self.console.process_event("DONE", "plan", previous[0], previous[1])
+                detail = f"{step_kind.strip()}: {label.strip()}".strip(": ")
+                self._last_console_plan_step = (ident, detail)
+                self.console.process_event("RUNNING", "plan", ident, detail)
+                self.console.set_step(detail or ident)
+            return "cell"
 
         if stripped.startswith("[#") or ("dl:" in lower and ("eta:" in lower or "%" in stripped)):
             push_progress(msg, "Downloading")
-            return
+            return "download"
 
         if "%|" in stripped or "it/s" in lower or "s/it" in lower:
             push_progress(msg, "Progress")
-            return
+            if any(k in lower for k in ["merging", "difference", "baking", "preparing merged"]):
+                return "merge"
+            return "info"
 
         if stripped.startswith("$"):
             if "merge.py" in lower or "lora_bake.py" in lower:
                 push_progress(msg, "Merging")
-                return
+                self.console.set_step(msg[:120])
+                return "merge"
             if any(k in lower for k in ["aria2", "wget", "curl"]):
                 push_progress(msg, "Downloading")
-                return
+                self.console.set_step(msg[:120])
+                return "download"
 
+        if "traceback (most recent call last)" in lower or lower.startswith("error:") or " failed" in lower or "exception" in lower:
+            return "error"
+        if "warning" in lower or "warn:" in lower:
+            return "warning"
+        if any(k in lower for k in ["uploading", "upload file", "hugging face", "huggingface"]):
+            return "upload"
         if any(k in lower for k in ["download", "aria2", "custom_model"]):
             push_progress(msg, "Downloading")
-        elif any(k in lower for k in ["merge.py", "merging", "lora_bake.py", "checkpoint merge", "lora bake"]):
+            return "download"
+        if any(k in lower for k in ["merge.py", "merging", "lora_bake.py", "checkpoint merge", "lora bake", "getting difference"]):
             push_progress(msg, "Merging")
-        elif any(k in lower for k in ["saving", "output", "register"]):
+            return "merge"
+        if any(k in lower for k in ["saving", "output", "register"]):
             push_progress(msg, "Saving")
+            return "save"
+        if any(k in lower for k in ["done!", "completed successfully", "success"]):
+            return "success"
+        return "info"
 
     # ---------------- upload / misc ----------------
     def _upload_merge_result(self):
@@ -5030,20 +5842,68 @@ def get_ipython():
         if not messagebox.askyesno("Upload", f"Upload latest model?\n\n{latest.name}\n-> {repo_id}"):
             return
 
+        size_bytes = latest.stat().st_size
+        size_gib = size_bytes / float(1024 ** 3)
+        self.console.show()
+        self.console.bind_notebook("")
+        self.console.clear_output()
+        self.console._stop_requested = False
+        self.console.set_operation("Upload Latest Model")
+        self.console.set_progress_mode("determinate")
+        self.console.set_state("PREPARING")
+        self.console.set_step("Validating upload target")
+        self.console.set_progress_fraction(0.05, f"Preparing {latest.name}")
+        self.console.idle(f"File: {latest}")
+        self.console.idle(f"Size: {size_gib:.3f} GiB")
+        self.console.idle(f"Repository: {repo_id}")
+        self.progress_indicator.start(4, f"Uploading {latest.name}")
+
         def worker():
             try:
-                self.progress_indicator.start(1, f"Uploading {latest.name}")
                 api = HfApi()
+                self.console.process_event("RUNNING", "hub", "repo", f"Create/check repository {repo_id}")
+                self.console.set_step("Creating/checking Hugging Face repository")
+                self.console.log(f"Checking repository: {repo_id}", "upload")
                 api.create_repo(repo_id=repo_id, token=token, exist_ok=True)
-                upload_file(path_or_fileobj=str(latest), path_in_repo=latest.name, repo_id=repo_id, token=token)
-                self.progress_indicator.update(1, latest.name)
-                self.progress_indicator.finish(True)
+                self.console.process_event("DONE", "hub", "repo", f"Repository ready: {repo_id}")
+                self.console.set_progress_fraction(0.20, "Repository ready")
+                self.root.after(0, lambda: self.progress_indicator.update(1, "Repository ready"))
+
+                self.console.set_state("UPLOADING")
+                self.console.set_step(f"Uploading {latest.name}")
+                # Hub transfer APIs do not expose a stable byte callback across
+                # all backends. Keep the native path upload (including its
+                # optimized large-file backend) and show an indeterminate bar
+                # for the network phase rather than buffering/copying the model.
+                self.console.set_progress_mode("indeterminate")
+                self.console.set_progress(f"Uploading {latest.name} ({size_gib:.3f} GiB) -> {repo_id}")
+                self.console.process_event("UPLOADING", "upload", latest.name, f"{size_gib:.3f} GiB -> {repo_id}")
+                self.console.log(f"Uploading {latest.name} ({size_gib:.3f} GiB) to {repo_id}", "upload")
+                api.upload_file(
+                    path_or_fileobj=str(latest),
+                    path_in_repo=latest.name,
+                    repo_id=repo_id,
+                    token=token,
+                )
+
+                self.console.set_progress_mode("determinate")
+                self.console.set_progress_fraction(1.0, f"Uploaded {latest.name}")
+                self.console.process_event("DONE", "upload", latest.name, f"Uploaded to {repo_id}")
+                self.console.set_state("DONE")
+                self.console.set_step("Upload completed")
+                self.console.log(f"Upload completed: {latest.name} -> {repo_id}", "success")
+                self.root.after(0, lambda: self.progress_indicator.update(4, latest.name))
+                self.root.after(0, lambda: self.progress_indicator.finish(True))
                 self.root.after(0, lambda: messagebox.showinfo("Upload", f"Uploaded {latest.name} to {repo_id}"))
                 self._play_notification_sound()
             except Exception as e:
-                self.progress_indicator.finish(False)
+                self.console.set_progress_mode("determinate")
+                self.console.set_state("FAILED")
+                self.console.set_step("Upload failed")
+                self.console.process_event("FAILED", "upload", latest.name, str(e))
+                self.root.after(0, lambda: self.progress_indicator.finish(False))
                 detail = self._format_exception_text("Upload Error", e)
-                self.root.after(0, lambda: self.console.log(detail, "error"))
+                self.console.log(detail, "error")
                 self.root.after(0, lambda: self._show_scrollable_text_dialog("Upload Error", detail))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -7512,8 +8372,7 @@ def get_ipython():
                 ["Checkpoint"],
                 allow_local=True,
             )
-        if mode_info.get("key") != "CLIPXOR":
-            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
         out_frame = self._build_labeled_frame(parent, "Output")
@@ -11909,6 +12768,7 @@ try:
                     ("cosine0", "Cosine 0", "bool", False),
                     ("cosine1", "Cosine 1", "bool", False),
                     ("cosine2", "Cosine 2", "bool", False),
+                    ("clipxor", "CLIPXOR Pre-Merge", "bool", False),
                     ("turbo", "Turbo Convert", "bool", False),
                     ("deturbo", "De-turbo Convert", "bool", False),
                     ("seed", "Seed", "text", ""),
@@ -11933,6 +12793,7 @@ try:
                     ("delete_source", "Delete Source", "bool", False),
                     ("no_metadata", "No Metadata", "bool", False),
                     ("force", "Force Overwrite", "bool", False),
+                    ("save_component", "Save Components", "text", ""),
                     ("memo", "Memo Metadata", "text", ""),
                 ]),
             ]
@@ -11987,9 +12848,9 @@ try:
             "m0_name": "", "m1_name": "", "m2_name": "",
             "use_dif_10": False, "use_dif_20": False, "use_dif_21": False,
             "rand_alpha": "", "rand_beta": "",
-            "cosine0": False, "cosine1": False, "cosine2": False,
+            "cosine0": False, "cosine1": False, "cosine2": False, "clipxor": False,
             "keep_ema": False, "delete_source": False, "no_metadata": False, "force": False,
-            "turbo": False, "deturbo": False, "seed": "", "rebasin": "", "memo": "", "fine": "", "fine_sat": "",
+            "turbo": False, "deturbo": False, "seed": "", "rebasin": "", "memo": "", "save_component": "", "fine": "", "fine_sat": "",
             "cfg_sens": "", "cfg_sens_targets": "", "sat_boost": "", "sat_boost_side": "alpha", "sat_boost_tags": "",
             "sat_profile": "legacy", "sat_delta_cap_pct": "", "sat_boost_mix": "", "boost_clamp": "auto", "vae_sat": "",
         },
@@ -12408,7 +13269,7 @@ try:
             "--bake_scale 1.0", "--bake_rank_cap 64", "--bake_clamp_q 0.999", "--bake_delta_cap 0.05",
             "--bake_fp32", "--bake_guard auto", "--bake_guard cap", "--bake_guard none", "--bake_guard_cap 0.05", "--bake_guard_skip 0.25", "--bake_budget_report",
             # lora_bake.py --merge_loras
-            "--merge_loras", "--merge_rank 64", "--merge_arch auto", "--merge_arch sdxl", "--merge_arch flux", "--merge_arch zi", "--merge_arch am",
+            "--merge_loras", "--merge_rank 64", "--merge_arch auto", "--merge_arch sdxl", "--merge_arch flux", "--merge_arch zi", "--merge_arch am", "--merge_arch krea2",
             "--merge_norm none", "--merge_norm sqrt", "--merge_norm mean", "--merge_scale 1.0", "--merge_unet_only",
             "--merge_clamp_q 0.99", "--merge_intermediate_mult 4",
         ]
@@ -12440,9 +13301,9 @@ try:
         },
     })
 
-    _SIGLESS_PRECISION_CHOICES = ["half", "bhalf", "quarter", "fp32"]
+    _SIGLESS_PRECISION_CHOICES = ["half", "bhalf", "quarter", "int8", "fp32"]
     _SIGLESS_ARCH_CHOICES = ["", "auto", "sd", "sdxl", "flux", "zi", "am", "anima", "zimage"]
-    _SIGLESS_SEED_MODES = {"DARE", "XDARE"}
+    _SIGLESS_SEED_MODES = {"DARE"}
 
     def _sigless_ensure_cli_options(entry: Dict[str, Any]) -> Dict[str, Any]:
         etype = str(entry.get("type") or "")
@@ -12466,7 +13327,7 @@ try:
         key = str(mode_info.get("key") or entry.get("merge_mode") or "").upper()
         opts = _sigless_ensure_cli_options(entry)
         if key in {"NOIN", "RM"}:
-            return 1
+            return 2 if bool(opts.get("clipxor")) else 1
         if mode_info.get("needs_m2") or bool(opts.get("turbo")) or bool(opts.get("deturbo")):
             return 3
         return 2
@@ -12703,8 +13564,7 @@ try:
             self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
         if model_count >= 3:
             self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
-        if mode_info.get("key") != "CLIPXOR":
-            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
         out_frame = self._build_labeled_frame(parent, "Output")
@@ -12902,14 +13762,15 @@ except Exception:
 # and clearly disabled Developer Mode controls.
 # -----------------------------------------------------------------------------
 try:
-    _DISPLAY_PRECISION_CHOICES = ["", "FP16", "BF16", "FP8", "FP32"]
-    _DISPLAY_ARCH_CHOICES = ["", "Auto", "SD1.5", "SDXL", "Flux", "ZImage", "Anima"]
+    _DISPLAY_PRECISION_CHOICES = ["", "FP16", "BF16", "FP8", "INT8", "FP32"]
+    _DISPLAY_ARCH_CHOICES = ["", "Auto", "SD1.5", "SDXL", "Flux", "ZImage", "Anima", "Krea2"]
 
     _PRECISION_DISPLAY_ALIASES = {
-        "": "", "half": "FP16", "fp16": "FP16", "float16": "FP16", "16": "FP16",
+        "": "", "half": "FP16", "fp16": "FP16", "float16": "FP16", "f16": "FP16", "16": "FP16",
         "bhalf": "BF16", "bf16": "BF16", "bfloat16": "BF16",
-        "quarter": "FP8", "fp8": "FP8", "float8": "FP8", "8": "FP8",
-        "fp32": "FP32", "float32": "FP32", "full": "FP32", "32": "FP32",
+        "quarter": "FP8", "fp8": "FP8", "float8": "FP8", "f8": "FP8", "8": "FP8",
+        "int8": "INT8", "i8": "INT8", "s8": "INT8",
+        "fp32": "FP32", "float32": "FP32", "full": "FP32", "single": "FP32", "32": "FP32",
     }
     _ARCH_DISPLAY_ALIASES = {
         "": "", "auto": "Auto",
@@ -12918,6 +13779,7 @@ try:
         "flux": "Flux",
         "zi": "ZImage", "zimage": "ZImage", "z-image": "ZImage", "z_image": "ZImage",
         "am": "Anima", "anima": "Anima",
+        "k2": "Krea2", "krea2": "Krea2", "krea-2": "Krea2",
     }
 
     def _planner_display_precision_name(value):
@@ -13096,6 +13958,7 @@ try:
             "Flux": 22.17,
             "ZImage": 11.46,
             "Anima": 3.90,
+            "Krea2": 25.0,
         }
         lora_size_gb = 0.25
 
@@ -13126,6 +13989,8 @@ try:
                 "flux": "Flux",
                 "zi": "ZImage",
                 "zimage": "ZImage",
+                "k2": "Krea2",
+                "krea2": "Krea2",
                 "am": "Anima",
                 "anima": "Anima",
             }
@@ -13886,8 +14751,7 @@ try:
             self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
         if model_count >= 3:
             self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
-        if mode_info.get("key") != "CLIPXOR":
-            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
         out_frame = self._build_labeled_frame(parent, "Output")
@@ -14335,8 +15199,7 @@ try:
             self._build_combo_row(frame, "Model 1", entry, "model1", ckpts or [""])
         if model_count >= 3:
             self._build_combo_row(frame, "Model 2", entry, "model2", ckpts or [""])
-        if mode_info.get("key") != "CLIPXOR":
-            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
         out_frame = self._build_labeled_frame(parent, "Output")
@@ -14532,8 +15395,7 @@ try:
         if model_count >= 3:
             self._planner_build_source_model_row_final(frame, entry, "model2", "Model 2", ckpts, ["Checkpoint"])
 
-        if mode_info.get("key") != "CLIPXOR":
-            self._build_ratio_section(parent, entry, "alpha", "Alpha")
+        self._build_ratio_section(parent, entry, "alpha", "Alpha")
         if mode_info.get("needs_beta"):
             self._build_ratio_section(parent, entry, "beta", "Beta")
 
@@ -16260,6 +17122,11 @@ try:
 
     def _planner_maybe_create_backup_advanced(self, plan_path: str | None = None, *, reason: str = "autosave", force: bool = False):
         try:
+            now = time.time()
+            if not force and now - float(getattr(self, "_last_backup_time", 0.0) or 0.0) < 15.0:
+                # Avoid deep-copying / JSON-serializing a long plan for backup
+                # calls that cannot create a backup yet.
+                return
             source_plan_path = ""
             try:
                 source_plan_path = str(plan_path or (self.entries.get("filepath").get() if self.entries.get("filepath") else ""))
@@ -16279,7 +17146,6 @@ try:
                 "health": {k: v for k, v in self._tccm_analyze_plan().items() if k in ("entry_count", "enabled_count", "disabled_count", "errors", "warnings")},
             }
             snapshot = json.dumps(payload["plan_data"], ensure_ascii=False, sort_keys=True)
-            now = time.time()
             if not force:
                 if snapshot == getattr(self, "_last_backup_snapshot", None):
                     return
@@ -16861,6 +17727,404 @@ try:
     ModelPlannerApp._load_preset_json = _load_preset_json_universal_json
     ModelPlannerApp._restore_session_state = _restore_session_state_universal_json
     ModelPlannerApp._save_preset_json = _save_preset_json_universal_json
+except Exception:
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Final row-color / validation performance / Krea2 compatibility patch
+# -----------------------------------------------------------------------------
+try:
+    def _planner_normalize_row_color_spec(self, value: Any) -> str:
+        raw = str(value or "").strip()
+        if not raw or raw.lower() in {"default", "none", "off"}:
+            return ""
+        presets = {name.lower(): name for name in self._planner_row_color_presets().keys()}
+        if raw.lower() in presets:
+            return presets[raw.lower()]
+        if re.fullmatch(r"#[0-9a-fA-F]{3}", raw):
+            return "#" + "".join(ch * 2 for ch in raw[1:]).upper()
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", raw):
+            return raw.upper()
+        return ""
+
+    def _entry_row_color_final(self, entry: Dict[str, Any]) -> str:
+        if not isinstance(entry, dict):
+            return ""
+        # row_color is the public/canonical field. _row_color remains as a
+        # backwards-compatible sidecar key for existing projects.
+        raw = entry.get("row_color")
+        if raw in (None, ""):
+            raw = entry.get("_row_color")
+        return _planner_normalize_row_color_spec(self, raw)
+
+    def _entry_row_color_hex(self, entry: Dict[str, Any]) -> str:
+        spec = _entry_row_color_final(self, entry)
+        if not spec:
+            return ""
+        if spec.startswith("#"):
+            return spec
+        return str(self._planner_row_color_presets().get(spec) or "")
+
+    _row_prev_defaults = getattr(ModelPlannerApp, "_planner_apply_entry_defaults", None)
+    def _planner_apply_entry_defaults_row_color(self):
+        if callable(_row_prev_defaults):
+            _row_prev_defaults(self)
+        for entry in self.plan_data.get("entries", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            spec = _planner_normalize_row_color_spec(self, entry.get("row_color") or entry.get("_row_color"))
+            entry["row_color"] = spec
+            entry["_row_color"] = spec
+
+    def _planner_problem_severity_final(self, problems: List[str]) -> str:
+        vals = [str(p).strip() for p in (problems or []) if str(p or "").strip()]
+        if any(p.upper().startswith("ERROR:") for p in vals):
+            return "error"
+        if any(p.upper().startswith("WARN:") for p in vals):
+            return "warning"
+        if any(p.upper().startswith("DRAFT:") for p in vals):
+            return "draft"
+        return "ok"
+
+    def _plan_entry_problem_map_linear(self) -> Dict[int, List[str]]:
+        """Source-aware validation in a single forward availability pass."""
+        entries = (self.plan_data or {}).get("entries", []) or []
+        analysis = self._planner_analysis()
+        dead_entries = set(analysis.get("dead_entries", set()))
+        unref_aliases = analysis.get("unreferenced_aliases", {}) or {}
+        same_source_by_idx: Dict[int, set[str]] = {}
+        for _sig, recs in (analysis.get("same_source_aliases") or {}).items():
+            aliases = sorted({str(r.get("alias") or "") for r in recs if str(r.get("alias") or "")})
+            if len(aliases) <= 1:
+                continue
+            text = "WARN: Same Source Registered With Different Aliases -> " + ", ".join(aliases)
+            for rec in recs:
+                try:
+                    same_source_by_idx.setdefault(int(rec.get("idx")), set()).add(text)
+                except Exception:
+                    pass
+
+        eager_link_validation = bool(getattr(self, "_planner_eager_link_validation", False))
+        available = {"Checkpoint": set(), "LoRA": set(), "LyCORIS": set()}
+        problems_by_idx: Dict[int, List[str]] = {}
+
+        def problem(level: str, idx: int, etype: str, message: str) -> str:
+            return f"{level}: Line {idx + 1} ({etype}): {message}"
+
+        def link_issue(link: str):
+            fn = globals().get("_planner_download_link_issue")
+            if callable(fn):
+                try:
+                    return fn(self, str(link or "").strip(), eager=eager_link_validation)
+                except Exception:
+                    pass
+            text = str(link or "").strip()
+            if not text:
+                return "Link Is Empty"
+            if not re.match(r"^https?://", text, flags=re.IGNORECASE):
+                return f"Download Link Format Is Invalid -> {text}"
+            return None
+
+        def embedded_issue(spec, label: str):
+            if not isinstance(spec, dict):
+                return None
+            mode = str(spec.get("mode") or "").strip().lower()
+            if mode == "download":
+                issue = link_issue(str(spec.get("link") or ""))
+                return f"{label} {issue}" if issue else None
+            if mode == "local" and not str(spec.get("local_path") or "").strip():
+                return f"{label} Local Path Is Empty"
+            return None
+
+        for idx, entry in enumerate(entries):
+            etype = str(entry.get("type") or "")
+            probs: List[str] = []
+            disabled = self._entry_is_disabled(entry)
+            if disabled:
+                probs.append("WARN: Entry Is Disabled And Excluded From Export/Runtime")
+            if self._entry_is_locked(entry):
+                probs.append("WARN: Entry Is Locked Against Accidental Edits")
+
+            if etype == "Download Model":
+                name = str(entry.get("model_name") or "").strip()
+                kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                if not name:
+                    probs.append(problem("ERROR", idx, etype, "Model Name Is Empty"))
+                issue = link_issue(str(entry.get("link") or ""))
+                if issue:
+                    probs.append(problem("ERROR", idx, etype, issue))
+                if name and not disabled:
+                    available.setdefault(kind, set()).add(name)
+
+            elif etype == "Local Model":
+                path = str(entry.get("local_path") or "").strip()
+                alias = str(entry.get("model_name") or "").strip()
+                kind = str(entry.get("model_type") or "Checkpoint").strip() or "Checkpoint"
+                if not path:
+                    probs.append(problem("ERROR", idx, etype, "Local Path Is Empty"))
+                if path and not disabled:
+                    available.setdefault(kind, set()).add(alias or Path(path).stem)
+
+            elif etype == "Remove Model":
+                name = str(entry.get("model") or "").strip()
+                if not name:
+                    probs.append(problem("ERROR", idx, etype, "Model Is Empty"))
+                if name and not disabled:
+                    for bucket in available.values():
+                        bucket.discard(name)
+
+            elif etype == "Checkpoint Merge":
+                for key, label in (("model0", "Model 0"), ("model1", "Model 1"), ("output_name", "Output Name")):
+                    if not str(entry.get(key) or "").strip():
+                        probs.append(problem("ERROR", idx, etype, f"{label} Is Empty"))
+                for slot, label in (("model0", "Model 0"), ("model1", "Model 1"), ("model2", "Model 2")):
+                    ref = str(entry.get(slot) or "").strip()
+                    if not ref:
+                        continue
+                    spec = self._get_entry_slot_source(entry, slot)
+                    issue = embedded_issue(spec, label)
+                    if issue:
+                        probs.append(problem("ERROR", idx, etype, issue))
+                    elif isinstance(spec, dict):
+                        if not disabled:
+                            available["Checkpoint"].add(ref)
+                    elif ref not in available["Checkpoint"]:
+                        probs.append(problem("ERROR", idx, etype, f"Checkpoint Reference Not Available -> {ref}"))
+                out = str(entry.get("output_name") or "").strip()
+                if out and not disabled:
+                    available["Checkpoint"].add(out)
+
+            elif etype == "LoRA Bake":
+                checkpoint = str(entry.get("checkpoint") or "").strip()
+                spec = self._get_entry_slot_source(entry, "checkpoint")
+                if not checkpoint:
+                    probs.append(problem("ERROR", idx, etype, "Checkpoint Is Empty"))
+                else:
+                    issue = embedded_issue(spec, "Checkpoint")
+                    if issue:
+                        probs.append(problem("ERROR", idx, etype, issue))
+                    elif isinstance(spec, dict):
+                        if not disabled:
+                            available["Checkpoint"].add(checkpoint)
+                    elif checkpoint not in available["Checkpoint"]:
+                        probs.append(problem("ERROR", idx, etype, f"Checkpoint Reference Not Available -> {checkpoint}"))
+                if not str(entry.get("output_name") or "").strip():
+                    probs.append(problem("ERROR", idx, etype, "Output Name Is Empty"))
+                for li, lora in enumerate(entry.get("loras", []) or []):
+                    name = str(lora.get("name") or "").strip()
+                    label = f"LoRA {li + 1}"
+                    if not name:
+                        probs.append(problem("ERROR", idx, etype, f"{label} Name Is Empty"))
+                        continue
+                    lspec = self._get_lora_source(lora)
+                    issue = embedded_issue(lspec, label)
+                    if issue:
+                        probs.append(problem("ERROR", idx, etype, issue))
+                    elif isinstance(lspec, dict):
+                        if not disabled:
+                            kind = str(lspec.get("kind") or "LoRA")
+                            available.setdefault(kind, set()).add(name)
+                    elif name not in available["LoRA"] and name not in available["LyCORIS"]:
+                        probs.append(problem("ERROR", idx, etype, f"LoRA Reference Not Available -> {name}"))
+                out = str(entry.get("output_name") or "").strip()
+                if out and not disabled:
+                    available["Checkpoint"].add(out)
+
+            elif etype == "LoRA Merge":
+                out = str(entry.get("output_name") or "").strip()
+                if not out:
+                    probs.append(problem("ERROR", idx, etype, "Output Name Is Empty"))
+                loras = entry.get("loras", []) or []
+                if not loras:
+                    probs.append(problem("ERROR", idx, etype, "No LoRAs Selected"))
+                for li, lora in enumerate(loras):
+                    name = str(lora.get("name") or "").strip()
+                    label = f"LoRA {li + 1}"
+                    if not name:
+                        probs.append(problem("ERROR", idx, etype, f"{label} Name Is Empty"))
+                        continue
+                    lspec = self._get_lora_source(lora)
+                    issue = embedded_issue(lspec, label)
+                    if issue:
+                        probs.append(problem("ERROR", idx, etype, issue))
+                    elif isinstance(lspec, dict):
+                        if not disabled:
+                            kind = str(lspec.get("kind") or "LoRA")
+                            available.setdefault(kind, set()).add(name)
+                    elif name not in available["LoRA"] and name not in available["LyCORIS"]:
+                        probs.append(problem("ERROR", idx, etype, f"LoRA Reference Not Available -> {name}"))
+                if out and not disabled:
+                    available["LoRA"].add(out)
+
+            # Preserve analysis warnings without an O(n^2) availability scan.
+            for alias in self._entry_produced_aliases(entry):
+                if alias in unref_aliases:
+                    probs.append(f"WARN: Produced Alias Is Currently Unreferenced -> {alias}")
+            if idx in same_source_by_idx:
+                probs.extend(sorted(same_source_by_idx[idx]))
+            if idx in dead_entries:
+                probs.append("WARN: Merge Output Is Not Required By The Final Active Line")
+            problems_by_idx[idx] = probs
+        return problems_by_idx
+
+    def _apply_plan_listbox_item_styles_final(self):
+        if self.plan_listbox is None:
+            return
+        def rgb(value: str):
+            raw = str(value or "").strip().lstrip("#")
+            if len(raw) == 3:
+                raw = "".join(c * 2 for c in raw)
+            if len(raw) != 6:
+                return None
+            try:
+                return tuple(int(raw[i:i+2], 16) for i in (0, 2, 4))
+            except Exception:
+                return None
+        def mix(a: str, b: str, ratio: float) -> str:
+            aa, bb = rgb(a), rgb(b)
+            if aa is None or bb is None:
+                return a or b
+            r = max(0.0, min(1.0, float(ratio)))
+            cc = tuple(round(x * (1-r) + y * r) for x, y in zip(aa, bb))
+            return "#%02x%02x%02x" % cc
+        def contrast(bg: str, dark: str, light: str) -> str:
+            c = rgb(bg)
+            if c is None:
+                return light
+            lum = .2126*c[0] + .7152*c[1] + .0722*c[2]
+            return dark if lum >= 150 else light
+
+        problems = getattr(self, "_plan_problem_map_cache", {}) or {}
+        colors = self._theme_colors()
+        light = str(getattr(self, "theme_mode", "dark") or "dark").lower() == "light"
+        dark_text, light_text = "#17203a", "#f3f6ff"
+        error_bg = "#f7c9c9" if light else "#5a1823"
+        warn_bg = "#ffe2ad" if light else "#5a3b10"
+        draft_bg = "#eee1b8" if light else "#493c1c"
+        error_fg = "#8b0000" if light else "#ffd7dc"
+        warn_fg = "#6d3b00" if light else "#fff0cf"
+
+        entries = self.plan_data.get("entries", []) or []
+        for vis_idx, model_idx in enumerate(self.visible_entry_indices):
+            if not (0 <= model_idx < len(entries)):
+                continue
+            entry = entries[model_idx]
+            sev = self._planner_problem_severity(problems.get(model_idx, []))
+            custom = _entry_row_color_hex(self, entry)
+            bg = custom or colors["entry_bg"]
+            fg = contrast(bg, dark_text, light_text) if custom else (self._entry_type_color(entry.get("type", "")) or colors["entry_fg"])
+            if self._entry_is_disabled(entry):
+                bg, fg = colors["subtle"], colors["muted"]
+            elif sev == "error":
+                bg = mix(bg, error_bg, 0.82 if custom else 1.0)
+                fg = error_fg
+            elif sev == "warning":
+                bg = mix(bg, warn_bg, 0.66 if custom else 1.0)
+                fg = warn_fg
+            elif sev == "draft":
+                bg = mix(bg, draft_bg, 0.50 if custom else 1.0)
+            elif self._entry_is_locked(entry):
+                fg = "#1f5fbf" if light else "#b6c7ff"
+
+            # Crucially, selection keeps the row/error identity instead of
+            # replacing it with one global select color.
+            select_bg = mix(bg, colors.get("select_bg", bg), 0.24)
+            select_fg = contrast(select_bg, dark_text, light_text)
+            if sev == "error":
+                select_bg = mix(bg, error_bg, 0.25)
+                select_fg = error_fg
+            elif sev == "warning":
+                select_bg = mix(bg, warn_bg, 0.25)
+                select_fg = warn_fg
+            try:
+                self.plan_listbox.itemconfig(vis_idx, foreground=fg, background=bg,
+                    selectforeground=select_fg, selectbackground=select_bg)
+            except Exception:
+                try:
+                    self.plan_listbox.itemconfigure(vis_idx, fg=fg, bg=bg)
+                except Exception:
+                    pass
+
+    def _show_row_color_dialog_final(self):
+        indices = self._planner_get_selected_indices() or ([self.current_index] if self.plan_data.get("entries") else [])
+        if not indices:
+            return
+        win = tk.Toplevel(self.root)
+        win.title("Row Color")
+        win.geometry("470x225+180+180")
+        outer = Frame(win, padx=10, pady=10)
+        outer.pack(fill="both", expand=True)
+        Label(outer, text=f'Apply to lines: {", ".join(str(i + 1) for i in indices)}', anchor="w").pack(fill="x", pady=(0, 8))
+        presets = ["Default"] + list(self._planner_row_color_presets().keys()) + ["Custom"]
+        current = _entry_row_color_final(self, self.plan_data["entries"][indices[-1]])
+        mode_var = tk.StringVar(value=(current if current and not current.startswith("#") else ("Custom" if current else "Default")))
+        custom_var = tk.StringVar(value=current if current.startswith("#") else "#4A6FA5")
+        combo = ttk.Combobox(outer, textvariable=mode_var, values=presets, state="readonly")
+        combo.pack(fill="x")
+        custom_row = Frame(outer)
+        custom_row.pack(fill="x", pady=(8, 0))
+        Label(custom_row, text="Custom HEX", width=14, anchor="w").pack(side="left")
+        custom_entry = Entry(custom_row, textvariable=custom_var)
+        custom_entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        def pick():
+            _rgb, hx = colorchooser.askcolor(color=custom_var.get(), parent=win, title="Choose Row Color")
+            if hx:
+                custom_var.set(str(hx).upper())
+                mode_var.set("Custom")
+        ttk.Button(custom_row, text="Pick…", command=pick).pack(side="right")
+        preview = Label(outer, text="Row color preview", anchor="center")
+        preview.pack(fill="x", pady=(8, 0))
+        def refresh_preview(*_):
+            spec = custom_var.get() if mode_var.get() == "Custom" else mode_var.get()
+            norm = _planner_normalize_row_color_spec(self, spec)
+            hx = norm if norm.startswith("#") else self._planner_row_color_presets().get(norm, self._theme_colors()["entry_bg"])
+            try:
+                raw = str(hx or "").lstrip("#")
+                if len(raw) == 3:
+                    raw = "".join(ch * 2 for ch in raw)
+                values = tuple(int(raw[i:i+2], 16) for i in (0, 2, 4)) if len(raw) == 6 else (0, 0, 0)
+                preview.configure(bg=hx, fg="#111111" if sum(values) > 390 else "#ffffff")
+            except Exception:
+                pass
+        mode_var.trace_add("write", refresh_preview)
+        custom_var.trace_add("write", refresh_preview)
+        refresh_preview()
+        def apply_color():
+            raw = custom_var.get() if mode_var.get() == "Custom" else mode_var.get()
+            spec = _planner_normalize_row_color_spec(self, raw)
+            if mode_var.get() == "Custom" and not spec:
+                messagebox.showerror("Row Color", "Enter #RGB or #RRGGBB.", parent=win)
+                return
+            self._planner_push_history()
+            for idx in indices:
+                if 0 <= idx < len(self.plan_data.get("entries", [])):
+                    self.plan_data["entries"][idx]["row_color"] = spec
+                    self.plan_data["entries"][idx]["_row_color"] = spec
+            self._save_plan_to_file()
+            self._refresh_line_selector()
+            self._render_current_line()
+            self._select_model_indices(indices)
+            self.status_label.config(text=f"Applied row color: {spec or 'Default'}")
+            win.destroy()
+        buttons = Frame(outer)
+        buttons.pack(fill="x", pady=(10, 0))
+        ttk.Button(buttons, text="Apply", command=apply_color).pack(side="left")
+        ttk.Button(buttons, text="Close", command=win.destroy).pack(side="right")
+        try:
+            colors = self._theme_colors()
+            win.configure(bg=colors["bg"])
+            self._apply_theme_to_children(win, colors)
+            refresh_preview()
+        except Exception:
+            pass
+
+    ModelPlannerApp._planner_apply_entry_defaults = _planner_apply_entry_defaults_row_color
+    ModelPlannerApp._entry_row_color = _entry_row_color_final
+    ModelPlannerApp._planner_problem_severity = _planner_problem_severity_final
+    ModelPlannerApp._plan_entry_problem_map = _plan_entry_problem_map_linear
+    ModelPlannerApp._apply_plan_listbox_item_styles = _apply_plan_listbox_item_styles_final
+    ModelPlannerApp._show_row_color_dialog = _show_row_color_dialog_final
 except Exception:
     pass
 

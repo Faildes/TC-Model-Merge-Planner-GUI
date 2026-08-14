@@ -1,0 +1,871 @@
+{
+  "base_model": "SD1.5",
+  "version": 4,
+  "applies_to": [
+    "Checkpoint",
+    "LoRA",
+    "LyCORIS"
+  ],
+  "layer_aliases": {
+    "MID": "M00",
+    "MID00": "M00",
+    "MIDDLE": "M00",
+    "TEXT": "CLIP",
+    "TE": "CLIP"
+  },
+  "layers": [
+    {
+      "name": "BASE",
+      "effect": "Legacy SD1.x base slot. Diffusion-side shared tensors are limited; use CLIP/TIME pseudo-layers for text/timestep-specific elemental rules."
+    },
+    {
+      "name": "IN00",
+      "effect": "SD1.x encoder/input UNet block 0; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN01",
+      "effect": "SD1.x encoder/input UNet block 1; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN02",
+      "effect": "SD1.x encoder/input UNet block 2; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN03",
+      "effect": "SD1.x encoder/input UNet block 3; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN04",
+      "effect": "SD1.x encoder/input UNet block 4; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN05",
+      "effect": "SD1.x encoder/input UNet block 5; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN06",
+      "effect": "SD1.x encoder/input UNet block 6; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN07",
+      "effect": "SD1.x encoder/input UNet block 7; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN08",
+      "effect": "SD1.x encoder/input UNet block 8; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN09",
+      "effect": "SD1.x encoder/input UNet block 9; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN10",
+      "effect": "SD1.x encoder/input UNet block 10; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "IN11",
+      "effect": "SD1.x encoder/input UNet block 11; earlier blocks emphasize local latent features while deeper blocks operate at coarser scales."
+    },
+    {
+      "name": "M00",
+      "effect": "SD1.x middle bottleneck; mixes the deepest residual and attention features."
+    },
+    {
+      "name": "OUT00",
+      "effect": "SD1.x decoder/output UNet block 0; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT01",
+      "effect": "SD1.x decoder/output UNet block 1; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT02",
+      "effect": "SD1.x decoder/output UNet block 2; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT03",
+      "effect": "SD1.x decoder/output UNet block 3; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT04",
+      "effect": "SD1.x decoder/output UNet block 4; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT05",
+      "effect": "SD1.x decoder/output UNet block 5; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT06",
+      "effect": "SD1.x decoder/output UNet block 6; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT07",
+      "effect": "SD1.x decoder/output UNet block 7; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT08",
+      "effect": "SD1.x decoder/output UNet block 8; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT09",
+      "effect": "SD1.x decoder/output UNet block 9; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT10",
+      "effect": "SD1.x decoder/output UNet block 10; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "OUT11",
+      "effect": "SD1.x decoder/output UNet block 11; progressively reconstructs spatial detail while combining skip features."
+    },
+    {
+      "name": "CLIP",
+      "effect": "CLIP text encoder pseudo-layer for vocabulary and prompt-conditioning elementals."
+    },
+    {
+      "name": "TIME",
+      "effect": "UNet timestep-conditioning pseudo-layer."
+    },
+    {
+      "name": "OUT",
+      "effect": "Final UNet output pseudo-layer."
+    }
+  ],
+  "elements": [
+    {
+      "name": "emb_layers.1",
+      "effect": "ResBlock timestep projection; changes denoising-conditioned feature modulation",
+      "aliases": [
+        "emb_layers",
+        "timestep projection"
+      ]
+    },
+    {
+      "name": "in_layers.0",
+      "effect": "ResBlock input normalization",
+      "aliases": [
+        "resblock input norm"
+      ]
+    },
+    {
+      "name": "in_layers.2",
+      "effect": "ResBlock input convolution; changes local feature extraction",
+      "aliases": [
+        "resblock input conv"
+      ]
+    },
+    {
+      "name": "out_layers.0",
+      "effect": "ResBlock output normalization",
+      "aliases": [
+        "resblock output norm"
+      ]
+    },
+    {
+      "name": "out_layers.3",
+      "effect": "ResBlock output convolution; changes local feature synthesis",
+      "aliases": [
+        "resblock output conv"
+      ]
+    },
+    {
+      "name": "skip_connection",
+      "effect": "ResBlock skip projection used when channel dimensions change",
+      "aliases": [
+        "skip",
+        "shortcut"
+      ]
+    },
+    {
+      "name": "proj_in",
+      "effect": "SpatialTransformer input projection",
+      "aliases": [
+        "transformer input"
+      ]
+    },
+    {
+      "name": "proj_out",
+      "effect": "SpatialTransformer output projection",
+      "aliases": [
+        "transformer output"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn1.to_q",
+      "effect": "self-attention query projection; changes which image-token relations are queried",
+      "aliases": [
+        "attn1 q",
+        "self attention query"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn1.to_k",
+      "effect": "self-attention key projection; changes image-token matching",
+      "aliases": [
+        "attn1 k",
+        "self attention key"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn1.to_v",
+      "effect": "self-attention value projection; changes content carried through image-token attention",
+      "aliases": [
+        "attn1 v",
+        "self attention value"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn1.to_out",
+      "effect": "self-attention output projection; integrates image-token attention",
+      "aliases": [
+        "attn1 out"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn2.to_q",
+      "effect": "cross-attention query projection; changes latent queries sent to text conditioning",
+      "aliases": [
+        "attn2 q",
+        "cross attention query"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn2.to_k",
+      "effect": "cross-attention key projection; changes text-token matching",
+      "aliases": [
+        "attn2 k",
+        "cross attention key"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn2.to_v",
+      "effect": "cross-attention value projection; changes text-conditioned feature content",
+      "aliases": [
+        "attn2 v",
+        "cross attention value"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.attn2.to_out",
+      "effect": "cross-attention output projection; integrates text conditioning into image features",
+      "aliases": [
+        "attn2 out"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.ff.net.0.proj",
+      "effect": "transformer feed-forward gated input projection",
+      "aliases": [
+        "ff input",
+        "geglu"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.ff.net.2",
+      "effect": "transformer feed-forward output projection",
+      "aliases": [
+        "ff output"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.norm1",
+      "effect": "transformer self-attention normalization",
+      "aliases": [
+        "attn1 norm"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.norm2",
+      "effect": "transformer cross-attention normalization",
+      "aliases": [
+        "attn2 norm"
+      ]
+    },
+    {
+      "name": "transformer_blocks.0.norm3",
+      "effect": "transformer feed-forward normalization",
+      "aliases": [
+        "ff norm"
+      ]
+    },
+    {
+      "name": "op",
+      "effect": "UNet downsample operator; changes scale transition behavior",
+      "aliases": [
+        "downsample"
+      ]
+    },
+    {
+      "name": "conv",
+      "effect": "UNet upsample/downsample convolution used at scale transitions",
+      "aliases": [
+        "scale conv"
+      ]
+    },
+    {
+      "name": "input_blocks.0.0",
+      "effect": "UNet latent input convolution; anchors low-level latent features",
+      "aliases": [
+        "input conv"
+      ]
+    },
+    {
+      "name": "out.0",
+      "effect": "UNet final normalization",
+      "aliases": [
+        "output norm"
+      ]
+    },
+    {
+      "name": "out.2",
+      "effect": "UNet final convolution back to latent channels",
+      "aliases": [
+        "output conv"
+      ]
+    },
+    {
+      "name": "time_embed.0",
+      "effect": "UNet timestep embedding first linear layer",
+      "aliases": [
+        "time embed"
+      ]
+    },
+    {
+      "name": "time_embed.2",
+      "effect": "UNet timestep embedding second linear layer",
+      "aliases": [
+        "time embed"
+      ]
+    },
+    {
+      "name": "token_embedding",
+      "effect": "CLIP token embedding; vocabulary/concept representation",
+      "aliases": [
+        "clip token"
+      ]
+    },
+    {
+      "name": "position_embedding",
+      "effect": "CLIP positional embedding; token order representation",
+      "aliases": [
+        "clip position"
+      ]
+    },
+    {
+      "name": "self_attn.q_proj",
+      "effect": "CLIP self-attention query projection",
+      "aliases": [
+        "clip q"
+      ]
+    },
+    {
+      "name": "self_attn.k_proj",
+      "effect": "CLIP self-attention key projection",
+      "aliases": [
+        "clip k"
+      ]
+    },
+    {
+      "name": "self_attn.v_proj",
+      "effect": "CLIP self-attention value projection",
+      "aliases": [
+        "clip v"
+      ]
+    },
+    {
+      "name": "self_attn.out_proj",
+      "effect": "CLIP self-attention output projection",
+      "aliases": [
+        "clip out"
+      ]
+    },
+    {
+      "name": "mlp.fc1",
+      "effect": "CLIP MLP expansion layer",
+      "aliases": [
+        "clip mlp in"
+      ]
+    },
+    {
+      "name": "mlp.fc2",
+      "effect": "CLIP MLP output layer",
+      "aliases": [
+        "clip mlp out"
+      ]
+    },
+    {
+      "name": "layer_norm1",
+      "effect": "CLIP attention-side normalization",
+      "aliases": [
+        "clip norm1"
+      ]
+    },
+    {
+      "name": "layer_norm2",
+      "effect": "CLIP MLP-side normalization",
+      "aliases": [
+        "clip norm2"
+      ]
+    },
+    {
+      "name": "final_layer_norm",
+      "effect": "CLIP final text normalization",
+      "aliases": [
+        "clip final norm"
+      ]
+    }
+  ],
+  "layer_elements": {
+    "BASE": [],
+    "CLIP": [
+      "token_embedding",
+      "position_embedding",
+      "self_attn.q_proj",
+      "self_attn.k_proj",
+      "self_attn.v_proj",
+      "self_attn.out_proj",
+      "mlp.fc1",
+      "mlp.fc2",
+      "layer_norm1",
+      "layer_norm2",
+      "final_layer_norm"
+    ],
+    "TIME": [
+      "time_embed.0",
+      "time_embed.2"
+    ],
+    "OUT": [
+      "out.0",
+      "out.2"
+    ],
+    "IN00": [
+      "input_blocks.0.0"
+    ],
+    "IN01": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN02": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN03": [
+      "op"
+    ],
+    "IN04": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN05": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN06": [
+      "op"
+    ],
+    "IN07": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN08": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "IN09": [
+      "op"
+    ],
+    "IN10": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection"
+    ],
+    "IN11": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection"
+    ],
+    "M00": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT00": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection"
+    ],
+    "OUT01": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection"
+    ],
+    "OUT02": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "conv"
+    ],
+    "OUT03": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT04": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT05": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3",
+      "conv"
+    ],
+    "OUT06": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT07": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT08": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3",
+      "conv"
+    ],
+    "OUT09": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT10": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3"
+    ],
+    "OUT11": [
+      "emb_layers.1",
+      "in_layers.0",
+      "in_layers.2",
+      "out_layers.0",
+      "out_layers.3",
+      "skip_connection",
+      "proj_in",
+      "proj_out",
+      "transformer_blocks.0.attn1.to_q",
+      "transformer_blocks.0.attn1.to_k",
+      "transformer_blocks.0.attn1.to_v",
+      "transformer_blocks.0.attn1.to_out",
+      "transformer_blocks.0.attn2.to_q",
+      "transformer_blocks.0.attn2.to_k",
+      "transformer_blocks.0.attn2.to_v",
+      "transformer_blocks.0.attn2.to_out",
+      "transformer_blocks.0.ff.net.0.proj",
+      "transformer_blocks.0.ff.net.2",
+      "transformer_blocks.0.norm1",
+      "transformer_blocks.0.norm2",
+      "transformer_blocks.0.norm3",
+      "out.0",
+      "out.2"
+    ]
+  },
+  "mode_notes": {
+    "matching": "Candidates intentionally use literal checkpoint substrings; no wildcard characters are required.",
+    "pseudo_layers": "CLIP/TIME/OUT use the merger elemental pseudo-tags and can be typed directly in elemental rules."
+  }
+}

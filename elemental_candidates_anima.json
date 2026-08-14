@@ -1,6 +1,6 @@
 {
   "base_model": "Anima",
-  "version": 3,
+  "version": 5,
   "applies_to": [
     "Checkpoint",
     "LoRA",
@@ -19,124 +19,175 @@
     "BEGIN": "L00",
     "END": "L27",
     "HEAD": "L27",
-    "OUTPUT_HEAD": "L27"
+    "OUTPUT_HEAD": "L27",
+    "ANIMA29_OUTPUT": "L39",
+    "ANIMA_2_9B_OUTPUT": "L39",
+    "2_9B_OUTPUT": "L39"
   },
   "layers": [
     {
       "name": "BASE",
-      "effect": "Global conditioning/control area for Anima diffusion-side inputs: timestep embeddings and the LLM adapter. It controls denoising schedule behavior, prompt/tag interpretation, concept routing, and adapter-to-DiT conditioning. High-impact and fragile: usually keep fixed unless intentionally transferring prompt-understanding or model-wide conditioning behavior. Qwen/text-encoder tensors are not included because they were not present in the provided checkpoint key list."
+      "effect": "Global conditioning/control area for Anima diffusion-side inputs: timestep embeddings and the LLM adapter. It controls denoising schedule behavior, prompt/tag interpretation, concept routing, and adapter-to-DiT conditioning. High-impact and fragile: usually keep fixed unless intentionally transferring prompt-understanding or model-wide conditioning behavior. Qwen/text-encoder tensors are not included because they were not present in the provided checkpoint key list. Anima 2.9B compatibility: the same BASE/LLM-adapter role is retained; the expanded variant adds no separate Planner base-model category."
     },
     {
       "name": "L00",
-      "effect": "Input/token anchoring stage. Includes x_embedder plus the first DiT block, so it strongly affects latent token formation, coarse local separation, initial edge stability, low-level noise/texture intake, and the earliest image-token structure. Very sensitive for base compatibility."
+      "effect": "Input/token anchoring stage. Includes x_embedder plus the first DiT block, so it strongly affects latent token formation, coarse local separation, initial edge stability, low-level noise/texture intake, and the earliest image-token structure. Very sensitive for base compatibility. Anima 2.9B note: physical L00 keeps the same normal-Anima source position."
     },
     {
       "name": "L01",
-      "effect": "Early structure stage. Establishes simple silhouette, coarse local geometry, early body/clothing mass, and basic prompt-conditioned separation. Useful for subtle structure repair but can affect the base image feel if overused."
+      "effect": "Early structure stage. Establishes simple silhouette, coarse local geometry, early body/clothing mass, and basic prompt-conditioned separation. Useful for subtle structure repair but can affect the base image feel if overused. Anima 2.9B note: physical L01 keeps the same normal-Anima source position."
     },
     {
       "name": "L02",
-      "effect": "Early structure/detail stage. Affects local contours, simple limb/body masses, early character placement, and coarse object separation. Good for low-level shape support rather than identity or finished style."
+      "effect": "Early structure/detail stage. Affects local contours, simple limb/body masses, early character placement, and coarse object separation. Good for low-level shape support rather than identity or finished style. Anima 2.9B note: physical L02 is an inserted expansion layer copied from normal Anima L01; it does not represent normal Anima L02 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L03",
-      "effect": "Early layout consolidation. Stabilizes broad geometry, person/object separation, camera/layout anchoring, and the transition from coarse latent structure into more semantic layout."
+      "effect": "Early layout consolidation. Stabilizes broad geometry, person/object separation, camera/layout anchoring, and the transition from coarse latent structure into more semantic layout. Anima 2.9B note: physical L03 corresponds to normal Anima L02 after the interleaved 28→40 expansion."
     },
     {
       "name": "L04",
-      "effect": "Early-mid transformer stage. Begins transferring pose tendencies, clothing structure, body orientation, and prompt-to-structure alignment. Useful for light pose/layout inheritance while still mostly preserving late rendering style."
+      "effect": "Early-mid transformer stage. Begins transferring pose tendencies, clothing structure, body orientation, and prompt-to-structure alignment. Useful for light pose/layout inheritance while still mostly preserving late rendering style. Anima 2.9B note: physical L04 corresponds to normal Anima L03 after the interleaved 28→40 expansion."
     },
     {
       "name": "L05",
-      "effect": "Early-mid structure stage. Useful for body proportions, limb relation, simple interaction geometry, and style-aware shape formation without fully changing the final finish."
+      "effect": "Early-mid structure stage. Useful for body proportions, limb relation, simple interaction geometry, and style-aware shape formation without fully changing the final finish. Anima 2.9B note: physical L05 is an inserted expansion layer copied from normal Anima L03; it does not represent normal Anima L05 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L06",
-      "effect": "Early-mid detail routing. Supports clothing complexity, hair/body mass, local structure refinement, and preparation for deeper pose/concept integration."
+      "effect": "Early-mid detail routing. Supports clothing complexity, hair/body mass, local structure refinement, and preparation for deeper pose/concept integration. Anima 2.9B note: physical L06 corresponds to normal Anima L04 after the interleaved 28→40 expansion."
     },
     {
       "name": "L07",
-      "effect": "Early-mid pose/detail bridge. Affects dynamic pose individuality, character placement, body orientation, and scene layout before central blocks perform stronger semantic integration."
+      "effect": "Early-mid pose/detail bridge. Affects dynamic pose individuality, character placement, body orientation, and scene layout before central blocks perform stronger semantic integration. Anima 2.9B note: physical L07 corresponds to normal Anima L05 after the interleaved 28→40 expansion."
     },
     {
       "name": "L08",
-      "effect": "Mid structure stage. Stronger effect on pose coherence, character arrangement, perspective, and prompt-conditioned structure than earlier blocks. Good entry point for pose or scenario transfer."
+      "effect": "Mid structure stage. Stronger effect on pose coherence, character arrangement, perspective, and prompt-conditioned structure than earlier blocks. Good entry point for pose or scenario transfer. Anima 2.9B note: physical L08 is an inserted expansion layer copied from normal Anima L05; it does not represent normal Anima L08 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L09",
-      "effect": "Mid structure and concept stage. Useful for prompt-conditioned body/face relation, multi-part consistency, clothing relation, and early character/scenario binding."
+      "effect": "Mid structure and concept stage. Useful for prompt-conditioned body/face relation, multi-part consistency, clothing relation, and early character/scenario binding. Anima 2.9B note: physical L09 corresponds to normal Anima L06 after the interleaved 28→40 expansion."
     },
     {
       "name": "L10",
-      "effect": "Mid integration stage. Balances pose, clothing, face support, identity hints, and concept-conditioned structure. Useful for transferring scenario logic without heavily changing final color."
+      "effect": "Mid integration stage. Balances pose, clothing, face support, identity hints, and concept-conditioned structure. Useful for transferring scenario logic without heavily changing final color. Anima 2.9B note: physical L10 corresponds to normal Anima L07 after the interleaved 28→40 expansion."
     },
     {
       "name": "L11",
-      "effect": "Mid integration bridge. Good for correcting anatomy/layout and prompt-structure alignment while preserving later rendering style. Often safe for structure-focused merges."
+      "effect": "Mid integration bridge. Good for correcting anatomy/layout and prompt-structure alignment while preserving later rendering style. Often safe for structure-focused merges. Anima 2.9B note: physical L11 is an inserted expansion layer copied from normal Anima L07; it does not represent normal Anima L11 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L12",
-      "effect": "Central integration stage. Core block for pose, identity hints, body structure, multi-character relation, and global composition mixing. High value for structural or scenario transfer."
+      "effect": "Central integration stage. Core block for pose, identity hints, body structure, multi-character relation, and global composition mixing. High value for structural or scenario transfer. Anima 2.9B note: physical L12 corresponds to normal Anima L08 after the interleaved 28→40 expansion."
     },
     {
       "name": "L13",
-      "effect": "Central concept/style integration. Affects character identity support, expression support, body/face relationship, scene relation, and global composition. Can start to pull style if MLP is strong."
+      "effect": "Central concept/style integration. Affects character identity support, expression support, body/face relationship, scene relation, and global composition. Can start to pull style if MLP is strong. Anima 2.9B note: physical L13 corresponds to normal Anima L09 after the interleaved 28→40 expansion."
     },
     {
       "name": "L14",
-      "effect": "Central detail and structure routing. Useful for clothing/hair detail, hand/body structure, pose consistency, concept stability, and interaction geometry."
+      "effect": "Central detail and structure routing. Useful for clothing/hair detail, hand/body structure, pose consistency, concept stability, and interaction geometry. Anima 2.9B note: physical L14 is an inserted expansion layer copied from normal Anima L09; it does not represent normal Anima L14 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L15",
-      "effect": "Central-to-late integration. Bridges structural decisions into local detail and rendering texture. Useful for refined anatomy, expressions, and scenario relation while still carrying broad structure influence."
+      "effect": "Central-to-late integration. Bridges structural decisions into local detail and rendering texture. Useful for refined anatomy, expressions, and scenario relation while still carrying broad structure influence. Anima 2.9B note: physical L15 corresponds to normal Anima L10 after the interleaved 28→40 expansion."
     },
     {
       "name": "L16",
-      "effect": "Late-mid structure/rendering bridge. Strong for refined anatomy, hand/finger placement, facial layout, expression, pose stability, and the first visible style/detail formation."
+      "effect": "Late-mid structure/rendering bridge. Strong for refined anatomy, hand/finger placement, facial layout, expression, pose stability, and the first visible style/detail formation. Anima 2.9B note: physical L16 corresponds to normal Anima L11 after the interleaved 28→40 expansion."
     },
     {
       "name": "L17",
-      "effect": "Late-mid detail integration. Useful for face/body finish, hand/detail cleanup, clothing density, local consistency, and expression/style balance."
+      "effect": "Late-mid detail integration. Useful for face/body finish, hand/detail cleanup, clothing density, local consistency, and expression/style balance. Anima 2.9B note: physical L17 is an inserted expansion layer copied from normal Anima L11; it does not represent normal Anima L17 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L18",
-      "effect": "Late-mid rendering stage. Impacts lighting, detail clarity, texture, facial/hand finish, and local material separation while still carrying structure influence."
+      "effect": "Late-mid rendering stage. Impacts lighting, detail clarity, texture, facial/hand finish, and local material separation while still carrying structure influence. Anima 2.9B note: physical L18 corresponds to normal Anima L12 after the interleaved 28→40 expansion."
     },
     {
       "name": "L19",
-      "effect": "Late-mid to late transition. Consolidates local structure, expression, hand/body detail, and style/detail without overhauling early composition as much as later blocks."
+      "effect": "Late-mid to late transition. Consolidates local structure, expression, hand/body detail, and style/detail without overhauling early composition as much as later blocks. Anima 2.9B note: physical L19 corresponds to normal Anima L13 after the interleaved 28→40 expansion."
     },
     {
       "name": "L20",
-      "effect": "Late rendering stage. Strong impact on line quality, color response, lighting, texture, and finished style feel. Use cautiously when preserving the base style."
+      "effect": "Late rendering stage. Strong impact on line quality, color response, lighting, texture, and finished style feel. Use cautiously when preserving the base style. Anima 2.9B note: physical L20 corresponds to normal Anima L14 after the interleaved 28→40 expansion."
     },
     {
       "name": "L21",
-      "effect": "Late style/detail stage. Useful for painterly finish, hair/clothing texture, material separation, local polish, and style transfer."
+      "effect": "Late style/detail stage. Useful for painterly finish, hair/clothing texture, material separation, local polish, and style transfer. Anima 2.9B note: physical L21 is an inserted expansion layer copied from normal Anima L14; it does not represent normal Anima L21 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L22",
-      "effect": "Late facial/detail finish. Affects eyes/face finish, local texture, high-level style lock, small detail clarity, and rendering consistency."
+      "effect": "Late facial/detail finish. Affects eyes/face finish, local texture, high-level style lock, small detail clarity, and rendering consistency. Anima 2.9B note: physical L22 corresponds to normal Anima L15 after the interleaved 28→40 expansion."
     },
     {
       "name": "L23",
-      "effect": "Late image finish stage. Influences contrast, saturation tendency, detail sharpness, local rendering polish, and final visual density."
+      "effect": "Late image finish stage. Influences contrast, saturation tendency, detail sharpness, local rendering polish, and final visual density. Anima 2.9B note: physical L23 corresponds to normal Anima L16 after the interleaved 28→40 expansion."
     },
     {
       "name": "L24",
-      "effect": "Very late finish. Strong effect on final color feel, texture, line confidence, small detail reconstruction, and final style lock. Small values can visibly alter output."
+      "effect": "Very late finish. Strong effect on final color feel, texture, line confidence, small detail reconstruction, and final style lock. Small values can visibly alter output. Anima 2.9B note: physical L24 is an inserted expansion layer copied from normal Anima L16; it does not represent normal Anima L24 when the loaded checkpoint is 2.9B."
     },
     {
       "name": "L25",
-      "effect": "Very late rendering lock. Useful for final style transfer, lighting/contrast behavior, high-frequency detail, and output polish, but risky for base-style preservation."
+      "effect": "Very late rendering lock. Useful for final style transfer, lighting/contrast behavior, high-frequency detail, and output polish, but risky for base-style preservation. Anima 2.9B note: physical L25 corresponds to normal Anima L17 after the interleaved 28→40 expansion."
     },
     {
       "name": "L26",
-      "effect": "Very late detail and color lock. Strongly affects output polish, saturation/contrast, final local features, and texture finish. Prefer low strengths unless targeting final look."
+      "effect": "Very late detail and color lock. Strongly affects output polish, saturation/contrast, final local features, and texture finish. Prefer low strengths unless targeting final look. Anima 2.9B note: physical L26 corresponds to normal Anima L18 after the interleaved 28→40 expansion."
     },
     {
       "name": "L27",
-      "effect": "Final DiT block and output-head area. Strongest late-stage control over final look, color/contrast lock, texture finish, final_layer output behavior, and final latent projection. Very high impact and usually kept low/fixed for structural merges."
+      "effect": "Final DiT block and output-head area. Strongest late-stage control over final look, color/contrast lock, texture finish, final_layer output behavior, and final latent projection. Very high impact and usually kept low/fixed for structural merges. Anima 2.9B note: physical L27 is an inserted expansion layer copied from normal Anima L18; it does not represent normal Anima L27 when the loaded checkpoint is 2.9B."
+    },
+    {
+      "name": "L28",
+      "effect": "Anima 2.9B only physical index: L28 corresponds to normal Anima L19 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 19. In 2.9B this is physical layer L28; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L29",
+      "effect": "Anima 2.9B only physical index: L29 corresponds to normal Anima L20 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 20. In 2.9B this is physical layer L29; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L30",
+      "effect": "Anima 2.9B only: inserted physical transformer layer L30, copied from normal Anima L20 during 28→40 expansion and initialized with the designated residual output projections zeroed. This layer has no native 28-block Anima counterpart at index L30."
+    },
+    {
+      "name": "L31",
+      "effect": "Anima 2.9B only physical index: L31 corresponds to normal Anima L21 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 21. In 2.9B this is physical layer L31; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L32",
+      "effect": "Anima 2.9B only physical index: L32 corresponds to normal Anima L22 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 22. In 2.9B this is physical layer L32; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L33",
+      "effect": "Anima 2.9B only: inserted physical transformer layer L33, copied from normal Anima L22 during 28→40 expansion and initialized with the designated residual output projections zeroed. This layer has no native 28-block Anima counterpart at index L33."
+    },
+    {
+      "name": "L34",
+      "effect": "Anima 2.9B only physical index: L34 corresponds to normal Anima L23 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 23. In 2.9B this is physical layer L34; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L35",
+      "effect": "Anima 2.9B only physical index: L35 corresponds to normal Anima L24 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 24. In 2.9B this is physical layer L35; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L36",
+      "effect": "Anima 2.9B only: inserted physical transformer layer L36, copied from normal Anima L24 during 28→40 expansion and initialized with the designated residual output projections zeroed. This layer has no native 28-block Anima counterpart at index L36."
+    },
+    {
+      "name": "L37",
+      "effect": "Anima 2.9B only physical index: L37 corresponds to normal Anima L25 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 25. In 2.9B this is physical layer L37; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L38",
+      "effect": "Anima 2.9B only physical index: L38 corresponds to normal Anima L26 after the interleaved 28→40 expansion. Anima-family transformer block corresponding to original 28-block Anima block 26. In 2.9B this is physical layer L38; legacy 28-block weights are mapped here automatically."
+    },
+    {
+      "name": "L39",
+      "effect": "Anima 2.9B only physical index: L39 corresponds to normal Anima L27 after the interleaved 28→40 expansion. Final physical transformer block, corresponding to original Anima block 27, plus final_layer output head. Strong influence on final rendering, color/contrast, detail lock, and latent output projection."
     },
     {
       "name": "VAE",
@@ -756,6 +807,58 @@
         "finish",
         "projection"
       ]
+    },
+    {
+      "name": "pos_embedder.dim_spatial_range",
+      "effect": "Anima 2.9B candidate addition: spatial positional-range control present in the supplied 2.9B key set. It affects spatial coordinate scaling/geometry behavior and should be changed conservatively when preserving normal-Anima behavior.",
+      "aliases": [
+        "pos_embedder",
+        "position",
+        "positional",
+        "position_embedder",
+        "spatial",
+        "spatial_range",
+        "dim_spatial_range",
+        "rope",
+        "geometry",
+        "coordinates",
+        "anima_2.9b",
+        "2.9b_addition"
+      ]
+    },
+    {
+      "name": "pos_embedder.dim_temporal_range",
+      "effect": "Anima 2.9B candidate addition: temporal positional-range control present in the supplied 2.9B key set. For still-image merging it is a global/fragile positional-control element and is usually kept near the base.",
+      "aliases": [
+        "pos_embedder",
+        "position",
+        "positional",
+        "position_embedder",
+        "temporal",
+        "temporal_range",
+        "dim_temporal_range",
+        "rope",
+        "time_position",
+        "anima_2.9b",
+        "2.9b_addition"
+      ]
+    },
+    {
+      "name": "pos_embedder.seq",
+      "effect": "Anima 2.9B candidate addition: positional embedding sequence tensor present in the supplied 2.9B key set. It influences global spatial positional organization and is best treated as a conservative BASE-level element.",
+      "aliases": [
+        "pos_embedder",
+        "position",
+        "positional",
+        "position_embedder",
+        "seq",
+        "sequence",
+        "rope",
+        "spatial_order",
+        "geometry",
+        "anima_2.9b",
+        "2.9b_addition"
+      ]
     }
   ],
   "layer_elements": {
@@ -782,7 +885,10 @@
       "llm_adapter.blocks.*.self_attn.q_proj",
       "llm_adapter.blocks.*.self_attn.v_proj",
       "llm_adapter.norm",
-      "llm_adapter.out_proj"
+      "llm_adapter.out_proj",
+      "pos_embedder.dim_spatial_range",
+      "pos_embedder.dim_temporal_range",
+      "pos_embedder.seq"
     ],
     "L00": [
       "x_embedder.proj.1",
@@ -1404,11 +1510,282 @@
       "final_layer.adaln_modulation.2",
       "final_layer.linear"
     ],
-    "VAE": []
+    "VAE": [],
+    "L28": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L29": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L30": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L31": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L32": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L33": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L34": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L35": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L36": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L37": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L38": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj"
+    ],
+    "L39": [
+      "adaln_modulation_cross_attn.1",
+      "adaln_modulation_cross_attn.2",
+      "adaln_modulation_mlp.1",
+      "adaln_modulation_mlp.2",
+      "adaln_modulation_self_attn.1",
+      "adaln_modulation_self_attn.2",
+      "cross_attn.k_norm",
+      "cross_attn.k_proj",
+      "cross_attn.q_norm",
+      "cross_attn.q_proj",
+      "cross_attn.v_proj",
+      "cross_attn.output_proj",
+      "mlp.layer1",
+      "mlp.layer2",
+      "self_attn.k_norm",
+      "self_attn.k_proj",
+      "self_attn.q_norm",
+      "self_attn.q_proj",
+      "self_attn.v_proj",
+      "self_attn.output_proj",
+      "final_layer.adaln_modulation.1",
+      "final_layer.adaln_modulation.2",
+      "final_layer.linear"
+    ]
   },
   "mode_notes": {
     "Checkpoint": "Use these as guidance when designing Anima checkpoint merge elemental ratios. For SIM/AD-style merges, use alpha mainly as difference-injection amount and beta as a similarity/stability gate. L00-L07 bias input/early structure and coarse layout; L08-L15 are the safest core range for pose, scenario relation, prompt-structure binding, and multi-character composition; L16-L19 refine face, expression, hands, anatomy, clothing, and local structure; L20-L27 strongly influence final rendering, style, color, lighting, contrast, and detail lock. BASE/llm_adapter, t_embedder, x_embedder, and final_layer are high-impact global areas and should usually be fixed or used at very low strength unless intentionally changing conditioning or output-head behavior.",
     "LoRA": "For Anima LoRA bake, use narrow attention/MLP/AdaLN targets when preserving the base. self_attn is best for pose, layout, anatomy, and multi-character separation; cross_attn is best for prompt adherence, characters, clothing, objects, and scenario concepts; mlp is best for face/hand/clothing detail, texture, rendering density, color, and style; AdaLN modulation changes when/how strongly those paths act during denoising. Avoid or minimize llm_adapter unless the LoRA intentionally trains prompt-understanding/knowledge behavior. Late L20-L27 and final_layer targets strongly affect finish and color.",
     "LyCORIS": "LyCORIS can target the same logical elements. Per-layer validity matters: BASE contains timestep and adapter elements, L00-L27 contain DiT block elements, L00 additionally has x_embedder, and L27 additionally has final_layer elements. For base preservation, prefer central self_attn/cross_attn/AdaLN subsets over broad all-layer MLP or final_layer targeting. For style transfer, prefer L16-L27 MLP/AdaLN_MLP with cautious late-block strength."
+  },
+  "variant_notes": {
+    "Anima": "Primary/default candidate semantics are the normal 28-block Anima catalog. L00-L27 aliases/effects and Checkpoint/LoRA/LyCORIS applicability remain the baseline.",
+    "Anima 2.9B": "Compatibility extension of the same Anima base model. Physical blocks are expanded from 28 to 40 with insertions at L02, L05, L08, L11, L14, L17, L21, L24, L27, L30, L33, and L36. Items explicitly labeled “Anima 2.9B candidate addition” or “Anima 2.9B only” are additions to the normal-Anima candidate baseline."
   }
 }
