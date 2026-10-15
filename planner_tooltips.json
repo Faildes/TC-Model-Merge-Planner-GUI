@@ -23,8 +23,8 @@
     "no_metadata": "Save without metadata. This removes merge recipe/history information from the output file.",
     "prune": "Prune the output model while saving, usually removing unnecessary state.",
     "force": "Overwrite the output file if it already exists.",
-    "turbo": "Apply a turbo delta: model 1 is treated as the turbo model, model 2 as its base, and the turbo delta is applied to model 0.",
-    "deturbo": "Remove a turbo delta from model 0: model 1 is treated as the turbo model and model 2 as its base. Turbo and deturbo cannot be used together.",
+    "turbo": "Apply A + alpha * (B - C). Model 0 = target A; Model 1 = Turbo B; Model 2 = its original Base C. All three are required.",
+    "deturbo": "Apply A - alpha * (B - C), using the same Turbo/Base pair. This transfers a weight delta; it does not guarantee inference-quality recovery.",
     "seed": "Random seed for stochastic modes such as DARE. The planner only shows this field for modes that use stochastic behavior.",
     "rebasin": "ReBasin / weight matching iterations. Attempts to align permutable channels between related models before merging; increases runtime.",
     "vae": "Path of VAE to bake or use for VAE-related processing when VAE baking is enabled.",
@@ -70,7 +70,8 @@
     "Reset Options": "Reset this line's structured Options to their defaults. Unmapped legacy signatures are preserved so compatibility information is not silently lost.",
     "clipxor": "Runs the CLIPXOR text-encoder pass before the selected checkpoint merge mode. It can be combined with WS, DARE, NoIn, and other normal modes.",
     "save_component": "Saves only the listed checkpoint components. Use comma-separated values such as unet,clip, vae, transformer,text, clip-l, or clip-g.",
-    "save_precision": "Unified backend output-precision option. Use --save_precision fp16, bf16, fp8, int8, or fp32; accepted aliases are normalized to the canonical value before saving."
+    "save_precision": "Unified backend output-precision option. Use --save_precision fp16, bf16, fp8, int8, or fp32; accepted aliases are normalized to the canonical value before saving.",
+    "turbo_method": "delta: additive transfer with exact zero-strength preservation. legacy: reproduce the historical affine heuristic, including its conditioning correction; it is not an inverse."
   },
   "choices": {
     "Ratio Mode": {

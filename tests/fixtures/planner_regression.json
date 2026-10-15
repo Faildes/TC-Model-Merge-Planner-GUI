@@ -1,0 +1,5245 @@
+[
+  {
+    "input": null,
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {},
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": [],
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": []
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        null,
+        1,
+        "x"
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "Unknown",
+          "id": "unknown"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Unknown"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "FP16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "FP16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "bf16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"bf16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out @p bhalf\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "quarter",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "FP8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"fp8\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out @p quarter\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "INT8",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"int8\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out @p int8\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Checkpoint Merge",
+          "merge_mode": "WS",
+          "model0": "A",
+          "model1": "B",
+          "model2": "C",
+          "alpha": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "beta": {
+            "mode": "Single",
+            "value": "0.5"
+          },
+          "output_name": "out",
+          "precision": "full",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "m0_name": "",
+            "m1_name": "",
+            "m2_name": "",
+            "use_dif_10": false,
+            "use_dif_20": false,
+            "use_dif_21": false,
+            "cosine0": false,
+            "cosine1": false,
+            "cosine2": false,
+            "clipxor": false,
+            "keep_ema": false,
+            "delete_source": false,
+            "no_metadata": false,
+            "force": false,
+            "turbo": false,
+            "deturbo": false,
+            "seed": "",
+            "rebasin": "",
+            "memo": "",
+            "save_component": "",
+            "fine": "",
+            "fine_sat": "",
+            "cfg_sens": "",
+            "cfg_sens_targets": "",
+            "sat_boost": "",
+            "sat_boost_side": "alpha",
+            "sat_boost_tags": "",
+            "sat_profile": "legacy",
+            "sat_delta_cap_pct": "",
+            "sat_boost_mix": "",
+            "boost_clamp": "auto",
+            "vae_sat": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "WS",
+            "model0": "A",
+            "model1": "B",
+            "model2": "C",
+            "alpha": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "FP32",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": false,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | Checkpoint Merge | out\")\nbeta = True\ncmd = [sys.executable, \"merge.py\", \"WS\", models_dir + \"/\", model_file(\"A\"), model_file(\"B\")]\nif True:\n        cmd.append(model_file(\"C\"))\nif vae_path:\n        cmd += [\"--vae\", vae_path]\ncmd += ratio_args(\"alpha\", {\"mode\": \"Single\", \"value\": \"0.5\"})\nif beta:\n        cmd += ratio_args(\"beta\", {\"mode\": \"Single\", \"value\": \"0.5\"})\ncmd += [\"--save_precision\", \"fp32\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += []\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "CM A + B 0.5 out @p fp32\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "FP16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "bf16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "quarter",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "INT8",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Bake",
+          "checkpoint": "",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "full",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "dare": false,
+            "keep_ema": false,
+            "no_metadata": false,
+            "memo": "",
+            "bake_clip_scale": "",
+            "bake_unet_only": false,
+            "bake_norm": "sqrt",
+            "bake_scale": "",
+            "bake_rank_cap": "",
+            "bake_clamp_q": "",
+            "bake_delta_cap": "",
+            "bake_fp32": false,
+            "bake_guard": "auto",
+            "bake_guard_cap": "",
+            "bake_guard_skip": "",
+            "bake_budget_report": false,
+            "anima_lora_source": "auto",
+            "anima_inserted": "original",
+            "anima_inserted_scale": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP32",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "FP16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "bf16",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "quarter",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "INT8",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "LoRA Merge",
+          "loras": [
+            {
+              "name": "artist",
+              "ratio": "1.0",
+              "_source": {
+                "kind": "local",
+                "path": "a.safetensors"
+              }
+            }
+          ],
+          "output_name": "",
+          "precision": "full",
+          "additional_signatures": "",
+          "raw_signatures": "",
+          "cli_options": {
+            "merge_rank": "64",
+            "merge_arch": "auto",
+            "merge_norm": "none",
+            "merge_scale": "",
+            "merge_unet_only": false,
+            "merge_clamp_q": "",
+            "merge_intermediate_mult": "",
+            "no_metadata": false,
+            "memo": ""
+          },
+          "architecture": "",
+          "unmapped_signatures": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "artist",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1.0"
+                },
+                "_source": {
+                  "kind": "local",
+                  "path": "a.safetensors"
+                }
+              }
+            ],
+            "output_name": "",
+            "precision": "FP32",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": "FP16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": "FP16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": "bf16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": "bf16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": "quarter"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": "quarter"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": "INT8"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": "INT8"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Download Model",
+          "model_name": "",
+          "link": "",
+          "model_type": "Checkpoint",
+          "precision": "full"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Download Model",
+            "model_name": "",
+            "link": "",
+            "model_type": "Checkpoint",
+            "precision": "full"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": "FP16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": "FP16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": "bf16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": "bf16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": "quarter"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": "quarter"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": "INT8"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": "INT8"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Local Model",
+          "local_path": "",
+          "model_name": "",
+          "model_type": "Checkpoint",
+          "precision": "full"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Local Model",
+            "local_path": "",
+            "model_name": "",
+            "model_type": "Checkpoint",
+            "precision": "full"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": ""
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": ""
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": "FP16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": "FP16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": "bf16"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": "bf16"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": "quarter"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": "quarter"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": "INT8"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": "INT8"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "id": "stable",
+          "type": "Remove Model",
+          "model": "",
+          "precision": "full"
+        }
+      ],
+      "runtime": {
+        "workpath": "/kaggle"
+      },
+      "variants": [
+        {
+          "name": "test"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Remove Model",
+            "model": "",
+            "precision": "full"
+          }
+        ],
+        "meta": {},
+        "variants": [
+          {
+            "name": "test"
+          }
+        ],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3,
+        "runtime": {
+          "workpath": "/kaggle"
+        }
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "Checkpoint Merge",
+          "raw_signatures": "@p bhalf @seed 42",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "NoIn",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Elemental",
+              "value": "0,L00-L27:mlp:0.6"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": true,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "42",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": 1
+              }
+            ]
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Bake",
+          "raw_signatures": "@p bhalf @seed 42",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@seed 42",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Bake | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", model_file(\"A\"), \",\".join(lora_items)]\ncmd += [\"--save_precision\", \"bf16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--seed 42\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LB A L:1 out @p bhalf @seed 42\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Merge",
+          "raw_signatures": "@p bhalf @seed 42",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "BF16",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@seed 42",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6",
+            "checkpoint": "A"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Merge | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", \"\", \",\".join(lora_items), \"--merge_loras\"]\ncmd += [\"--save_precision\", \"bf16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--seed 42\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"lora\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LM L:1 out @p bhalf @seed 42\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "Checkpoint Merge",
+          "raw_signatures": "--save-precision int8 --anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "NoIn",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Elemental",
+              "value": "0,L00-L27:mlp:0.6"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": true,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "--anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": 1
+              }
+            ]
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Bake",
+          "raw_signatures": "--save-precision int8 --anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "28",
+              "anima_inserted": "expanded",
+              "anima_inserted_scale": "0.3"
+            },
+            "architecture": "",
+            "unmapped_signatures": "",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Bake | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", model_file(\"A\"), \",\".join(lora_items)]\ncmd += [\"--save_precision\", \"int8\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LB A L:1 out @anima_lora_source 28 @anima_inserted expanded @anima_inserted_scale 0.3 @p int8\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Merge",
+          "raw_signatures": "--save-precision int8 --anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "INT8",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "--anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6",
+            "checkpoint": "A"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Merge | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", \"\", \",\".join(lora_items), \"--merge_loras\"]\ncmd += [\"--save_precision\", \"int8\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"lora\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LM L:1 out @p int8 --anima_lora_source 28 --anima_inserted expanded --anima_inserted_scale 0.3\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "Checkpoint Merge",
+          "raw_signatures": "@r 0.0,1.0 --fine 0,0,0 --m0_name abc",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "NoIn",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Elemental",
+              "value": "0,L00-L27:mlp:0.6"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "abc",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": true,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "0,0,0",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@r 0.0,1.0",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": 1
+              }
+            ]
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Bake",
+          "raw_signatures": "@r 0.0,1.0 --fine 0,0,0 --m0_name abc",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@r 0.0,1.0 --fine 0,0,0 --m0_name abc",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Bake | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", model_file(\"A\"), \",\".join(lora_items)]\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--r 0.0,1.0 --fine 0,0,0 --m0_name abc\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LB A L:1 out @r 0.0,1.0 --fine 0,0,0 --m0_name abc\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Merge",
+          "raw_signatures": "@r 0.0,1.0 --fine 0,0,0 --m0_name abc",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@r 0.0,1.0 --fine 0,0,0 --m0_name abc",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6",
+            "checkpoint": "A"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Merge | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", \"\", \",\".join(lora_items), \"--merge_loras\"]\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--r 0.0,1.0 --fine 0,0,0 --m0_name abc\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"lora\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LM L:1 out @r 0.0,1.0 --fine 0,0,0 --m0_name abc\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "Checkpoint Merge",
+          "raw_signatures": "@unknown hello",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "Checkpoint Merge",
+            "merge_mode": "NoIn",
+            "model0": "",
+            "model1": "",
+            "model2": "",
+            "alpha": {
+              "mode": "Elemental",
+              "value": "0,L00-L27:mlp:0.6"
+            },
+            "beta": {
+              "mode": "Single",
+              "value": "0.5"
+            },
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "m0_name": "",
+              "m1_name": "",
+              "m2_name": "",
+              "use_dif_10": false,
+              "use_dif_20": false,
+              "use_dif_21": false,
+              "cosine0": false,
+              "cosine1": false,
+              "cosine2": false,
+              "clipxor": true,
+              "keep_ema": false,
+              "delete_source": false,
+              "no_metadata": false,
+              "force": false,
+              "turbo": false,
+              "deturbo": false,
+              "seed": "",
+              "rebasin": "",
+              "memo": "",
+              "save_component": "",
+              "fine": "",
+              "fine_sat": "",
+              "cfg_sens": "",
+              "cfg_sens_targets": "",
+              "sat_boost": "",
+              "sat_boost_side": "alpha",
+              "sat_boost_tags": "",
+              "sat_profile": "legacy",
+              "sat_delta_cap_pct": "",
+              "sat_boost_mix": "",
+              "boost_clamp": "auto",
+              "vae_sat": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@unknown hello",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": 1
+              }
+            ]
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        null
+      ]
+    ],
+    "text": [
+      "ok",
+      ""
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Bake",
+          "raw_signatures": "@unknown hello",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Bake",
+            "checkpoint": "A",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "dare": false,
+              "keep_ema": false,
+              "no_metadata": false,
+              "memo": "",
+              "bake_clip_scale": "",
+              "bake_unet_only": false,
+              "bake_norm": "sqrt",
+              "bake_scale": "",
+              "bake_rank_cap": "",
+              "bake_clamp_q": "",
+              "bake_delta_cap": "",
+              "bake_fp32": false,
+              "bake_guard": "auto",
+              "bake_guard_cap": "",
+              "bake_guard_skip": "",
+              "bake_budget_report": false,
+              "anima_lora_source": "auto",
+              "anima_inserted": "original",
+              "anima_inserted_scale": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@unknown hello",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Bake | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", model_file(\"A\"), \",\".join(lora_items)]\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--unknown hello\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"checkpoint\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LB A L:1 out @unknown hello\n"
+    ]
+  },
+  {
+    "input": {
+      "entries": [
+        {
+          "type": "LoRA Merge",
+          "raw_signatures": "@unknown hello",
+          "merge_mode": "CLIPXOR",
+          "alpha": "0,L00-L27:mlp:0.6",
+          "checkpoint": "A",
+          "loras": [
+            {
+              "name": "L",
+              "ratio": 1
+            }
+          ],
+          "output_name": "out"
+        }
+      ]
+    },
+    "normalized": [
+      "ok",
+      {
+        "version": 2,
+        "format": "planner-json",
+        "final_memo": "",
+        "history": [],
+        "entries": [
+          {
+            "type": "LoRA Merge",
+            "loras": [
+              {
+                "name": "L",
+                "ratio": {
+                  "mode": "Single",
+                  "value": "1"
+                }
+              }
+            ],
+            "output_name": "out",
+            "precision": "",
+            "additional_signatures": "",
+            "raw_signatures": "",
+            "cli_options": {
+              "merge_rank": "64",
+              "merge_arch": "Auto",
+              "merge_norm": "none",
+              "merge_scale": "",
+              "merge_unet_only": false,
+              "merge_clamp_q": "",
+              "merge_intermediate_mult": "",
+              "no_metadata": false,
+              "memo": ""
+            },
+            "architecture": "",
+            "unmapped_signatures": "@unknown hello",
+            "merge_mode": "CLIPXOR",
+            "alpha": "0,L00-L27:mlp:0.6",
+            "checkpoint": "A"
+          }
+        ],
+        "meta": {},
+        "variants": [],
+        "run_profiles": [],
+        "current_variant": "",
+        "schema_version": 3
+      }
+    ],
+    "compiled": [
+      "ok",
+      [
+        [
+          "print(\"[planner-progress] 1/1 | LoRA Merge | out\")\nlora_items = []\nlora_items.append(f\"{model_file('L')}:\" + \"1\")\ncmd = [sys.executable, \"lora_bake.py\", models_dir + \"/\", \"\", \",\".join(lora_items), \"--merge_loras\"]\ncmd += [\"--save_precision\", \"fp16\", \"--prune\", \"--save_safetensors\"]\ncmd += [\"--output\", \"out\"]\ncmd += shlex.split(\"--unknown hello\")\nrun_cmd(cmd, cwd=merge_repo_dir, check_path=True, path=os.path.join(models_dir, \"out.safetensors\"), ignore_meta=True)\nregister_model(\"out\", os.path.join(models_dir, \"out.safetensors\"), \"lora\", source_kind=\"generated\")\nflush()\nrelease_models_after_step([], reason=\"last-use after step 1\")",
+          "print('[planner-progress] cleanup | final runtime cleanup')\n_prune_dead_hash_cache()\n_prune_orphan_registry_dirs(aggressive=False)\nflush(light=False)"
+        ],
+        "out"
+      ]
+    ],
+    "text": [
+      "ok",
+      "LM L:1 out @unknown hello\n"
+    ]
+  }
+]

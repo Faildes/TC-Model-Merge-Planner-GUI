@@ -1,4 +1,4 @@
-# TC Model Merge Planner GUI
+# Model Merge Planner
 
 A Tkinter-based planner UI for building, validating, exporting, and running model merge workflows.
 It is designed to sit on top of **Chattiori-Model-Merger** and gives you a visual editor for checkpoint merges, LoRA bake steps, download/local model registration, notebook generation, execution monitoring, and optional Hugging Face upload.
@@ -9,21 +9,17 @@ It is designed to sit on top of **Chattiori-Model-Merger** and gives you a visua
 
 - **Plan Creator UI** for editing merge workflows line by line.
 - **Structured plan editing** with support for:
-  - Checkpoint Merge
-  - LoRA Bake
-  - LoRA Merge
-
-  The below functions is integrated to the system automatically
   - Download Model
   - Local Model
   - Remove Model
+  - Checkpoint Merge
+  - LoRA Bake
 - **Base model switching** for multiple families:
-  - Stable Diffusion 1.5
-  - Stable Diffusion XL
+  - SD1.5
+  - SDXL
   - Flux
-  - Z-Image
-  - Anima (Anima 2.9B as well)
-  - Krea2
+  - ZImage
+  - Anima
 - **Ratio modes**:
   - Single
   - Block weight
@@ -106,8 +102,8 @@ This project uses **Tkinter**. On some Linux distributions, you may need to inst
 ### 1. Clone this repository
 
 ```bash
-git clone https://github.com/Faildes/TC-Model-Merge-Planner-GUI
-cd TC-Model-Merge-Planner-GUI
+git clone <your-repo-url>
+cd <your-repo-folder>
 ```
 
 ### 2. Install planner dependencies and backend merger
@@ -210,7 +206,32 @@ The planner includes these main actions:
 
 Each plan line has a **Model Merge Type**. The current implementation supports five line types.
 
-#### 1. Checkpoint Merge
+#### 1. Download Model
+Register a remote source for later use.
+
+Fields:
+- Model Name
+- Link
+- Type (`Checkpoint`, `LoRA`, `LyCORIS`)
+
+Use this when a model should be fetched during notebook execution.
+
+#### 2. Local Model
+Register a model that already exists on disk.
+
+Fields:
+- Local Selection
+- Local Path
+- Type
+
+Use this when the file already exists locally and should simply be referenced by later steps.
+
+#### 3. Remove Model
+Remove a previously registered alias from later plan choices.
+
+Use this to keep later selections clean or intentionally invalidate older aliases.
+
+#### 4. Checkpoint Merge
 Create a merge step using one of the available merge modes.
 
 Fields include:
@@ -223,21 +244,12 @@ Fields include:
 - Output Name
 - Additional Signatures
 
-#### 2. LoRA Bake
+#### 5. LoRA Bake
 Bake one or more LoRAs / LyCORIS models into a checkpoint.
 
 Fields include:
 - Checkpoint
 - one or more LoRA blocks
-- per-LoRA ratio
-- Output Name
-- Additional Signatures
-
-#### 3. LoRA Merge
-Merge two or more LoRAs / LyCORIS models into a LoRA / LyCORIS.
-
-Fields include:
-- two or more LoRA blocks
 - per-LoRA ratio
 - Output Name
 - Additional Signatures
@@ -267,11 +279,7 @@ Free-form elemental text such as layer / element / strength style expressions.
 The planner also includes popup assistance for elemental editing and resolves candidate JSON files per base model, for example:
 
 - `elemental_candidates_sdxl.json`
-- `elemental_candidates_anima.json`
-- `elemental_candidates_zimage.json`
-- `elemental_candidates_sd15.json`
 - `elemental_candidates_flux.json`
-- `elemental_candidates_krea2.json`
 
 Example style:
 
@@ -350,7 +358,7 @@ Below is a minimal example plan:
 +BaseModel, https://example.com/base-model
 +PoseDonor, https://example.com/pose-model
 +HandsLoRA, https://example.com/hands-lora, %LR
-CM BaseModel + PoseDonor 0.20 PoseMixed
+CM BaseModel + PoseDonor 0.20 PoseMixed @mode WS
 LB PoseMixed HandsLoRA:0.75 FinalOutput
 ```
 
@@ -491,3 +499,17 @@ This project also relies on or integrates with:
 
 ### Planner implementation
 - Planner UI / structured plan workflow / notebook wrapper: this repository
+
+If you publish this repository, consider adding explicit links to the backend repository and any third-party libraries you want to acknowledge directly.
+
+---
+
+## Notes
+
+- This README documents the planner behavior based on the current included files.
+- If you extend the planner with more patches or backend-specific behavior, update the sections on merge modes, runtime dependencies, and legacy syntax examples accordingly.
+- If you want, you can also split this README into separate docs later, for example:
+  - `docs/setup.md`
+  - `docs/plan-format.md`
+  - `docs/troubleshooting.md`
+

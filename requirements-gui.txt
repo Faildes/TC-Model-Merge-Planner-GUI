@@ -1,0 +1,5 @@
+# tkinter is supplied by Python / the operating system.
+nbformat
+ipython
+huggingface_hub
+pillow
